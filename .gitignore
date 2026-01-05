@@ -36,3 +36,8 @@ go.work.sum
 static-blog-technical-proposal.md
 
 bin/
+
+_posts/
+public/
+
+.DS_Store

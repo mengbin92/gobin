@@ -1,0 +1,57 @@
+{{ define "listMain" }}
+<div class="post-list">
+    <h1 class="page-title">{{ .Title }}</h1>
+
+    {{ range .Posts }}
+    <article class="post-item">
+        <header class="post-header">
+            <h2 class="post-title">
+                <a href="{{ .URL }}">{{ .Title }}</a>
+            </h2>
+            <div class="post-meta">
+                <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "2006-01-02" }}</time>
+                {{ if .Tags }}
+                <span class="post-tags">
+                    {{ range .Tags }}
+                    <span class="tag">#{{ . }}</span>
+                    {{ end }}
+                </span>
+                {{ end }}
+            </div>
+        </header>
+        <div class="post-excerpt">
+            {{ if .SummaryHTML }}
+                {{ safeHTML .SummaryHTML }}
+            {{ else }}
+                {{ .Summary }}
+            {{ end }}
+        </div>
+        <footer class="post-footer">
+            <a href="{{ .URL }}" class="read-more">Read more →</a>
+        </footer>
+    </article>
+    {{ else }}
+    <p class="no-posts">No posts found.</p>
+    {{ end }}
+</div>
+{{ end }}
+
+{{ define "listPage" }}
+<!DOCTYPE html>
+<html lang="{{ if .Site.LanguageCode }}{{ .Site.LanguageCode }}{{ else }}zh-CN{{ end }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ if .Title }}{{ .Title }} - {{ end }}{{ .Site.Title }}</title>
+    <meta name="description" content="{{ .Site.Description }}">
+    <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+    {{ template "header" . }}
+    <main>
+        {{ template "listMain" . }}
+    </main>
+    {{ template "footer" . }}
+</body>
+</html>
+{{ end }}

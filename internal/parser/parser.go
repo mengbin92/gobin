@@ -1,0 +1,203 @@
+package parser
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/yuin/goldmark"
+	"gopkg.in/yaml.v3"
+)
+
+// Post represents a blog post
+type Post struct {
+	// Front matter fields
+	Title       string    `yaml:"title"`
+	Date        time.Time `yaml:"date"`
+	LastMod     time.Time `yaml:"lastmod"`
+	Draft       bool      `yaml:"draft"`
+	Published   bool      `yaml:"published"`
+	Description string    `yaml:"description"`
+	Tags        []string  `yaml:"tags"`
+	Categories  []string  `yaml:"categories"`
+	Keywords    []string  `yaml:"keywords"`
+	Slug        string    `yaml:"slug"`
+	Aliases     []string  `yaml:"aliases"`
+	Weight      int       `yaml:"weight"`
+	Layout      string    `yaml:"layout"`
+
+	// Internal fields
+	FilePath      string      `yaml:"-"`
+	Content       string      `yaml:"-"`
+	ContentHTML   string      `yaml:"-"`
+	WordCount     int         `yaml:"-"`
+	ReadingTime   int         `yaml:"-"`
+	Summary       string      `yaml:"-"`
+	SummaryHTML   string      `yaml:"-"`
+	URL           string      `yaml:"-"`
+	Section       string      `yaml:"-"`
+	Params        map[string]interface{} `yaml:"-"`
+}
+
+// ParsePosts parses all markdown posts from a directory
+func ParsePosts(dir string) ([]*Post, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read directory %s: %w", dir, err)
+	}
+
+	var posts []*Post
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+
+		path := filepath.Join(dir, entry.Name())
+		post, err := ParsePost(path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse %s: %w", path, err)
+		}
+
+		if post != nil {
+			posts = append(posts, post)
+		}
+	}
+
+	return posts, nil
+}
+
+// ParsePost parses a single markdown post file
+func ParsePost(path string) (*Post, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// Split front matter and content
+	frontMatter, markdownContent, err := splitFrontMatter(string(content))
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse front matter
+	var post Post
+	if err := yaml.Unmarshal([]byte(frontMatter), &post); err != nil {
+		return nil, fmt.Errorf("failed to parse front matter: %w", err)
+	}
+
+	post.FilePath = path
+	post.Content = strings.TrimSpace(markdownContent)
+
+	// Generate slug from filename if not specified
+	if post.Slug == "" {
+		post.Slug = strings.TrimSuffix(filepath.Base(path), ".md")
+		// Remove date prefix if present (2023-01-01-)
+		if len(post.Slug) > 11 && post.Slug[10] == '-' {
+			post.Slug = post.Slug[11:]
+		}
+	}
+
+	// Generate URL based on slug
+	post.URL = "/" + post.Slug + "/"
+
+	// Render markdown to HTML
+	md := goldmark.New()
+	var buf strings.Builder
+	if err := md.Convert([]byte(markdownContent), &buf); err != nil {
+		return nil, fmt.Errorf("failed to render markdown: %w", err)
+	}
+	post.ContentHTML = buf.String()
+
+	// Calculate word count and reading time
+	post.WordCount = wordCount(markdownContent)
+	post.ReadingTime = (post.WordCount + 200) / 250 // ~250 words per minute
+
+	// Generate summary (first paragraph or first 200 chars)
+	post.Summary = generateSummary(markdownContent)
+	post.SummaryHTML = generateSummaryHTML(post.ContentHTML)
+
+	// Set defaults
+	if post.Layout == "" {
+		post.Layout = "post"
+	}
+
+	return &post, nil
+}
+
+// splitFrontMatter separates YAML front matter from markdown content
+func splitFrontMatter(content string) (string, string, error) {
+	lines := strings.Split(content, "\n")
+
+	// Check for opening front matter delimiter
+	if len(lines) < 3 || strings.TrimSpace(lines[0]) != "---" {
+		return "", content, fmt.Errorf("missing front matter delimiter")
+	}
+
+	var frontMatterLines []string
+	var markdownStart int
+
+	for i := 1; i < len(lines); i++ {
+		if strings.TrimSpace(lines[i]) == "---" {
+			markdownStart = i + 1
+			break
+		}
+		frontMatterLines = append(frontMatterLines, lines[i])
+	}
+
+	if markdownStart == 0 {
+		return "", content, fmt.Errorf("missing closing front matter delimiter")
+	}
+
+	return strings.Join(frontMatterLines, "\n"), strings.Join(lines[markdownStart:], "\n"), nil
+}
+
+// wordCount counts words in a string
+func wordCount(s string) int {
+	words := strings.Fields(s)
+	return len(words)
+}
+
+// generateSummary generates a summary from the first paragraph
+func generateSummary(content string) string {
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			if len(line) > 200 {
+				return line[:200] + "..."
+			}
+			return line
+		}
+	}
+	return ""
+}
+
+// generateSummaryHTML generates HTML summary from first paragraph
+func generateSummaryHTML(htmlContent string) string {
+	// Simple HTML tag stripping for summary
+	// In a real implementation, use proper HTML parsing
+	text := strings.TrimSpace(htmlContent)
+	if text == "" {
+		return ""
+	}
+
+	// Get first paragraph
+	idx := strings.Index(text, "</p>")
+	if idx > 0 {
+		return text[:idx+4]
+	}
+
+	// If no paragraph tag, truncate at reasonable length
+	if len(text) > 200 {
+		return text[:200] + "..."
+	}
+	return text
+}

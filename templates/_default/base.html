@@ -1,0 +1,21 @@
+{{ define "base" }}
+<!DOCTYPE html>
+<html lang="{{ if .Site.LanguageCode }}{{ .Site.LanguageCode }}{{ else }}zh-CN{{ end }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ if .Title }}{{ .Title }} - {{ end }}{{ .Site.Title }}</title>
+    <meta name="description" content="{{ if .Description }}{{ .Description }}{{ else }}{{ .Site.Description }}{{ end }}">
+    <link rel="stylesheet" href="/assets/css/main.css">
+</head>
+<body>
+    {{ template "header" . }}
+
+    <main>
+        {{ template "main" . }}
+    </main>
+
+    {{ template "footer" . }}
+</body>
+</html>
+{{ end }}

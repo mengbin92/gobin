@@ -1,0 +1,33 @@
+{{ define "footer" }}
+<footer class="site-footer">
+    <div class="footer-content">
+        <p>&copy; 2026 {{ .Site.Author }}. All rights reserved.</p>
+        {{ if .Site.Social }}
+        <div class="social-links">
+            {{ range $key, $value := .Site.Social }}
+            {{ if $value }}
+            <a href="{{ $value }}" target="_blank" rel="noopener">{{ $key }}</a>
+            {{ end }}
+            {{ end }}
+        </div>
+        {{ end }}
+    </div>
+</footer>
+{{ end }}
+
+{{ define "footerNested" }}
+<footer class="site-footer">
+    <div class="footer-content">
+        <p>&copy; 2026 {{ .Site.Author }}. All rights reserved.</p>
+        {{ if .Site.Social }}
+        <div class="social-links">
+            {{ range $key, $value := .Site.Social }}
+            {{ if $value }}
+            <a href="{{ $value }}" target="_blank" rel="noopener">{{ $key }}</a>
+            {{ end }}
+            {{ end }}
+        </div>
+        {{ end }}
+    </div>
+</footer>
+{{ end }}

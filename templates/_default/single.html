@@ -1,0 +1,59 @@
+{{ define "singleMain" }}
+<article class="post-single">
+    <header class="post-header">
+        <h1 class="post-title">{{ .Post.Title }}</h1>
+        <div class="post-meta">
+            <time datetime="{{ .Post.Date.Format "2006-01-02" }}">{{ .Post.Date.Format "2006-01-02" }}</time>
+            <span class="reading-time">{{ .Post.ReadingTime }} min read</span>
+            {{ if .Post.Tags }}
+            <span class="post-tags">
+                {{ range .Post.Tags }}
+                <span class="tag">#{{ . }}</span>
+                {{ end }}
+            </span>
+            {{ end }}
+        </div>
+    </header>
+
+    {{ if .Post.Description }}
+    <div class="post-description">
+        {{ .Post.Description }}
+    </div>
+    {{ end }}
+
+    <div class="post-content">
+        {{ safeHTML .Post.ContentHTML }}
+    </div>
+
+    <footer class="post-footer">
+        {{ if .Post.Categories }}
+        <div class="post-categories">
+            <span>Categories:</span>
+            {{ range .Post.Categories }}
+            <span class="category">{{ . }}</span>
+            {{ end }}
+        </div>
+        {{ end }}
+    </footer>
+</article>
+{{ end }}
+
+{{ define "singlePage" }}
+<!DOCTYPE html>
+<html lang="{{ if .Site.LanguageCode }}{{ .Site.LanguageCode }}{{ else }}zh-CN{{ end }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ .Post.Title }} - {{ .Site.Title }}</title>
+    <meta name="description" content="{{ .Post.Description }}">
+    <link rel="stylesheet" href="../css/main.css">
+</head>
+<body>
+    {{ template "headerNested" . }}
+    <main>
+        {{ template "singleMain" . }}
+    </main>
+    {{ template "footerNested" . }}
+</body>
+</html>
+{{ end }}

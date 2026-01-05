@@ -1,0 +1,46 @@
+# Blog Configuration
+title: 孟斯特的个人博客
+description: 专注于区块链技术、Go语言开发、Web应用架构
+author: 孟斯特
+languageCode: zh-CN
+baseURL: https://mengbin92.github.io
+
+# Directory configuration
+contentDir: _posts
+staticDir: assets
+publishDir: public
+themesDir: themes
+
+# Pagination
+paginate: 10
+paginatePath: page
+
+# Permalink configuration
+permalinks:
+  posts: /:year-:month-:day-:title/
+
+# Navigation links
+navbarLinks:
+  - name: 博客
+    url: /
+  - name: 分类
+    url: /categories/
+  - name: 标签
+    url: /tags/
+  - name: 关于
+    url: /about/
+
+# Social media links
+social:
+  email: mailto:mengbin1992@outlook.com
+  github: https://github.com/mengbin92
+
+# Feature flags
+enableEmoji: true
+enableGitInfo: true
+enableRobotsTXT: true
+
+# Extended parameters
+params:
+  author: 孟斯特
+  dateFormat: "2006-01-02"
