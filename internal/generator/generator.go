@@ -109,6 +109,9 @@ func loadTemplates() (*template.Template, error) {
 		"dateFormat": func(layout string, t time.Time) string {
 			return t.Format(layout)
 		},
+		"now": func() time.Time {
+			return time.Now()
+		},
 	}
 
 	tmpl := template.New("").Funcs(funcMap)
