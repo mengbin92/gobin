@@ -1,0 +1,419 @@
+# Gobin - 高性能静态博客生成器
+
+Gobin 是一个基于 Go 语言开发的静态博客网站生成器，专为追求极致性能和高定制性的博客作者设计。它完全兼容 Jekyll 博客结构，让您能够无缝迁移现有博客，同时享受更快的构建速度和更灵活的定制能力。
+
+## 项目背景
+
+本项目旨在将现有的 Jekyll 博客（使用 Beautiful Jekyll 主题）迁移到一个自研的静态网站生成器上。通过使用 Go 语言重写，我们期望达到以下目标：
+
+- **极速构建**：相比 Jekyll，构建速度提升 10-100 倍
+- **零依赖部署**：单二进制文件，无需运行时环境
+- **完全兼容**：保持现有 Markdown 文件结构和 Front Matter 格式
+- **灵活定制**：强大的模板系统和配置选项
+
+## 核心特性
+
+### 🚀 性能优势
+- **编译型语言**：Go 语言带来极致性能
+- **并行处理**：利用多核 CPU 加速构建
+- **增量构建**：智能检测变更，只构建修改的文件
+- **低内存占用**：高效处理大规模站点
+
+### 📦 Jekyll 兼容性
+- ✅ 完全兼容 `_posts/` 目录结构
+- ✅ 支持标准 YAML Front Matter 格式
+- ✅ 保持 URL 结构不变，避免 SEO 影响
+- ✅ 支持 Jekyll 风格的 Permalink 配置
+
+### 🎨 现代化功能
+- **响应式设计**：内置移动端优化主题
+- **代码高亮**：支持 200+ 编程语言，多种主题可选
+- **全文搜索**：前端 Lunr.js 或 Fuse.js 搜索
+- **SEO 优化**：自动生成 Sitemap、RSS、Open Graph 标签
+- **评论集成**：支持 Disqus、Gitalk、Utterances 等多种评论系统
+
+### ⚙️ 灵活配置
+- **多平台部署**：支持 GitHub Pages、Vercel、Netlify 等
+- **主题系统**：可自定义主题或复用现有主题
+- **短代码支持**：自定义内容块扩展
+- **多语言站点**：支持国际化和本地化
+
+## 技术栈
+
+- **后端生成器**：Go 1.21+
+- **Markdown 渲染**：[goldmark](https://github.com/yuin/goldmark)
+- **代码高亮**：[Chroma](https://github.com/alecthomas/chroma) / Prism.js
+- **模板引擎**：Go `html/template`
+- **CLI 框架**：[cobra](https://github.com/spf13/cobra)
+- **CSS 框架**：Tailwind CSS（可选）
+
+## 快速开始
+
+### 安装
+
+```bash
+# 从源码安装（推荐）
+git clone https://github.com/mengbin92/gobin.git
+cd gobin
+go build -o blog ./cmd/blog
+
+# 或直接安装（待发布）
+go install github.com/mengbin92/gobin@latest
+```
+
+### 创建新站点
+
+```bash
+# 初始化新博客
+blog init my-blog
+cd my-blog
+
+# 目录结构
+my-blog/
+├── _posts/           # 博客文章
+├── assets/           # 静态资源
+├── templates/        # 页面模板
+├── config.yaml       # 配置文件
+└── public/           # 构建输出（自动生成）
+```
+
+### 创建第一篇文章
+
+```bash
+# 创建新文章
+blog new post "我的第一篇文章"
+
+# 编辑生成的文件：_posts/2026-01-04-我的第一篇文章.md
+```
+
+文章格式：
+```markdown
+---
+title: "我的第一篇文章"
+date: 2026-01-04T10:00:00+08:00
+description: "这是我的博客第一篇文章"
+tags: ["博客", "教程"]
+categories: ["生活"]
+draft: false
+---
+
+# 文章内容
+
+## 开始写作
+
+从这里开始你的写作之旅...
+```
+
+### 本地预览
+
+```bash
+# 启动开发服务器
+blog serve
+
+# 或指定端口
+blog serve -p 8080
+
+# 启用文件监听和自动刷新
+blog serve --watch
+```
+
+访问 http://localhost:8080 查看你的博客。
+
+### 构建站点
+
+```bash
+# 构建静态文件
+blog build
+
+# 包含草稿文章
+blog build --drafts
+
+# 压缩输出
+blog build --minify
+
+# 指定输出目录
+blog build -o ./public
+```
+
+## 配置说明
+
+### 主配置文件（config.yaml）
+
+```yaml
+# 网站基本信息
+title: 我的个人博客
+description: 专注于技术分享和生活记录
+theme: default
+languageCode: zh-CN
+baseURL: https://example.github.io
+
+# 目录配置
+contentDir: _posts
+staticDir: assets
+publishDir: public
+
+# 分页配置
+paginate: 10
+paginatePath: page
+
+# Permalink 配置
+permalinks:
+  posts: /:year-:month-:day-:title/
+
+# 导航链接
+navbarLinks:
+  - name: 首页
+    url: /
+  - name: 分类
+    url: /categories/
+  - name: 标签
+    url: /tags/
+  - name: 关于
+    url: /about/
+
+# 社交媒体
+social:
+  github: your-github-username
+  email: your-email@example.com
+
+# 功能开关
+enableEmoji: true
+enableGitInfo: true
+enableRobotsTXT: true
+
+# 评论系统（可选）
+comments:
+  enabled: false
+  provider: utterances
+  utterances:
+    repo: "username/repo"
+    theme: "github-light"
+
+# 代码高亮
+markup:
+  highlight:
+    style: github
+    lineNos: true
+```
+
+## 项目结构
+
+```
+gobin/
+├── cmd/
+│   └── blog/           # CLI 入口
+├── pkg/
+│   ├── config/         # 配置管理
+│   ├── content/        # 内容解析
+│   ├── renderer/       # 渲染引擎
+│   ├── template/       # 模板处理
+│   ├── builder/        # 构建逻辑
+│   └── server/         # 开发服务器
+├── templates/          # 默认模板
+├── assets/             # 默认静态资源
+├── themes/             # 主题目录
+├── docs/               # 文档
+├── examples/           # 示例站点
+└── scripts/            # 迁移和工具脚本
+```
+
+## CLI 命令参考
+
+| 命令 | 说明 | 示例 |
+|------|------|------|
+| `blog init [name]` | 初始化新站点 | `blog init myblog` |
+| `blog build` | 构建静态站点 | `blog build --minify` |
+| `blog serve` | 启动开发服务器 | `blog serve -p 8080` |
+| `blog new post [title]` | 创建新文章 | `blog new post "Hello World"` |
+| `blog new page [title]` | 创建新页面 | `blog new page "About"` |
+| `blog check` | 检查配置和文章 | `blog check` |
+| `blog version` | 显示版本信息 | `blog version` |
+| `blog help` | 显示帮助信息 | `blog help` |
+
+## 从 Jekyll 迁移
+
+### 迁移步骤
+
+```bash
+# 1. 备份现有 Jekyll 博客
+git clone https://github.com/username/username.github.io.git blog-backup
+
+# 2. 创建新站点
+blog init my-new-blog
+cd my-new-blog
+
+# 3. 复制内容
+cp -r ../blog-backup/_posts ./
+cp -r ../blog-backup/assets ./
+
+# 4. 转换配置（使用转换脚本）
+./scripts/convert-jekyll-config.py ../blog-backup/_config.yml > config.yaml
+
+# 5. 构建测试
+blog build
+blog serve
+
+# 6. 验证内容
+# - 检查文章列表
+# - 验证文章详情页
+# - 测试标签和分类
+# - 检查永久链接
+```
+
+### 兼容性问题处理
+
+#### URL 重定向
+如需保持旧 URL 可访问，在文章 Front Matter 中添加：
+
+```yaml
+---
+title: "旧文章标题"
+aliases:
+  - /old-url/
+  - /another-old-url/
+---
+```
+
+#### 模板语法转换
+
+| Jekyll Liquid | Go Template |
+|--------------|-------------|
+| `{{ page.title }}` | `{{ .Title }}` |
+| `{% for post in paginator.posts %}` | `{{ range .Paginator.Pages }}` |
+| `{% if page.tags %}` | `{{ with .Tags }}` |
+| `{{ post.excerpt }}` | `{{ .Summary }}` |
+| `{{ site.baseurl }}` | `{{ .Site.BaseURL }}` |
+
+## 部署方案
+
+### GitHub Pages 部署
+
+使用 GitHub Actions 自动化部署：
+
+```yaml
+# .github/workflows/deploy.yml
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v5
+      with:
+        go-version: '1.21'
+    - run: go install github.com/mengbin92/gobin@latest
+    - run: blog build --minify
+    - uses: actions/upload-pages-artifact@v2
+      with:
+        path: ./public
+    - uses: actions/deploy-pages@v2
+```
+
+### Vercel 部署
+
+```json
+// vercel.json
+{
+  "buildCommand": "blog build --minify",
+  "outputDirectory": "public",
+  "framework": null,
+  "cleanUrls": true
+}
+```
+
+### Netlify 部署
+
+```toml
+# netlify.toml
+[build]
+  command = "blog build --minify"
+  publish = "public"
+
+[build.environment]
+  GO_VERSION = "1.21"
+```
+
+## 性能指标
+
+### 构建性能
+- ✅ 100 篇文章：构建时间 < 2 秒
+- ✅ 1000 篇文章：构建时间 < 10 秒
+- ✅ 内存占用：每 1000 篇文章 < 500MB
+
+### 输出优化
+- ✅ HTML 大小：平均每篇文章 < 50KB（未压缩）
+- ✅ 加载时间：首次内容绘制 < 1 秒（CDN）
+- ✅ SEO 得分：Google PageSpeed > 95 分
+
+## 开发计划
+
+### 第一阶段：核心功能（1-2周）
+- [x] 项目基础架构搭建
+- [x] CLI 命令行接口
+- [x] 内容解析器（Front Matter + Markdown）
+- [ ] HTML 模板引擎集成
+- [ ] 基础站点生成逻辑
+- [ ] 单篇文章和列表页面生成
+
+### 第二阶段：进阶功能（2-3周）
+- [ ] 标签和分类系统
+- [ ] 分页功能实现
+- [ ] RSS/Atom Feed 生成
+- [ ] Sitemap.xml 生成
+- [ ] 搜索索引生成
+- [ ] 开发服务器（热重载）
+
+### 第三阶段：功能完善（2周）
+- [ ] 主题系统实现
+- [ ] 多语言支持
+- [ ] SEO 优化功能
+- [ ] 评论系统集成
+- [ ] 分析工具集成
+- [ ] 图片优化功能
+
+### 第四阶段：测试与优化（1-2周）
+- [ ] 单元测试编写
+- [ ] 集成测试
+- [ ] 性能优化
+- [ ] 文档完善
+- [ ] 示例站点创建
+- [ ] 发布 v1.0 版本
+
+## 贡献指南
+
+欢迎贡献代码、提出问题或建议！
+
+1. Fork 本仓库
+2. 创建特性分支（`git checkout -b feature/AmazingFeature`）
+3. 提交更改（`git commit -m 'Add some AmazingFeature'`）
+4. 推送到分支（`git push origin feature/AmazingFeature`）
+5. 开启 Pull Request
+
+## 许可证
+
+本项目采用 MIT 许可证。详见 [LICENSE](LICENSE) 文件。
+
+## 参考资源
+
+- [Hugo](https://gohugo.io/) - 另一个流行的 Go 静态网站生成器
+- [Zola](https://getzola.org/) - Rust 编写的静态博客生成器
+- [Jekyll](https://jekyllrb.com/) - Ruby 静态网站生成器
+- [Beautiful Jekyll](https://beautifuljekyll.com/) - 当前 Jekyll 主题
+
+## 联系方式
+
+- **作者**：孟斯特
+- **邮箱**：mengbin1992@outlook.com
+- **GitHub**：[@mengbin92](https://github.com/mengbin92)
+
+---
+
+**注意**：本项目目前处于开发阶段，部分功能可能尚未实现。查看 [开发计划](#开发计划) 了解当前进度。
