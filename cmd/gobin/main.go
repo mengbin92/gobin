@@ -30,4 +30,5 @@ func init() {
 	rootCmd.AddCommand(commands.BuildCmd)
 	rootCmd.AddCommand(commands.VersionCmd)
 	rootCmd.AddCommand(commands.InitCmd)
+	rootCmd.AddCommand(commands.ServeCmd)
 }

@@ -22,6 +22,17 @@ type SiteData struct {
 	Content   interface{}
 }
 
+// Pagination represents pagination information for templates
+type Pagination struct {
+	Page        int
+	TotalPages  int
+	TotalPosts  int
+	PrevPage    int
+	NextPage    int
+	IsFirstPage bool
+	IsLastPage  bool
+}
+
 // Generate generates the static site
 func Generate(posts []*parser.Post, cfg *config.Config, outputDir string) error {
 	// Sort posts by date (newest first)
@@ -40,7 +51,7 @@ func Generate(posts []*parser.Post, cfg *config.Config, outputDir string) error 
 		return err
 	}
 
-	// Generate index page (list of all posts)
+	// Generate index page (list of all posts with pagination)
 	if err := generateIndex(posts, cfg, outputDir, tmpl); err != nil {
 		return err
 	}
@@ -50,6 +61,27 @@ func Generate(posts []*parser.Post, cfg *config.Config, outputDir string) error 
 		if err := generatePost(post, cfg, outputDir, tmpl); err != nil {
 			return err
 		}
+	}
+
+	// Generate taxonomy pages (tags and categories)
+	tags, categories, err := generateTaxonomyPages(posts, cfg, outputDir, tmpl)
+	if err != nil {
+		return err
+	}
+
+	// Generate RSS and Atom feeds
+	if err := GenerateFeeds(posts, cfg, outputDir); err != nil {
+		return err
+	}
+
+	// Generate sitemap
+	if err := GenerateSitemap(posts, cfg, outputDir, tags, categories); err != nil {
+		return err
+	}
+
+	// Generate search indexes
+	if err := GenerateSearch(posts, cfg, outputDir); err != nil {
+		return err
 	}
 
 	// Copy static assets
@@ -65,18 +97,63 @@ func generateIndex(posts []*parser.Post, cfg *config.Config, outputDir string, t
 	// Apply pagination
 	paginatedPosts := paginate(posts, cfg.Paginate)
 
-	// Generate first page as index.html
-	data := struct {
-		Site      *config.Config
-		Posts     []*parser.Post
-		Title     string
-	}{
-		Site:  cfg,
-		Posts: paginatedPosts[0],
-		Title: cfg.Title,
+	// Generate pagination pages
+	for i, pagePosts := range paginatedPosts {
+		pageNum := i + 1
+		isFirstPage := pageNum == 1
+		isLastPage := pageNum == len(paginatedPosts)
+
+		// Prepare pagination data
+		paginationData := Pagination{
+			Page:        pageNum,
+			TotalPages:  len(paginatedPosts),
+			TotalPosts:  len(posts),
+			PrevPage:    0,
+			NextPage:    0,
+			IsFirstPage: isFirstPage,
+			IsLastPage:  isLastPage,
+		}
+
+		if !isFirstPage {
+			paginationData.PrevPage = pageNum - 1
+		}
+		if !isLastPage {
+			paginationData.NextPage = pageNum + 1
+		}
+
+		// Prepare data for template
+		data := struct {
+			Site       *config.Config
+			Posts      []*parser.Post
+			Title      string
+			Pagination Pagination
+		}{
+			Site:       cfg,
+			Posts:      pagePosts,
+			Title:      cfg.Title,
+			Pagination: paginationData,
+		}
+
+		// Generate file path
+		var filePath string
+		if isFirstPage {
+			filePath = filepath.Join(outputDir, "index.html")
+		} else {
+			// Create page/ directory for pagination
+			pageDir := filepath.Join(outputDir, cfg.PaginatePath, fmt.Sprintf("%d", pageNum))
+			if err := os.MkdirAll(pageDir, 0755); err != nil {
+				return err
+			}
+			filePath = filepath.Join(pageDir, "index.html")
+		}
+
+		// Render template
+		if err := renderTemplate(tmpl, "listPage", filePath, data); err != nil {
+			return err
+		}
 	}
 
-	return renderTemplate(tmpl, "listPage", filepath.Join(outputDir, "index.html"), data)
+	return nil
 }
 
 // generatePost generates a single post page
@@ -112,18 +189,14 @@ func loadTemplates() (*template.Template, error) {
 		"now": func() time.Time {
 			return time.Now()
 		},
+		"urlize": urlize,
 	}
 
 	tmpl := template.New("").Funcs(funcMap)
 
-	// Parse base template first
-	baseTmpl, err := tmpl.ParseFiles("templates/_default/base.html")
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse base.html: %w", err)
-	}
-
-	// Parse other templates
-	baseTmpl, err = baseTmpl.ParseFiles(
+	// Parse templates that are self-contained (list.html, single.html, etc.)
+	// We don't use base.html anymore as templates define their own full HTML structure
+	tmpl, err := tmpl.ParseFiles(
 		"templates/_default/list.html",
 		"templates/_default/single.html",
 		"templates/_default/404.html",
@@ -134,7 +207,7 @@ func loadTemplates() (*template.Template, error) {
 		return nil, fmt.Errorf("failed to parse templates: %w", err)
 	}
 
-	return baseTmpl, nil
+	return tmpl, nil
 }
 
 // renderTemplate renders a template to a file
@@ -216,4 +289,327 @@ func copyFile(src, dst string) error {
 
 	_, err = dstFile.ReadFrom(srcFile)
 	return err
+}
+
+// generateTaxonomyPages generates tag and category pages
+func generateTaxonomyPages(posts []*parser.Post, cfg *config.Config, outputDir string, tmpl *template.Template) ([]string, []string, error) {
+	// Collect all tags and categories
+	tagMap := make(map[string][]*parser.Post)
+	categoryMap := make(map[string][]*parser.Post)
+
+	for _, post := range posts {
+		// Collect tags
+		for _, tag := range post.Tags {
+			tag = strings.ToLower(tag)
+			tagMap[tag] = append(tagMap[tag], post)
+		}
+
+		// Collect categories
+		for _, category := range post.Categories {
+			category = strings.ToLower(category)
+			categoryMap[category] = append(categoryMap[category], post)
+		}
+	}
+
+	// Generate tag pages
+	if err := generateTagPages(tagMap, cfg, outputDir, tmpl); err != nil {
+		return nil, nil, err
+	}
+
+	// Generate category pages
+	if err := generateCategoryPages(categoryMap, cfg, outputDir, tmpl); err != nil {
+		return nil, nil, err
+	}
+
+	// Extract tag and category lists
+	var tags []string
+	for tag := range tagMap {
+		tags = append(tags, tag)
+	}
+
+	var categories []string
+	for category := range categoryMap {
+		categories = append(categories, category)
+	}
+
+	return tags, categories, nil
+}
+
+// TagPageData represents data for tag pages
+type TagPageData struct {
+	Tag        string
+	Posts      []*parser.Post
+	Site       *config.Config
+	Title      string
+}
+
+// generateTagPages generates individual tag pages and tag index
+func generateTagPages(tagMap map[string][]*parser.Post, cfg *config.Config, outputDir string, tmpl *template.Template) error {
+	// Generate tag index page (/tags/)
+	tagsDir := filepath.Join(outputDir, "tags")
+	if err := os.MkdirAll(tagsDir, 0755); err != nil {
+		return err
+	}
+
+	// Sort tags alphabetically
+	var tags []string
+	for tag := range tagMap {
+		tags = append(tags, tag)
+	}
+	sort.Strings(tags)
+
+	// For tag index, we'll create a simple HTML file directly since it has different structure
+	tagIndexPath := filepath.Join(tagsDir, "index.html")
+	f, err := os.Create(tagIndexPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// Write simple tag index HTML
+	tagIndexHTML := fmt.Sprintf(`<!DOCTYPE html>
+<html lang="%s">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tags - %s</title>
+    <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+    <header>
+        <h1>All Tags</h1>
+    </header>
+    <main>
+        <ul class="tag-list">
+`, cfg.LanguageCode, cfg.Title)
+
+	for _, tag := range tags {
+		tagIndexHTML += fmt.Sprintf(`            <li><a href="/tags/%s/">%s</a></li>
+`, urlize(tag), tag)
+	}
+
+	tagIndexHTML += `        </ul>
+    </main>
+</body>
+</html>`
+
+	if _, err := f.WriteString(tagIndexHTML); err != nil {
+		return err
+	}
+
+	// Generate individual tag pages
+	for tag, posts := range tagMap {
+		// Sort posts by date (newest first)
+		sort.Slice(posts, func(i, j int) bool {
+			return posts[i].Date.After(posts[j].Date)
+		})
+
+		// Create tag directory
+		tagDir := filepath.Join(outputDir, "tags", urlize(tag))
+		if err := os.MkdirAll(tagDir, 0755); err != nil {
+			return err
+		}
+
+		// For individual tag pages, create simple HTML with list of posts
+		tagPagePath := filepath.Join(tagDir, "index.html")
+		f, err := os.Create(tagPagePath)
+		if err != nil {
+			return err
+		}
+
+		pageHTML := fmt.Sprintf(`<!DOCTYPE html>
+<html lang="%s">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tag: %s - %s</title>
+    <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+    <header>
+        <h1>Tag: %s</h1>
+        <p><a href="/tags/">← All Tags</a></p>
+    </header>
+    <main>
+        <div class="post-list">
+`, cfg.LanguageCode, tag, cfg.Title, tag)
+
+		for _, post := range posts {
+			pageHTML += fmt.Sprintf(`            <article class="post-item">
+                <h2><a href="%s">%s</a></h2>
+                <div class="post-meta">
+                    <time>%s</time>
+                </div>
+                <div class="post-summary">%s</div>
+            </article>
+`, post.URL, post.Title, post.Date.Format("2006-01-02"), post.Summary)
+		}
+
+		pageHTML += `        </div>
+    </main>
+</body>
+</html>`
+
+		if _, err := f.WriteString(pageHTML); err != nil {
+			f.Close()
+			return err
+		}
+		f.Close()
+	}
+
+	return nil
+}
+
+// generateCategoryPages generates individual category pages and category index
+func generateCategoryPages(categoryMap map[string][]*parser.Post, cfg *config.Config, outputDir string, tmpl *template.Template) error {
+	// Generate category index page (/categories/)
+	categoriesDir := filepath.Join(outputDir, "categories")
+	if err := os.MkdirAll(categoriesDir, 0755); err != nil {
+		return err
+	}
+
+	// Sort categories alphabetically
+	var categories []string
+	for category := range categoryMap {
+		categories = append(categories, category)
+	}
+	sort.Strings(categories)
+
+	// For category index, we'll create a simple HTML file directly
+	categoryIndexPath := filepath.Join(categoriesDir, "index.html")
+	f, err := os.Create(categoryIndexPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// Write simple category index HTML
+	categoryIndexHTML := fmt.Sprintf(`<!DOCTYPE html>
+<html lang="%s">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Categories - %s</title>
+    <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+    <header>
+        <h1>All Categories</h1>
+    </header>
+    <main>
+        <ul class="category-list">
+`, cfg.LanguageCode, cfg.Title)
+
+	for _, category := range categories {
+		categoryIndexHTML += fmt.Sprintf(`            <li><a href="/categories/%s/">%s</a></li>
+`, urlize(category), category)
+	}
+
+	categoryIndexHTML += `        </ul>
+    </main>
+</body>
+</html>`
+
+	if _, err := f.WriteString(categoryIndexHTML); err != nil {
+		return err
+	}
+
+	// Generate individual category pages
+	for category, posts := range categoryMap {
+		// Sort posts by date (newest first)
+		sort.Slice(posts, func(i, j int) bool {
+			return posts[i].Date.After(posts[j].Date)
+		})
+
+		// Create category directory
+		categoryDir := filepath.Join(outputDir, "categories", urlize(category))
+		if err := os.MkdirAll(categoryDir, 0755); err != nil {
+			return err
+		}
+
+		// For individual category pages, create simple HTML with list of posts
+		categoryPagePath := filepath.Join(categoryDir, "index.html")
+		f, err := os.Create(categoryPagePath)
+		if err != nil {
+			return err
+		}
+
+		pageHTML := fmt.Sprintf(`<!DOCTYPE html>
+<html lang="%s">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Category: %s - %s</title>
+    <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+    <header>
+        <h1>Category: %s</h1>
+        <p><a href="/categories/">← All Categories</a></p>
+    </header>
+    <main>
+        <div class="post-list">
+`, cfg.LanguageCode, category, cfg.Title, category)
+
+		for _, post := range posts {
+			pageHTML += fmt.Sprintf(`            <article class="post-item">
+                <h2><a href="%s">%s</a></h2>
+                <div class="post-meta">
+                    <time>%s</time>
+                </div>
+                <div class="post-summary">%s</div>
+            </article>
+`, post.URL, post.Title, post.Date.Format("2006-01-02"), post.Summary)
+		}
+
+		pageHTML += `        </div>
+    </main>
+</body>
+</html>`
+
+		if _, err := f.WriteString(pageHTML); err != nil {
+			f.Close()
+			return err
+		}
+		f.Close()
+	}
+
+	return nil
+}
+
+// urlize converts a string to URL-friendly format
+func urlize(s string) string {
+	s = strings.ToLower(s)
+	s = strings.ReplaceAll(s, " ", "-")
+	s = strings.ReplaceAll(s, "_", "-")
+
+	// Keep alphanumeric, Chinese characters, and dashes
+	var result strings.Builder
+	for _, r := range s {
+		// Keep ASCII alphanumeric, dash, and Chinese characters
+		if (r >= 'a' && r <= 'z') ||
+			(r >= '0' && r <= '9') ||
+			r == '-' ||
+			(r >= 0x4e00 && r <= 0x9fff) || // CJK Unified Ideographs
+			(r >= 0x3400 && r <= 0x4dbf) || // CJK Extension A
+			(r >= 0x20000 && r <= 0x2a6df) { // CJK Extension B
+			result.WriteRune(r)
+		}
+	}
+
+	// Remove consecutive dashes
+	url := result.String()
+	for strings.Contains(url, "--") {
+		url = strings.ReplaceAll(url, "--", "-")
+	}
+
+	// Remove leading/trailing dashes
+	url = strings.Trim(url, "-")
+
+	// If resulting URL is empty, use a fallback
+	if url == "" {
+		return "untitled"
+	}
+
+	return url
 }

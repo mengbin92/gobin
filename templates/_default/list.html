@@ -13,7 +13,7 @@
                 {{ if .Tags }}
                 <span class="post-tags">
                     {{ range .Tags }}
-                    <span class="tag">#{{ . }}</span>
+                    <a href="/tags/{{ . | urlize }}/" class="tag">#{{ . }}</a>
                     {{ end }}
                 </span>
                 {{ end }}
@@ -32,6 +32,27 @@
     </article>
     {{ else }}
     <p class="no-posts">No posts found.</p>
+    {{ end }}
+
+    {{ if .Pagination }}
+    <nav class="pagination">
+        <div class="pagination-info">
+            Page {{ .Pagination.Page }} of {{ .Pagination.TotalPages }}
+        </div>
+        <div class="pagination-links">
+            {{ if and (gt .Pagination.PrevPage 0) (not .Pagination.IsFirstPage) }}
+                {{ if eq .Pagination.PrevPage 1 }}
+                <a href="/" class="pagination-prev">← Newer</a>
+                {{ else }}
+                <a href="/{{ $.Site.PaginatePath }}/{{ .Pagination.PrevPage }}/" class="pagination-prev">← Newer</a>
+                {{ end }}
+            {{ end }}
+
+            {{ if and (gt .Pagination.NextPage 0) (not .Pagination.IsLastPage) }}
+            <a href="/{{ $.Site.PaginatePath }}/{{ .Pagination.NextPage }}/" class="pagination-next">Older →</a>
+            {{ end }}
+        </div>
+    </nav>
     {{ end }}
 </div>
 {{ end }}
