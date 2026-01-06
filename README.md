@@ -55,17 +55,17 @@ Gobin 是一个基于 Go 语言开发的静态博客网站生成器，专为追�
 # 从源码安装（推荐）
 git clone https://github.com/mengbin92/gobin.git
 cd gobin
-go build -o blog ./cmd/blog
+go build -o gobin ./cmd/gobin
 
-# 或直接安装（待发布）
-go install github.com/mengbin92/gobin@latest
+# 使用 Go install 安装
+go install github.com/mengbin92/gobin/cmd/gobin@latest
 ```
 
 ### 创建新站点
 
 ```bash
 # 初始化新博客
-blog init my-blog
+gobin init my-blog
 cd my-blog
 
 # 目录结构
@@ -81,7 +81,7 @@ my-blog/
 
 ```bash
 # 创建新文章
-blog new post "我的第一篇文章"
+gobin new post "我的第一篇文章"
 
 # 编辑生成的文件：_posts/2026-01-04-我的第一篇文章.md
 ```
@@ -108,13 +108,13 @@ draft: false
 
 ```bash
 # 启动开发服务器
-blog serve
+gobin serve
 
 # 或指定端口
-blog serve -p 8080
+gobin serve -p 8080
 
 # 启用文件监听和自动刷新
-blog serve --watch
+gobin serve --watch
 ```
 
 访问 http://localhost:8080 查看你的博客。
@@ -123,16 +123,16 @@ blog serve --watch
 
 ```bash
 # 构建静态文件
-blog build
+gobin build
 
 # 包含草稿文章
-blog build --drafts
+gobin build --drafts
 
 # 压缩输出
-blog build --minify
+gobin build --minify
 
 # 指定输出目录
-blog build -o ./public
+gobin build -o ./public
 ```
 
 ## 配置说明
@@ -201,7 +201,7 @@ markup:
 ```
 gobin/
 ├── cmd/
-│   └── blog/           # CLI 入口
+│   └── gobin/          # CLI 入口
 ├── pkg/
 │   ├── config/         # 配置管理
 │   ├── content/        # 内容解析
@@ -221,14 +221,14 @@ gobin/
 
 | 命令 | 说明 | 示例 |
 |------|------|------|
-| `blog init [name]` | 初始化新站点 | `blog init myblog` |
-| `blog build` | 构建静态站点 | `blog build --minify` |
-| `blog serve` | 启动开发服务器 | `blog serve -p 8080` |
-| `blog new post [title]` | 创建新文章 | `blog new post "Hello World"` |
-| `blog new page [title]` | 创建新页面 | `blog new page "About"` |
-| `blog check` | 检查配置和文章 | `blog check` |
-| `blog version` | 显示版本信息 | `blog version` |
-| `blog help` | 显示帮助信息 | `blog help` |
+| `gobin init [name]` | 初始化新站点 | `gobin init myblog` |
+| `gobin build` | 构建静态站点 | `gobin build --minify` |
+| `gobin serve` | 启动开发服务器 | `gobin serve -p 8080` |
+| `gobin new post [title]` | 创建新文章 | `gobin new post "Hello World"` |
+| `gobin new page [title]` | 创建新页面 | `gobin new page "About"` |
+| `gobin check` | 检查配置和文章 | `gobin check` |
+| `gobin version` | 显示版本信息 | `gobin version` |
+| `gobin help` | 显示帮助信息 | `gobin help` |
 
 ## 从 Jekyll 迁移
 
@@ -239,7 +239,7 @@ gobin/
 git clone https://github.com/username/username.github.io.git blog-backup
 
 # 2. 创建新站点
-blog init my-new-blog
+gobin init my-new-blog
 cd my-new-blog
 
 # 3. 复制内容
@@ -250,8 +250,8 @@ cp -r ../blog-backup/assets ./
 ./scripts/convert-jekyll-config.py ../blog-backup/_config.yml > config.yaml
 
 # 5. 构建测试
-blog build
-blog serve
+gobin build
+gobin serve
 
 # 6. 验证内容
 # - 检查文章列表
@@ -309,8 +309,8 @@ jobs:
     - uses: actions/setup-go@v5
       with:
         go-version: '1.21'
-    - run: go install github.com/mengbin92/gobin@latest
-    - run: blog build --minify
+    - run: go install github.com/mengbin92/gobin/cmd/gobin@latest
+    - run: gobin build --minify
     - uses: actions/upload-pages-artifact@v2
       with:
         path: ./public
@@ -322,7 +322,7 @@ jobs:
 ```json
 // vercel.json
 {
-  "buildCommand": "blog build --minify",
+  "buildCommand": "gobin build --minify",
   "outputDirectory": "public",
   "framework": null,
   "cleanUrls": true
@@ -334,7 +334,7 @@ jobs:
 ```toml
 # netlify.toml
 [build]
-  command = "blog build --minify"
+  command = "gobin build --minify"
   publish = "public"
 
 [build.environment]
