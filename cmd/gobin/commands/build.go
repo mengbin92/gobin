@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mengbin92/blog/internal/config"
-	"github.com/mengbin92/blog/internal/generator"
-	"github.com/mengbin92/blog/internal/parser"
+	"github.com/mengbin92/gobin/internal/config"
+	"github.com/mengbin92/gobin/internal/generator"
+	"github.com/mengbin92/gobin/internal/parser"
 	"github.com/spf13/cobra"
 )
 

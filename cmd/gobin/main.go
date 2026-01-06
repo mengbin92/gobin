@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mengbin92/blog/cmd/blog/commands"
+	"github.com/mengbin92/gobin/cmd/gobin/commands"
 	"github.com/spf13/cobra"
 )
 
@@ -16,7 +16,7 @@ func main() {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "blog",
+	Use:   "gobin",
 	Short: "Blog Static Site Generator",
 	Long: `A fast and flexible static site generator for blogs.
 Supports markdown posts, customizable themes, and static asset management.`,

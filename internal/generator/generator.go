@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mengbin92/blog/internal/config"
-	"github.com/mengbin92/blog/internal/parser"
+	"github.com/mengbin92/gobin/internal/config"
+	"github.com/mengbin92/gobin/internal/parser"
 )
 
 // SiteData represents data passed to templates
