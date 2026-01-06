@@ -5,11 +5,14 @@ author: 孟斯特
 languageCode: zh-CN
 baseURL: https://mengbin92.github.io
 
+# Theme configuration
+theme: "example"
+themesDir: themes
+
 # Directory configuration
 contentDir: _posts
 staticDir: assets
 publishDir: public
-themesDir: themes
 
 # Pagination
 paginate: 10
@@ -39,6 +42,27 @@ social:
 enableEmoji: true
 enableGitInfo: true
 enableRobotsTXT: true
+
+# SEO configuration (optional, default is enabled)
+seo:
+  enabled: true
+  openGraph: true
+  twitterCard: true
+  image: "/images/seo-cover.jpg"
+
+# Comments system configuration (optional, enable if needed)
+# comments:
+#   enabled: true
+#   provider: "utterances"  # Options: disqus, gitalk, utterances
+#   utterances:
+#     repo: "mengbin92/blog-comments"
+#     theme: "github-light"
+
+# Analytics configuration (optional, enable if needed)
+# analytics:
+#   provider: "google"  # Options: google, baidu, matomo
+#   google:
+#     trackingID: "G-XXXXXXXXXX"
 
 # Extended parameters
 params:

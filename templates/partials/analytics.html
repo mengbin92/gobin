@@ -1,0 +1,47 @@
+{{ define "analytics" }}
+{{ if .Site.Analytics }}
+{{ if eq .Site.Analytics.Provider "google" }}{{ if .Site.Analytics.Google }}
+<!-- Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id={{ .Site.Analytics.Google.TrackingID }}"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', '{{ .Site.Analytics.Google.TrackingID }}');
+</script>
+<!-- End Google Analytics -->
+{{ end }}{{ end }}
+
+{{ else if eq .Site.Analytics.Provider "baidu" }}{{ if .Site.Analytics.Baidu }}
+<!-- Baidu Analytics -->
+<script>
+  var _hmt = _hmt || [];
+  (function() {
+    var hm = document.createElement("script");
+    hm.src = "https://hm.baidu.com/hm.js?{{ .Site.Analytics.Baidu.TrackingID }}";
+    var s = document.getElementsByTagName("script")[0];
+    s.parentNode.insertBefore(hm, s);
+  })();
+</script>
+<!-- End Baidu Analytics -->
+{{ end }}{{ end }}
+
+{{ else if eq .Site.Analytics.Provider "matomo" }}{{ if .Site.Analytics.Matomo }}
+<!-- Matomo Analytics -->
+<script>
+  var _paq = window._paq = window._paq || [];
+  _paq.push(['trackPageView']);
+  _paq.push(['enableLinkTracking']);
+  (function() {
+    var u = "{{ .Site.Analytics.Matomo.URL }}/";
+    _paq.push(['setTrackerUrl', u + '{{ .Site.Analytics.Matomo.TrackerURL | default "matomo.php" }}']);
+    _paq.push(['setSiteId', '{{ .Site.Analytics.Matomo.SiteID }}']);
+    var d = document, g = d.createElement('script'), s = d.getElementsByTagName('script')[0];
+    g.async = true; g.src = u + '{{ .Site.Analytics.Matomo.TrackerURL | default "matomo.php" }}';
+    s.parentNode.insertBefore(g, s);
+  })();
+</script>
+<!-- End Matomo Analytics -->
+{{ end }}{{ end }}
+{{ end }}
+{{ end }}

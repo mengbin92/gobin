@@ -1,7 +1,7 @@
 {{ define "footer" }}
 <footer class="site-footer">
     <div class="footer-content">
-        <p>&copy; 2026 {{ .Site.Author }}. All rights reserved.</p>
+        <p>&copy; 2026 {{ .Site.Author }}. 使用 Example Theme • 基于 Gobin 构建</p>
         {{ if .Site.Social }}
         <div class="social-links">
             {{ range $key, $value := .Site.Social }}
@@ -13,13 +13,12 @@
         {{ end }}
     </div>
 </footer>
-{{ template "analytics" . }}
 {{ end }}
 
 {{ define "footerNested" }}
 <footer class="site-footer">
     <div class="footer-content">
-        <p>&copy; 2026 {{ .Site.Author }}. All rights reserved.</p>
+        <p>&copy; 2026 {{ .Site.Author }}. 使用 Example Theme • 基于 Gobin 构建</p>
         {{ if .Site.Social }}
         <div class="social-links">
             {{ range $key, $value := .Site.Social }}
@@ -31,5 +30,4 @@
         {{ end }}
     </div>
 </footer>
-{{ template "analytics" . }}
 {{ end }}

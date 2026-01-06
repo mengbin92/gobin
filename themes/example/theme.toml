@@ -1,0 +1,6 @@
+name = "Example"
+description = "An example theme for Gobin"
+version = "0.1.0"
+author = "Your Name"
+homepage = "https://example.com"
+license = "MIT"

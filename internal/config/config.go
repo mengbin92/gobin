@@ -21,6 +21,9 @@ type Config struct {
 	PublishDir      string            `yaml:"publishDir"`
 	ThemesDir       string            `yaml:"themesDir"`
 
+	// Theme configuration
+	Theme           string            `yaml:"theme"`
+
 	// Pagination
 	Paginate        int               `yaml:"paginate"`
 	PaginatePath    string            `yaml:"paginatePath"`
@@ -39,8 +42,82 @@ type Config struct {
 	EnableGitInfo   bool              `yaml:"enableGitInfo"`
 	EnableRobotsTXT bool              `yaml:"enableRobotsTXT"`
 
+	// SEO configuration
+	SEO             *SEOConfig        `yaml:"seo"`
+
+	// Comments configuration
+	Comments        *CommentsConfig   `yaml:"comments"`
+
+	// Analytics configuration
+	Analytics       *AnalyticsConfig  `yaml:"analytics"`
+
 	// Extended parameters
 	Params          map[string]interface{} `yaml:"params"`
+}
+
+// SEOConfig represents SEO configuration
+type SEOConfig struct {
+	Enabled         bool              `yaml:"enabled"`
+	OpenGraph       bool              `yaml:"openGraph"`
+	TwitterCard     bool              `yaml:"twitterCard"`
+	Image           string            `yaml:"image"`
+	TwitterUsername string            `yaml:"twitterUsername"`
+}
+
+// CommentsConfig represents comments system configuration
+type CommentsConfig struct {
+	Enabled  bool   `yaml:"enabled"`
+	Provider string `yaml:"provider"` // disqus, gitalk, utterances
+	Disqus   *DisqusConfig   `yaml:"disqus"`
+	Gitalk   *GitalkConfig   `yaml:"gitalk"`
+	Utterances *UtterancesConfig `yaml:"utterances"`
+}
+
+// DisqusConfig represents Disqus configuration
+type DisqusConfig struct {
+	Shortname string `yaml:"shortname"`
+}
+
+// GitalkConfig represents Gitalk configuration
+type GitalkConfig struct {
+	ClientID     string `yaml:"clientID"`
+	ClientSecret string `yaml:"clientSecret"`
+	Repo         string `yaml:"repo"`
+	Owner        string `yaml:"owner"`
+	Admin        string `yaml:"admin"`
+	DistractionFreeMode bool `yaml:"distractionFreeMode"`
+}
+
+// UtterancesConfig represents Utterances configuration
+type UtterancesConfig struct {
+	Repo  string `yaml:"repo"`
+	Theme string `yaml:"theme"`
+	Label string `yaml:"label"`
+}
+
+// AnalyticsConfig represents analytics configuration
+type AnalyticsConfig struct {
+	Provider string                 `yaml:"provider"` // google, baidu, matomo
+	Google   *GoogleAnalyticsConfig `yaml:"google"`
+	Baidu    *BaiduAnalyticsConfig  `yaml:"baidu"`
+	Matomo   *MatomoAnalyticsConfig `yaml:"matomo"`
+}
+
+// GoogleAnalyticsConfig represents Google Analytics configuration
+type GoogleAnalyticsConfig struct {
+	TrackingID string `yaml:"trackingID"`
+}
+
+// BaiduAnalyticsConfig represents Baidu Analytics configuration
+type BaiduAnalyticsConfig struct {
+	TrackingID string `yaml:"trackingID"`
+}
+
+// MatomoAnalyticsConfig represents Matomo Analytics configuration
+type MatomoAnalyticsConfig struct {
+	URL        string `yaml:"url"`
+	SiteID     int    `yaml:"siteID"`
+	TrackerURL string `yaml:"trackerURL"`
 }
 
 // NavbarLink represents a navigation link

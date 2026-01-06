@@ -65,7 +65,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ if .Title }}{{ .Title }} - {{ end }}{{ .Site.Title }}</title>
     <meta name="description" content="{{ .Site.Description }}">
-    <link rel="stylesheet" href="css/main.css">
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="{{ .Site.BaseURL }}">
+
+    <!-- Open Graph Meta Tags -->
+    {{ if .Site.SEO }}{{ if .Site.SEO.OpenGraph }}
+    <meta property="og:title" content="{{ .Site.Title }}">
+    <meta property="og:description" content="{{ .Site.Description }}">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ .Site.BaseURL }}">
+    <meta property="og:site_name" content="{{ .Site.Title }}">
+    {{ if .Site.SEO.Image }}<meta property="og:image" content="{{ .Site.SEO.Image }}">{{ end }}
+    {{ end }}{{ end }}
+
+    <!-- Twitter Card Meta Tags -->
+    {{ if .Site.SEO }}{{ if .Site.SEO.TwitterCard }}
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ .Site.Title }}">
+    <meta name="twitter:description" content="{{ .Site.Description }}">
+    {{ if .Site.SEO.Image }}<meta name="twitter:image" content="{{ .Site.SEO.Image }}">{{ end }}
+    {{ if .Site.SEO.TwitterUsername }}<meta name="twitter:creator" content="@{{ .Site.SEO.TwitterUsername }}">{{ end }}
+    {{ end }}{{ end }}
+
+    <!-- Author -->
+    {{ if .Site.Author }}<meta name="author" content="{{ .Site.Author }}">{{ end }}
+
+    <!-- RSS Feed -->
+    <link rel="alternate" type="application/rss+xml" title="{{ .Site.Title }}" href="{{ .Site.BaseURL }}/index.xml">
+
+    <link rel="stylesheet" href="/css/main.css">
 </head>
 <body>
     {{ template "header" . }}

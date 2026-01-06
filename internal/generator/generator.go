@@ -46,7 +46,7 @@ func Generate(posts []*parser.Post, cfg *config.Config, outputDir string) error 
 	}
 
 	// Load templates
-	tmpl, err := loadTemplates()
+	tmpl, err := loadTemplates(cfg)
 	if err != nil {
 		return err
 	}
@@ -85,7 +85,7 @@ func Generate(posts []*parser.Post, cfg *config.Config, outputDir string) error 
 	}
 
 	// Copy static assets
-	if err := copyStaticAssets(cfg.StaticDir, outputDir); err != nil {
+	if err := copyStaticAssets(cfg, outputDir); err != nil {
 		return err
 	}
 
@@ -178,7 +178,7 @@ func generatePost(post *parser.Post, cfg *config.Config, outputDir string, tmpl 
 }
 
 // loadTemplates loads HTML templates with custom functions
-func loadTemplates() (*template.Template, error) {
+func loadTemplates(cfg *config.Config) (*template.Template, error) {
 	funcMap := template.FuncMap{
 		"safeHTML": func(s string) template.HTML {
 			return template.HTML(s)
@@ -194,20 +194,80 @@ func loadTemplates() (*template.Template, error) {
 
 	tmpl := template.New("").Funcs(funcMap)
 
-	// Parse templates that are self-contained (list.html, single.html, etc.)
-	// We don't use base.html anymore as templates define their own full HTML structure
-	tmpl, err := tmpl.ParseFiles(
-		"templates/_default/list.html",
-		"templates/_default/single.html",
-		"templates/_default/404.html",
-		"templates/partials/header.html",
-		"templates/partials/footer.html",
-	)
+	// Get template directories based on theme configuration
+	templatePaths := getTemplatePaths(cfg)
+
+	// Parse templates
+	var templateFiles []string
+	for _, path := range templatePaths {
+		if _, err := os.Stat(path); err == nil {
+			templateFiles = append(templateFiles, path)
+		}
+	}
+
+	if len(templateFiles) == 0 {
+		return nil, fmt.Errorf("no templates found")
+	}
+
+	tmpl, err := tmpl.ParseFiles(templateFiles...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse templates: %w", err)
 	}
 
 	return tmpl, nil
+}
+
+// getTemplatePaths returns template file paths based on theme configuration
+func getTemplatePaths(cfg *config.Config) []string {
+	var paths []string
+
+	themesDir := cfg.ThemesDir
+	if themesDir == "" {
+		themesDir = "themes"
+	}
+
+	// Define all template files we need
+	tmplFiles := []string{
+		"_default/single.html",
+		"_default/list.html",
+		"_default/404.html",
+		"partials/header.html",
+		"partials/footer.html",
+	}
+
+	// If a theme is specified, try to load from theme directory first
+	if cfg.Theme != "" {
+		themeDir := filepath.Join(themesDir, cfg.Theme, "layouts")
+		if _, err := os.Stat(themeDir); err == nil {
+			for _, tmplFile := range tmplFiles {
+				themeTmplPath := filepath.Join(themeDir, tmplFile)
+				if _, err := os.Stat(themeTmplPath); err == nil {
+					paths = append(paths, themeTmplPath)
+				}
+			}
+		}
+	}
+
+	// Always add default templates as fallback (don't overwrite if already added from theme)
+	defaultDir := "templates"
+	for _, tmplFile := range tmplFiles {
+		defaultTmplPath := filepath.Join(defaultDir, tmplFile)
+		if _, err := os.Stat(defaultTmplPath); err == nil {
+			// Check if we already added this from theme
+			alreadyAdded := false
+			for _, existingPath := range paths {
+				if strings.HasSuffix(existingPath, tmplFile) {
+					alreadyAdded = true
+					break
+				}
+			}
+			if !alreadyAdded {
+				paths = append(paths, defaultTmplPath)
+			}
+		}
+	}
+
+	return paths
 }
 
 // renderTemplate renders a template to a file
@@ -239,12 +299,29 @@ func paginate(posts []*parser.Post, perPage int) [][]*parser.Post {
 }
 
 // copyStaticAssets copies static files to output directory
-func copyStaticAssets(staticDir, outputDir string) error {
+func copyStaticAssets(cfg *config.Config, outputDir string) error {
+	// Copy from theme static directory first (if theme is specified)
+	if cfg.Theme != "" && cfg.ThemesDir != "" {
+		themeStaticDir := filepath.Join(cfg.ThemesDir, cfg.Theme, "assets")
+		if _, err := os.Stat(themeStaticDir); err == nil {
+			if err := copyStaticAssetsFromDir(themeStaticDir, outputDir, themeStaticDir); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Copy from main static directory
+	staticDir := cfg.StaticDir
 	if staticDir == "" {
 		staticDir = "assets"
 	}
 
-	return filepath.Walk(staticDir, func(path string, info os.FileInfo, err error) error {
+	return copyStaticAssetsFromDir(staticDir, outputDir, staticDir)
+}
+
+// copyStaticAssetsFromDir copies static files from a specific directory
+func copyStaticAssetsFromDir(sourceDir, outputDir, baseDir string) error {
+	return filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -255,7 +332,7 @@ func copyStaticAssets(staticDir, outputDir string) error {
 		}
 
 		// Calculate relative path
-		relPath, err := filepath.Rel(staticDir, path)
+		relPath, err := filepath.Rel(baseDir, path)
 		if err != nil {
 			return err
 		}
