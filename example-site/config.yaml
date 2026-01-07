@@ -1,0 +1,92 @@
+# 网站基本信息
+title: "Gobin 示例博客"
+description: "这是一个展示 Gobin 功能的示例博客"
+author: "Gobin Team"
+languageCode: "zh-CN"
+timezone: "Asia/Shanghai"
+baseURL: "https://example.github.io"
+
+# 目录配置
+contentDir: "_posts"
+staticDir: "assets"
+publishDir: "public"
+themesDir: "themes"
+
+# 主题配置
+theme: "default"
+
+# 分页配置
+paginate: 5
+paginatePath: "page"
+
+# Permalink 配置
+permalinks:
+  posts: "/:year/:month/:day/:title/"
+
+# 导航链接
+navbarLinks:
+  - name: "首页"
+    url: "/"
+  - name: "分类"
+    url: "/categories/"
+  - name: "标签"
+    url: "/tags/"
+  - name: "关于"
+    url: "/about/"
+
+# 社交媒体
+social:
+  github: "mengbin92"
+  email: "mengbin1992@outlook.com"
+  twitter: ""
+
+# 功能开关
+enableEmoji: true
+enableGitInfo: true
+enableRobotsTXT: true
+
+# SEO 配置
+seo:
+  enabled: true
+  openGraph: true
+  twitterCard: true
+  image: "/assets/images/og-image.png"
+
+# 评论系统配置（可选）
+comments:
+  enabled: false
+  provider: "utterances"  # or: disqus, gitalk
+  utterances:
+    repo: "username/repo"
+    theme: "github-light"
+    label: "comments"
+
+# 分析工具配置（可选）
+analytics:
+  provider: "google"  # Options: google, baidu, matomo
+  google:
+    trackingID: "UA-XXXXX-X"
+
+# 扩展参数
+params:
+  # 作者信息
+  author: "Gobin Team"
+  avatar: "/assets/images/avatar.jpg"
+  bio: "构建高性能静态博客"
+
+  # SEO
+  seo:
+    twitterCard: "summary_large_image"
+    defaultImage: "/assets/images/og-image.png"
+
+  # 样式配置
+  styles:
+    mainColor: "#008AFF"
+    backgroundColor: "#FFFFFF"
+    fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto"
+
+  # 其他自定义参数
+  dateFormat: "2006-01-02"
+  showReadingTime: true
+  showWordCount: true
+  showRelatedPosts: true

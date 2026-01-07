@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="{{ .Site.LanguageCode }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ if .Title }}{{ .Title }} - {{ end }}{{ .Site.Title }}</title>
+    <meta name="description" content="{{ if .Description }}{{ .Description }}{{ else }}{{ .Site.Description }}{{ end }}">
+    <link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+    {{ template "partials/header.html" . }}
+
+    <main class="container">
+        {{ template "content" . }}
+    </main>
+
+    {{ template "partials/footer.html" . }}
+</body>
+</html>
