@@ -76,7 +76,7 @@ func buildSite(cfg *config.Config) error {
 
 	// Generate site
 	outputDir := cfg.PublishDir
-	if err := generator.Generate(posts, cfg, outputDir); err != nil {
+	if err := generator.Generate(posts, cfg, outputDir, false); err != nil {
 		return fmt.Errorf("failed to generate site: %w", err)
 	}
 

@@ -13,6 +13,8 @@ import (
 // Version is the current version of the application
 const Version = "1.0.0"
 
+var minify bool
+
 // BuildCmd is the build command
 var BuildCmd = &cobra.Command{
 	Use:   "build",
@@ -52,12 +54,20 @@ This command will:
 			publishDir = "public"
 		}
 
-		err = generator.Generate(posts, cfg, publishDir)
+		err = generator.Generate(posts, cfg, publishDir, minify)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error generating site: %v\n", err)
 			os.Exit(1)
 		}
 
-		fmt.Printf("Site generated successfully in '%s' directory\n", publishDir)
+		if minify {
+			fmt.Printf("Site generated and minified successfully in '%s' directory\n", publishDir)
+		} else {
+			fmt.Printf("Site generated successfully in '%s' directory\n", publishDir)
+		}
 	},
+}
+
+func init() {
+	BuildCmd.Flags().BoolVar(&minify, "minify", false, "Minify HTML, CSS, and JS output")
 }

@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -34,7 +35,7 @@ type Pagination struct {
 }
 
 // Generate generates the static site
-func Generate(posts []*parser.Post, cfg *config.Config, outputDir string) error {
+func Generate(posts []*parser.Post, cfg *config.Config, outputDir string, minify bool) error {
 	// Sort posts by date (newest first)
 	sort.Slice(posts, func(i, j int) bool {
 		return posts[i].Date.After(posts[j].Date)
@@ -87,6 +88,13 @@ func Generate(posts []*parser.Post, cfg *config.Config, outputDir string) error 
 	// Copy static assets
 	if err := copyStaticAssets(cfg, outputDir); err != nil {
 		return err
+	}
+
+	// Minify output if requested
+	if minify {
+		if err := minifyOutput(outputDir); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -705,4 +713,56 @@ func urlize(s string) string {
 	}
 
 	return url
+}
+
+// minifyOutput minifies HTML, CSS, and JS files in the output directory
+func minifyOutput(outputDir string) error {
+	return filepath.Walk(outputDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip directories
+		if info.IsDir() {
+			return nil
+		}
+
+		// Only process HTML, CSS, and JS files
+		ext := strings.ToLower(filepath.Ext(path))
+		if ext != ".html" && ext != ".css" && ext != ".js" {
+			return nil
+		}
+
+		// Read file
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+
+		// Minify content
+		minified := minifyContent(string(content), ext)
+
+		// Write back
+		return os.WriteFile(path, []byte(minified), 0644)
+	})
+}
+
+// minifyContent performs basic minification on content
+func minifyContent(content string, ext string) string {
+	// Remove comments
+	content = regexp.MustCompile(`<!--.*?-->`).ReplaceAllString(content, "")
+	content = regexp.MustCompile(`/\*.*?\*/`).ReplaceAllString(content, "")
+
+	// Remove extra whitespace
+	content = regexp.MustCompile(`\s+`).ReplaceAllString(content, " ")
+	content = regexp.MustCompile(`>\s+<`).ReplaceAllString(content, "><")
+	content = regexp.MustCompile(`\s*{\s*`).ReplaceAllString(content, "{")
+	content = regexp.MustCompile(`\s*}\s*`).ReplaceAllString(content, "}")
+	content = regexp.MustCompile(`\s*;\s*`).ReplaceAllString(content, ";")
+	content = regexp.MustCompile(`\s*,\s*`).ReplaceAllString(content, ",")
+
+	// Trim leading/trailing whitespace
+	content = strings.TrimSpace(content)
+
+	return content
 }
