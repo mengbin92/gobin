@@ -1,0 +1,68 @@
+{{ define "base" }}
+<!DOCTYPE html>
+<html lang="{{ if .Site.LanguageCode }}{{ .Site.LanguageCode }}{{ else }}en{{ end }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+    {{ if .Title }}
+    <title>{{ .Title }} - {{ .Site.Title }}</title>
+    {{ else }}
+    <title>{{ .Site.Title }}</title>
+    {{ end }}
+
+    {{ if .Description }}
+    <meta name="description" content="{{ .Description }}">
+    {{ else if .Site.Description }}
+    <meta name="description" content="{{ .Site.Description }}">
+    {{ end }}
+
+    {{ if .Site.Author }}
+    <meta name="author" content="{{ .Site.Author }}">
+    {{ end }}
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="{{ if .Title }}{{ .Title }}{{ else }}{{ .Site.Title }}{{ end }}">
+    <meta property="og:description" content="{{ if .Description }}{{ .Description }}{{ else }}{{ .Site.Description }}{{ end }}">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ .Site.BaseURL }}">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ if .Title }}{{ .Title }}{{ else }}{{ .Site.Title }}{{ end }}">
+    <meta name="twitter:description" content="{{ if .Description }}{{ .Description }}{{ else }}{{ .Site.Description }}{{ end }}">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/assets/images/favicon.png">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="/assets/css/theme.css">
+    <link rel="stylesheet" href="/assets/css/syntax.css">
+
+    <!-- Font: JetBrains Mono for that hacker feel -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    {{ template "headExtra" . }}
+</head>
+<body>
+    {{ template "header" . }}
+
+    <main>
+        {{ template "main" . }}
+    </main>
+
+    {{ template "footer" . }}
+
+    {{ template "scripts" . }}
+</body>
+</html>
+{{ end }}
+
+{{ define "headExtra" }}{{ end }}
+
+{{ define "scripts" }}
+<script src="/assets/js/theme.js"></script>
+{{ end }}

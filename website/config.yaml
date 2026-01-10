@@ -1,0 +1,87 @@
+# Gobin Official Website Configuration
+
+# Website Information
+title: "Gobin"
+description: "高性能静态博客生成器 - 基于 Go 语言开发，完全兼容 Jekyll"
+author: "Gobin Team"
+languageCode: "zh-CN"
+timezone: "Asia/Shanghai"
+baseURL: "https://gobin.dev"
+
+# Directory Configuration
+contentDir: "_posts"
+staticDir: "assets"
+publishDir: "public"
+themesDir: "../themes"
+
+# Theme Configuration
+theme: "official-website"
+
+# Repository Links
+repositoryURL: "https://github.com/mengbin92/gobin"
+
+# Navigation Links
+navbarLinks:
+  - name: "Features"
+    url: "/#features"
+  - name: "Quick Start"
+    url: "/#quickstart"
+  - name: "Docs"
+    url: "/docs/"
+  - name: "About"
+    url: "/about/"
+
+# Pagination
+paginate: 10
+paginatePath: "page"
+
+# Permalink Configuration
+permalinks:
+  posts: "/:year/:month/:day/:title/"
+  docs: "/docs/:title/"
+
+# Social Media
+social:
+  github: "mengbin92"
+  email: "mengbin1992@outlook.com"
+  twitter: ""
+
+# Feature Flags
+enableEmoji: true
+enableGitInfo: true
+enableRobotsTXT: true
+
+# SEO Configuration
+seo:
+  enabled: true
+  openGraph: true
+  twitterCard: true
+  image: "/images/og-image.svg"
+
+# Analytics
+analytics:
+  provider: ""  # google, baidu, matomo, or leave empty
+
+# Custom Parameters
+params:
+  # Version Info
+  version: "1.0.0"
+  goVersion: "1.21+"
+
+  # Download Links
+  download:
+    github: "https://github.com/mengbin92/gobin/releases"
+    homebrew: ""  # TODO: add when available
+
+  # Community Links
+  community:
+    github: "https://github.com/mengbin92/gobin"
+    issues: "https://github.com/mengbin92/gobin/issues"
+    discussions: "https://github.com/mengbin92/gobin/discussions"
+
+  # Documentation Links
+  docs:
+    gettingStarted: "/docs/getting-started/"
+    configuration: "/docs/configuration/"
+    themes: "/docs/themes/"
+    deployment: "/docs/deployment/"

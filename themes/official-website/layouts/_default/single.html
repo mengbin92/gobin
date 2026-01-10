@@ -1,0 +1,117 @@
+{{ define "singleMain" }}
+<div class="page-container">
+    <div class="container">
+        <div class="page-header">
+            <nav class="breadcrumb">
+                <a href="/">Home</a>
+                <span class="separator">/</span>
+                {{ if .Post.Categories }}
+                {{ range first 1 .Post.Categories }}
+                <a href="/categories/{{ . }}/">{{ . }}</a>
+                <span class="separator">/</span>
+                {{ end }}
+                {{ end }}
+            </nav>
+
+            <h1 class="page-title">{{ .Post.Title }}</h1>
+
+            {{ if or .Post.Description .Date }}
+            <div class="page-meta">
+                {{ if .Post.Date }}
+                <time datetime="{{ .Post.Date.Format "2006-01-02" }}">
+                    {{ .Post.Date.Format "2006-01-02" }}
+                </time>
+                {{ end }}
+                {{ if .Post.Description }}
+                <p class="page-description">{{ .Post.Description }}</p>
+                {{ end }}
+            </div>
+            {{ end }}
+
+            {{ if .Post.Tags }}
+            <div class="page-tags">
+                {{ range .Post.Tags }}
+                <span class="tag">#{{ . }}</span>
+                {{ end }}
+            </div>
+            {{ end }}
+        </div>
+
+        <div class="page-content">
+            {{ safeHTML .Post.ContentHTML }}
+        </div>
+
+        {{ if .Post.Tags }}
+        <div class="page-footer">
+            <div class="tags-section">
+                <h4>Tags</h4>
+                <div class="tags-list">
+                    {{ range .Post.Tags }}
+                    <a href="/tags/{{ . }}" class="tag-link">#{{ . }}</a>
+                    {{ end }}
+                </div>
+            </div>
+        </div>
+        {{ end }}
+    </div>
+</div>
+{{ end }}
+
+{{ define "singlePage" }}
+<!DOCTYPE html>
+<html lang="{{ if .Site.LanguageCode }}{{ .Site.LanguageCode }}{{ else }}en{{ end }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+    <title>{{ .Post.Title }} - {{ .Site.Title }}</title>
+    {{ if .Post.Description }}
+    <meta name="description" content="{{ .Post.Description }}">
+    {{ else if .Site.Description }}
+    <meta name="description" content="{{ .Site.Description }}">
+    {{ end }}
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="{{ .Post.Title }}">
+    {{ if .Post.Description }}
+    <meta property="og:description" content="{{ .Post.Description }}">
+    {{ else if .Site.Description }}
+    <meta property="og:description" content="{{ .Site.Description }}">
+    {{ end }}
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="{{ .Site.BaseURL }}{{ .Post.URL }}">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ .Post.Title }}">
+    {{ if .Post.Description }}
+    <meta name="twitter:description" content="{{ .Post.Description }}">
+    {{ end }}
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
+    <link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="/css/theme.css">
+    <link rel="stylesheet" href="/css/syntax.css">
+
+    <!-- Font: JetBrains Mono for that hacker feel -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body data-theme="dark">
+    {{ template "header" . }}
+
+    <main>
+        {{ template "singleMain" . }}
+    </main>
+
+    {{ template "footer" . }}
+
+    <script src="/js/theme.js"></script>
+</body>
+</html>
+{{ end }}

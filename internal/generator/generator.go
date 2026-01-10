@@ -190,6 +190,22 @@ func loadTemplates(cfg *config.Config) (*template.Template, error) {
 			return time.Now()
 		},
 		"urlize": urlize,
+		"first": func(n int, list interface{}) interface{} {
+			switch v := list.(type) {
+			case []string:
+				if len(v) < n {
+					return v
+				}
+				return v[:n]
+			case []*parser.Post:
+				if len(v) < n {
+					return v
+				}
+				return v[:n]
+			default:
+				return nil
+			}
+		},
 	}
 
 	tmpl := template.New("").Funcs(funcMap)

@@ -34,6 +34,9 @@ type Config struct {
 	// Navigation
 	NavbarLinks     []NavbarLink      `yaml:"navbarLinks"`
 
+	// Repository URL for source code link
+	RepositoryURL   string            `yaml:"repositoryURL"`
+
 	// Social media
 	Social          map[string]string `yaml:"social"`
 

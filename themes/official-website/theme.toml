@@ -1,0 +1,12 @@
+name = "Official Website"
+description = "Gobin official website theme with clean hacker aesthetic"
+version = "1.0.0"
+author = "Gobin Team"
+homepage = "https://github.com/mengbin92/gobin"
+license = "MIT"
+
+[features]
+  minimalist = true
+  darkMode = true
+  responsive = true
+  hackerStyle = true

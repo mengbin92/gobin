@@ -1,0 +1,47 @@
+{{ define "footer" }}
+<footer class="site-footer">
+    <div class="footer-container">
+        <div class="footer-content">
+            <div class="footer-brand">
+                <span class="logo-text">gobin</span>
+                <span class="logo-prompt">_</span>
+                <p class="footer-tagline">{{ .Site.Description }}</p>
+            </div>
+
+            <div class="footer-links">
+                <div class="footer-section">
+                    <h4>Project</h4>
+                    <ul>
+                        <li><a href="/#features">Features</a></li>
+                        <li><a href="/#quickstart">Quick Start</a></li>
+                        <li><a href="/docs/">Documentation</a></li>
+                        <li><a href="https://github.com/mengbin92/gobin/releases">Releases</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-section">
+                    <h4>Community</h4>
+                    <ul>
+                        <li><a href="https://github.com/mengbin92/gobin">GitHub</a></li>
+                        <li><a href="https://github.com/mengbin92/gobin/issues">Issues</a></li>
+                        <li><a href="https://github.com/mengbin92/gobin/discussions">Discussions</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer-section">
+                    <h4>Links</h4>
+                    <ul>
+                        <li><a href="/about/">About</a></li>
+                        <li><a href="/license/">License</a></li>
+                        <li><a href="/changelog/">Changelog</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer-bottom">
+            <p>&copy; {{ now.Format "2006" }} Gobin. Built with <a href="https://github.com/mengbin92/gobin">Gobin</a>. MIT License.</p>
+        </div>
+    </div>
+</footer>
+{{ end }}

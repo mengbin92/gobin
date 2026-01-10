@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0a0e1a"/>
+      <stop offset="100%" style="stop-color:#111827"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#00ff9d"/>
+      <stop offset="100%" style="stop-color:#00b8ff"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- Grid pattern -->
+  <g opacity="0.1">
+    <line x1="0" y1="157" x2="1200" y2="157" stroke="#00ff9d" stroke-width="1"/>
+    <line x1="0" y1="314" x2="1200" y2="314" stroke="#00ff9d" stroke-width="1"/>
+    <line x1="0" y1="471" x2="1200" y2="471" stroke="#00ff9d" stroke-width="1"/>
+    <line x1="300" y1="0" x2="300" y2="630" stroke="#00ff9d" stroke-width="1"/>
+    <line x1="600" y1="0" x2="600" y2="630" stroke="#00ff9d" stroke-width="1"/>
+    <line x1="900" y1="0" x2="900" y2="630" stroke="#00ff9d" stroke-width="1"/>
+  </g>
+
+  <!-- Logo -->
+  <text x="100" y="200" font-family="'JetBrains Mono', monospace" font-size="120" font-weight="bold" fill="url(#accent)">
+    gobin<span fill="#ffffff">_</span>
+  </text>
+
+  <!-- Tagline -->
+  <text x="100" y="280" font-family="'Inter', sans-serif" font-size="48" fill="#9ca3af">
+    高性能静态博客生成器
+  </text>
+
+  <!-- Features -->
+  <g transform="translate(100, 350)">
+    <rect width="300" height="60" rx="8" fill="#1f2937" stroke="#00ff9d" stroke-width="2"/>
+    <text x="150" y="40" font-family="'Inter', sans-serif" font-size="24" text-anchor="middle" fill="#00ff9d">
+      ⚡ 10-100x 更快
+    </text>
+  </g>
+
+  <g transform="translate(450, 350)">
+    <rect width="300" height="60" rx="8" fill="#1f2937" stroke="#00ff9d" stroke-width="2"/>
+    <text x="150" y="40" font-family="'Inter', sans-serif" font-size="24" text-anchor="middle" fill="#00ff9d">
+      📦 零依赖部署
+    </text>
+  </g>
+
+  <g transform="translate(800, 350)">
+    <rect width="300" height="60" rx="8" fill="#1f2937" stroke="#00ff9d" stroke-width="2"/>
+    <text x="150" y="40" font-family="'Inter', sans-serif" font-size="24" text-anchor="middle" fill="#00ff9d">
+      ✅ 完全兼容 Jekyll
+    </text>
+  </g>
+
+  <!-- Terminal preview -->
+  <g transform="translate(100, 450)">
+    <rect width="1000" height="120" rx="8" fill="#0d1117" stroke="#1f2937" stroke-width="2"/>
+    <circle cx="20" cy="20" r="6" fill="#ff5f57"/>
+    <circle cx="40" cy="20" r="6" fill="#febc2e"/>
+    <circle cx="60" cy="20" r="6" fill="#28c840"/>
+    <text x="20" y="60" font-family="'JetBrains Mono', monospace" font-size="20" fill="#00ff9d">
+      $ gobin init my-blog
+    </text>
+    <text x="20" y="90" font-family="'JetBrains Mono', monospace" font-size="20" fill="#9ca3af">
+      ✓ Site created successfully
+    </text>
+  </g>
+
+  <!-- URL -->
+  <text x="1100" y="600" font-family="'JetBrains Mono', monospace" font-size="24" text-anchor="end" fill="#6b7280">
+    gobin.dev
+  </text>
+</svg>
