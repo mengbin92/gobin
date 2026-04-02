@@ -11,36 +11,34 @@ Gobin 是一个基于 Go 语言开发的静态博客网站生成器，专为追�
 - **完全兼容**：保持现有 Markdown 文件结构和 Front Matter 格式
 - **灵活定制**：强大的模板系统和配置选项
 
-## 核心特性
+## 当前能力
 
-### 🚀 性能优势
-- **编译型语言**：Go 语言带来极致性能
-- **并行处理**：利用多核 CPU 加速构建
-- **增量构建**：智能检测变更，只构建修改的文件
-- **低内存占用**：高效处理大规模站点
+### 已支持
+- Markdown + YAML Front Matter 解析
+- `_posts/` 目录结构
+- 列表页、文章页、标签页、分类页生成
+- RSS、Atom、Sitemap、搜索索引生成
+- 基础主题模板与静态资源复制
+- `build`、`serve`、`init`、`version` CLI 命令
+- `permalinks.posts` 文章链接配置
+- `draft` / `published` 内容可见性控制
 
-### 📦 Jekyll 兼容性
-- ✅ 完全兼容 `_posts/` 目录结构
-- ✅ 支持标准 YAML Front Matter 格式
-- ✅ 保持 URL 结构不变，避免 SEO 影响
-- ✅ 支持 Jekyll 风格的 Permalink 配置
+### 当前限制
+- 暂未实现 `new`、`check` 等命令
+- 暂未实现增量构建和并行构建
+- `serve` 当前提供自动重建，不包含真正的 LiveReload 注入
+- 多语言、短代码、图片优化等能力仍在规划中
 
-### 🎨 现代化功能
-- **响应式设计**：内置移动端优化主题
-- **代码高亮**：支持 200+ 编程语言，多种主题可选
-- **全文搜索**：前端 Lunr.js 或 Fuse.js 搜索
-- **SEO 优化**：自动生成 Sitemap、RSS、Open Graph 标签
-- **评论集成**：支持 Disqus、Gitalk、Utterances 等多种评论系统
-
-### ⚙️ 灵活配置
-- **多平台部署**：支持 GitHub Pages、Vercel、Netlify 等
-- **主题系统**：可自定义主题或复用现有主题
-- **短代码支持**：自定义内容块扩展
-- **多语言站点**：支持国际化和本地化
+### 规划中
+- 增量构建
+- 并行构建
+- 更完整的 Jekyll 迁移兼容层
+- 多语言与短代码支持
+- 更完善的主题系统和开发服务器体验
 
 ## 技术栈
 
-- **后端生成器**：Go 1.21+
+- **后端生成器**：Go 1.25
 - **Markdown 渲染**：[goldmark](https://github.com/yuin/goldmark)
 - **代码高亮**：[Chroma](https://github.com/alecthomas/chroma) / Prism.js
 - **模板引擎**：Go `html/template`
@@ -80,10 +78,8 @@ my-blog/
 ### 创建第一篇文章
 
 ```bash
-# 创建新文章
-gobin new post "我的第一篇文章"
-
-# 编辑生成的文件：_posts/2026-01-04-我的第一篇文章.md
+# 创建文章文件
+$EDITOR _posts/2026-01-04-my-first-post.md
 ```
 
 文章格式：
@@ -125,14 +121,14 @@ gobin serve --watch
 # 构建静态文件
 gobin build
 
-# 包含草稿文章
-gobin build --drafts
-
 # 压缩输出
 gobin build --minify
 
-# 指定输出目录
-gobin build -o ./public
+# 包含草稿文章
+gobin build --drafts
+
+# 跳过输出目录清理
+gobin build --clean=false
 ```
 
 ## 配置说明
@@ -181,6 +177,13 @@ enableEmoji: true
 enableGitInfo: true
 enableRobotsTXT: true
 
+# 站点级产物开关（可选）
+outputs:
+  feed: true
+  search: true
+  sitemap: true
+  robots: true
+
 # 评论系统（可选）
 comments:
   enabled: false
@@ -202,13 +205,10 @@ markup:
 gobin/
 ├── cmd/
 │   └── gobin/          # CLI 入口
-├── pkg/
+├── internal/
 │   ├── config/         # 配置管理
-│   ├── content/        # 内容解析
-│   ├── renderer/       # 渲染引擎
-│   ├── template/       # 模板处理
-│   ├── builder/        # 构建逻辑
-│   └── server/         # 开发服务器
+│   ├── parser/         # 内容解析
+│   └── generator/      # 站点生成
 ├── templates/          # 默认模板
 ├── assets/             # 默认静态资源
 ├── themes/             # 主题目录
@@ -222,11 +222,8 @@ gobin/
 | 命令 | 说明 | 示例 |
 |------|------|------|
 | `gobin init [name]` | 初始化新站点 | `gobin init myblog` |
-| `gobin build` | 构建静态站点 | `gobin build --minify` |
-| `gobin serve` | 启动开发服务器 | `gobin serve -p 8080` |
-| `gobin new post [title]` | 创建新文章 | `gobin new post "Hello World"` |
-| `gobin new page [title]` | 创建新页面 | `gobin new page "About"` |
-| `gobin check` | 检查配置和文章 | `gobin check` |
+| `gobin build` | 构建静态站点 | `gobin build --minify --drafts --clean=false` |
+| `gobin serve` | 启动开发服务器 | `gobin serve -p 8080 --drafts --clean=false` |
 | `gobin version` | 显示版本信息 | `gobin version` |
 | `gobin help` | 显示帮助信息 | `gobin help` |
 

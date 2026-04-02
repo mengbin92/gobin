@@ -6,11 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
 
-    {{ if .Title }}
-    <title>{{ .Title }} - {{ .Site.Title }}</title>
-    {{ else }}
-    <title>{{ .Site.Title }}</title>
-    {{ end }}
+    <title>{{ if .MetaTitle }}{{ .MetaTitle }} - {{ else if and .Title (ne .Title .Site.Title) }}{{ .Title }} - {{ end }}{{ .Site.Title }}</title>
 
     {{ if .Description }}
     <meta name="description" content="{{ .Description }}">
@@ -22,23 +18,33 @@
     <meta name="author" content="{{ .Site.Author }}">
     {{ end }}
 
+    {{ if .Canonical }}
+    <link rel="canonical" href="{{ .Canonical }}">
+    {{ end }}
+
     <!-- Open Graph -->
-    <meta property="og:title" content="{{ if .Title }}{{ .Title }}{{ else }}{{ .Site.Title }}{{ end }}">
+    <meta property="og:title" content="{{ if .MetaTitle }}{{ .MetaTitle }}{{ else if and .Title (ne .Title .Site.Title) }}{{ .Title }}{{ else }}{{ .Site.Title }}{{ end }}">
     <meta property="og:description" content="{{ if .Description }}{{ .Description }}{{ else }}{{ .Site.Description }}{{ end }}">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="{{ .Site.BaseURL }}">
+    <meta property="og:type" content="{{ if .OpenGraphType }}{{ .OpenGraphType }}{{ else }}website{{ end }}">
+    <meta property="og:url" content="{{ if .Canonical }}{{ .Canonical }}{{ else }}{{ .Site.BaseURL }}{{ end }}">
+    {{ if .Site.SEO }}{{ if .Site.SEO.Image }}
+    <meta property="og:image" content="{{ .Site.SEO.Image }}">
+    {{ end }}{{ end }}
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="{{ if .Title }}{{ .Title }}{{ else }}{{ .Site.Title }}{{ end }}">
+    <meta name="twitter:title" content="{{ if .MetaTitle }}{{ .MetaTitle }}{{ else if and .Title (ne .Title .Site.Title) }}{{ .Title }}{{ else }}{{ .Site.Title }}{{ end }}">
     <meta name="twitter:description" content="{{ if .Description }}{{ .Description }}{{ else }}{{ .Site.Description }}{{ end }}">
+    {{ if .Site.SEO }}{{ if .Site.SEO.Image }}
+    <meta name="twitter:image" content="{{ .Site.SEO.Image }}">
+    {{ end }}{{ end }}
 
     <!-- Favicon -->
-    <link rel="icon" type="image/png" href="/assets/images/favicon.png">
+    <link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
 
     <!-- Styles -->
-    <link rel="stylesheet" href="/assets/css/theme.css">
-    <link rel="stylesheet" href="/assets/css/syntax.css">
+    <link rel="stylesheet" href="/css/theme.css">
+    <link rel="stylesheet" href="/css/syntax.css">
 
     <!-- Font: JetBrains Mono for that hacker feel -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -51,10 +57,11 @@
     {{ template "header" . }}
 
     <main>
-        {{ template "main" . }}
+        {{ render .MainTemplate . }}
     </main>
 
     {{ template "footer" . }}
+    {{ template "analytics" . }}
 
     {{ template "scripts" . }}
 </body>
@@ -64,5 +71,5 @@
 {{ define "headExtra" }}{{ end }}
 
 {{ define "scripts" }}
-<script src="/assets/js/theme.js"></script>
+<script src="/js/theme.js"></script>
 {{ end }}

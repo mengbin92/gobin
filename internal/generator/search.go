@@ -38,11 +38,6 @@ func GenerateSearchIndex(posts []*parser.Post, cfg *config.Config, outputDir str
 	maxContentLength := 2000
 
 	for _, post := range posts {
-		// Skip draft posts
-		if post.Draft {
-			continue
-		}
-
 		doc := SearchDocument{
 			Title:   post.Title,
 			URL:     post.URL,
@@ -95,11 +90,6 @@ func GenerateSearchIndexMin(posts []*parser.Post, cfg *config.Config, outputDir 
 	}
 
 	for _, post := range posts {
-		// Skip draft posts
-		if post.Draft {
-			continue
-		}
-
 		doc := SearchDocument{
 			Title:   post.Title,
 			URL:     post.URL,

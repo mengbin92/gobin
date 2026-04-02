@@ -13,7 +13,7 @@ import (
 
 // Sitemap represents a sitemap.xml file
 type Sitemap struct {
-	XMLName xml.Name    `xml:"http://www.sitemaps.org/schemas/sitemap/0.9 urlset"`
+	XMLName xml.Name     `xml:"http://www.sitemaps.org/schemas/sitemap/0.9 urlset"`
 	URLs    []SitemapURL `xml:"url"`
 }
 
@@ -36,7 +36,7 @@ func GenerateSitemap(posts []*parser.Post, cfg *config.Config, outputDir string,
 	sitemap := Sitemap{
 		URLs: []SitemapURL{
 			{
-				Loc:        cfg.BaseURL,
+				Loc:        joinURL(cfg.BaseURL, "/"),
 				LastMod:    now,
 				ChangeFreq: "daily",
 				Priority:   1.0,
@@ -47,7 +47,7 @@ func GenerateSitemap(posts []*parser.Post, cfg *config.Config, outputDir string,
 	// Add post URLs
 	for _, post := range posts {
 		sitemap.URLs = append(sitemap.URLs, SitemapURL{
-			Loc:        fmt.Sprintf("%s%s", cfg.BaseURL, post.URL),
+			Loc:        joinURL(cfg.BaseURL, post.URL),
 			LastMod:    post.Date.Format("2006-01-02"),
 			ChangeFreq: "monthly",
 			Priority:   0.8,
@@ -59,7 +59,7 @@ func GenerateSitemap(posts []*parser.Post, cfg *config.Config, outputDir string,
 		maxPages := (len(posts) + cfg.Paginate - 1) / cfg.Paginate
 		for i := 2; i <= maxPages; i++ {
 			sitemap.URLs = append(sitemap.URLs, SitemapURL{
-				Loc:        fmt.Sprintf("%s/%s/%d/", cfg.BaseURL, cfg.PaginatePath, i),
+				Loc:        joinURL(cfg.BaseURL, fmt.Sprintf("%s/%d/", cfg.PaginatePath, i)),
 				LastMod:    now,
 				ChangeFreq: "daily",
 				Priority:   0.6,
@@ -69,7 +69,7 @@ func GenerateSitemap(posts []*parser.Post, cfg *config.Config, outputDir string,
 
 	// Add tag index and individual tag pages
 	sitemap.URLs = append(sitemap.URLs, SitemapURL{
-		Loc:        fmt.Sprintf("%s/tags/", cfg.BaseURL),
+		Loc:        joinURL(cfg.BaseURL, "tags/"),
 		LastMod:    now,
 		ChangeFreq: "weekly",
 		Priority:   0.5,
@@ -77,7 +77,7 @@ func GenerateSitemap(posts []*parser.Post, cfg *config.Config, outputDir string,
 
 	for _, tag := range tagList {
 		sitemap.URLs = append(sitemap.URLs, SitemapURL{
-			Loc:        fmt.Sprintf("%s/tags/%s/", cfg.BaseURL, urlize(tag)),
+			Loc:        joinURL(cfg.BaseURL, fmt.Sprintf("tags/%s/", urlize(tag))),
 			LastMod:    now,
 			ChangeFreq: "weekly",
 			Priority:   0.5,
@@ -86,7 +86,7 @@ func GenerateSitemap(posts []*parser.Post, cfg *config.Config, outputDir string,
 
 	// Add category index and individual category pages
 	sitemap.URLs = append(sitemap.URLs, SitemapURL{
-		Loc:        fmt.Sprintf("%s/categories/", cfg.BaseURL),
+		Loc:        joinURL(cfg.BaseURL, "categories/"),
 		LastMod:    now,
 		ChangeFreq: "weekly",
 		Priority:   0.5,
@@ -94,7 +94,7 @@ func GenerateSitemap(posts []*parser.Post, cfg *config.Config, outputDir string,
 
 	for _, category := range categoryList {
 		sitemap.URLs = append(sitemap.URLs, SitemapURL{
-			Loc:        fmt.Sprintf("%s/categories/%s/", cfg.BaseURL, urlize(category)),
+			Loc:        joinURL(cfg.BaseURL, fmt.Sprintf("categories/%s/", urlize(category))),
 			LastMod:    now,
 			ChangeFreq: "weekly",
 			Priority:   0.5,

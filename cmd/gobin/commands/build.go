@@ -14,6 +14,8 @@ import (
 const Version = "1.0.0"
 
 var minify bool
+var buildDrafts bool
+var cleanOutput bool
 
 // BuildCmd is the build command
 var BuildCmd = &cobra.Command{
@@ -30,7 +32,7 @@ This command will:
 		fmt.Printf("Blog Static Site Generator v%s\n", Version)
 		fmt.Println("===================================")
 
-		cfg, err := config.Load("config.yaml")
+		cfg, err := config.LoadDefault()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
 			os.Exit(1)
@@ -54,7 +56,7 @@ This command will:
 			publishDir = "public"
 		}
 
-		err = generator.Generate(posts, cfg, publishDir, minify)
+		err = generator.Generate(posts, cfg, publishDir, minify, buildDrafts, cleanOutput)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error generating site: %v\n", err)
 			os.Exit(1)
@@ -70,4 +72,6 @@ This command will:
 
 func init() {
 	BuildCmd.Flags().BoolVar(&minify, "minify", false, "Minify HTML, CSS, and JS output")
+	BuildCmd.Flags().BoolVar(&buildDrafts, "drafts", false, "Include draft posts in the output")
+	BuildCmd.Flags().BoolVar(&cleanOutput, "clean", true, "Clean the output directory before generating")
 }

@@ -75,15 +75,17 @@ func initializeSite(dir string) error {
 
 	// Create default templates
 	templates := map[string]string{
-		"templates/_default/list.html":   getListTemplate(),
-		"templates/_default/single.html": getSingleTemplate(),
-		"templates/_default/404.html":    get404Template(),
-		"templates/partials/header.html": getHeaderTemplate(),
-		"templates/partials/footer.html": getFooterTemplate(),
+		"templates/_default/base.html":     getBaseTemplate(),
+		"templates/_default/list.html":     getListTemplate(),
+		"templates/_default/single.html":   getSingleTemplate(),
+		"templates/_default/taxonomy.html": getTaxonomyTemplate(),
+		"templates/_default/404.html":      get404Template(),
+		"templates/partials/header.html":   getHeaderTemplate(),
+		"templates/partials/footer.html":   getFooterTemplate(),
 	}
 
 	// Create default CSS
-	if err := writeFile(filepath.Join(absDir, "assets/css/style.css"), getDefaultCSS()); err != nil {
+	if err := writeFile(filepath.Join(absDir, "assets/css/main.css"), getDefaultCSS()); err != nil {
 		return fmt.Errorf("failed to create default css: %w", err)
 	}
 
@@ -165,114 +167,135 @@ social:
 enableEmoji: true
 enableGitInfo: true
 enableRobotsTXT: true
+
+# 产物开关（可选）
+outputs:
+  feed: true
+  search: true
+  sitemap: true
+  robots: true
 `, name)
 }
 
 func getBaseTemplate() string {
-	return `<!DOCTYPE html>
-<html lang="{{ .Site.LanguageCode }}">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ if .Title }}{{ .Title }} | {{ .Site.Title }}{{ else }}{{ .Site.Title }}{{ end }}</title>
-    <meta name="description" content="{{ .Site.Description }}">
-    <link rel="stylesheet" href="/assets/css/style.css">
-</head>
-<body>
-    {{ template "header" . }}
-
-    <main class="container">
-        {{ template "content" . }}
-    </main>
-
-    {{ template "footer" . }}
-</body>
-</html>
-`
-}
-
-func getListTemplate() string {
-	return `{{ define "listPage" }}
+	return `{{ define "base" }}
 <!DOCTYPE html>
 <html lang="{{ .Site.LanguageCode }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ if .Title }}{{ .Title }} | {{ .Site.Title }}{{ else }}{{ .Site.Title }}{{ end }}</title>
-    <meta name="description" content="{{ .Site.Description }}">
-    <link rel="stylesheet" href="/css/style.css">
+    <meta name="description" content="{{ if .Description }}{{ .Description }}{{ else }}{{ .Site.Description }}{{ end }}">
+    {{ if .Canonical }}<link rel="canonical" href="{{ .Canonical }}">{{ end }}
+    <link rel="stylesheet" href="{{ stylesheetPath }}">
 </head>
 <body>
-    {{ template "header" . }}
+    {{ render .HeaderTemplate . }}
 
     <main class="container">
-        <div class="post-list">
-            <h1>{{ .Title }}</h1>
-            <ul>
-                {{ range .Posts }}
-                <li>
-                    <span class="date">{{ .Date.Format "2006-01-02" }}</span>
-                    <a href="{{ .URL }}">{{ .Title }}</a>
-                </li>
-                {{ end }}
-            </ul>
-        </div>
+        {{ render .MainTemplate . }}
     </main>
 
-    {{ template "footer" . }}
+    {{ render .FooterTemplate . }}
 </body>
 </html>
+{{ end }}
+`
+}
+
+func getListTemplate() string {
+	return `{{ define "listPage" }}
+{{ template "base" . }}
+{{ end }}
+
+{{ define "listMain" }}
+<div class="post-list">
+    <h1>{{ .Title }}</h1>
+    <ul>
+        {{ range .Posts }}
+        <li>
+            <span class="date">{{ .Date.Format "2006-01-02" }}</span>
+            <a href="{{ .URL }}">{{ .Title }}</a>
+        </li>
+        {{ end }}
+    </ul>
+</div>
 {{ end }}
 `
 }
 
 func getSingleTemplate() string {
 	return `{{ define "singlePage" }}
-<!DOCTYPE html>
-<html lang="{{ .Site.LanguageCode }}">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ if .Title }}{{ .Title }} | {{ .Site.Title }}{{ else }}{{ .Site.Title }}{{ end }}</title>
-    <meta name="description" content="{{ if .Post.Description }}{{ .Post.Description }}{{ else }}{{ .Site.Description }}{{ end }}">
-    <link rel="stylesheet" href="/css/style.css">
-</head>
-<body>
-    {{ template "header" . }}
+{{ template "base" . }}
+{{ end }}
 
-    <main class="container">
-        <article class="post">
-            <header>
-                <h1>{{ .Post.Title }}</h1>
-                <div class="meta">
-                    <span class="date">{{ .Post.Date.Format "2006-01-02" }}</span>
-                    {{ with .Post.Tags }}
-                    <span class="tags">Tags: {{ range . }}{{ . }} {{ end }}</span>
-                    {{ end }}
-                </div>
-            </header>
-            <div class="content">
-                {{ .Post.ContentHTML | safeHTML }}
-            </div>
-        </article>
-    </main>
-
-    {{ template "footer" . }}
-</body>
-</html>
+{{ define "singleMain" }}
+<article class="post">
+    <header>
+        <h1>{{ .Post.Title }}</h1>
+        <div class="meta">
+            <span class="date">{{ .Post.Date.Format "2006-01-02" }}</span>
+            {{ with .Post.Tags }}
+            <span class="tags">Tags: {{ range . }}{{ . }} {{ end }}</span>
+            {{ end }}
+        </div>
+    </header>
+    <div class="content">
+        {{ .Post.ContentHTML | safeHTML }}
+    </div>
+</article>
 {{ end }}
 `
 }
 
 func get404Template() string {
-	return `{{ define "404Page" }}
-{{ template "header" . }}
+	return `{{ define "notFoundMain" }}
 <div class="error-page">
     <h1>404 - Page Not Found</h1>
     <p>The page you're looking for doesn't exist.</p>
     <a href="/">Go back home</a>
 </div>
-{{ template "footer" . }}
+{{ end }}
+
+{{ define "notFoundPage" }}
+{{ template "base" . }}
+{{ end }}
+`
+}
+
+func getTaxonomyTemplate() string {
+	return `{{ define "taxonomyTermsMain" }}
+<section class="taxonomy-page">
+    <h1>{{ .Title }}</h1>
+    <ul>
+        {{ range .Terms }}
+        <li><a href="{{ .URL }}">{{ .Name }}</a> ({{ .Count }})</li>
+        {{ end }}
+    </ul>
+</section>
+{{ end }}
+
+{{ define "taxonomyMain" }}
+<section class="taxonomy-page">
+    <h1>{{ .Title }}</h1>
+    <p><a href="{{ .IndexURL }}">返回列表</a></p>
+    <ul>
+        {{ range .Posts }}
+        <li>
+            <span class="date">{{ .Date.Format "2006-01-02" }}</span>
+            <a href="{{ .URL }}">{{ .Title }}</a>
+        </li>
+        {{ end }}
+    </ul>
+</section>
+{{ end }}
+
+{{ define "taxonomyTermsPage" }}
+{{ template "base" . }}
+{{ end }}
+
+{{ define "taxonomyPage" }}
+{{ template "base" . }}
 {{ end }}
 `
 }
@@ -292,6 +315,10 @@ func getHeaderTemplate() string {
     </nav>
 </header>
 {{ end }}
+
+{{ define "headerNested" }}
+{{ template "header" . }}
+{{ end }}
 `
 }
 
@@ -301,6 +328,10 @@ func getFooterTemplate() string {
     <p>&copy; {{ now.Format "2006" }} {{ .Site.Author }}. All rights reserved.</p>
     <p>Powered by <a href="https://github.com/mengbin92/gobin">Gobin</a></p>
 </footer>
+{{ end }}
+
+{{ define "footerNested" }}
+{{ template "footer" . }}
 {{ end }}
 `
 }

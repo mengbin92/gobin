@@ -157,6 +157,71 @@ Draft content.`
 	}
 }
 
+func TestParsePost_StringFrontMatterLists(t *testing.T) {
+	tmpDir := t.TempDir()
+	postContent := `---
+title: "String Lists"
+date: 2023-12-28T10:00:00+08:00
+tags: 其它
+categories: 后端
+keywords: golang, yaml
+aliases: /legacy/string-lists/
+---
+
+Content.`
+
+	postPath := filepath.Join(tmpDir, "2023-12-28-string-lists.md")
+	if err := os.WriteFile(postPath, []byte(postContent), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	post, err := ParsePost(postPath)
+	if err != nil {
+		t.Fatalf("ParsePost failed: %v", err)
+	}
+
+	if len(post.Tags) != 1 || post.Tags[0] != "其它" {
+		t.Fatalf("Expected scalar tags to parse as one-item list, got %#v", post.Tags)
+	}
+	if len(post.Categories) != 1 || post.Categories[0] != "后端" {
+		t.Fatalf("Expected scalar categories to parse as one-item list, got %#v", post.Categories)
+	}
+	if len(post.Keywords) != 2 || post.Keywords[0] != "golang" || post.Keywords[1] != "yaml" {
+		t.Fatalf("Expected comma-separated keywords to parse, got %#v", post.Keywords)
+	}
+	if len(post.Aliases) != 1 || post.Aliases[0] != "/legacy/string-lists/" {
+		t.Fatalf("Expected scalar aliases to parse as one-item list, got %#v", post.Aliases)
+	}
+}
+
+func TestParsePost_Unpublished(t *testing.T) {
+	tmpDir := t.TempDir()
+	postContent := `---
+title: "Hidden Post"
+date: 2023-12-29T10:00:00+08:00
+published: false
+---
+
+Hidden content.`
+
+	postPath := filepath.Join(tmpDir, "2023-12-29-hidden-post.md")
+	if err := os.WriteFile(postPath, []byte(postContent), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	post, err := ParsePost(postPath)
+	if err != nil {
+		t.Fatalf("ParsePost failed: %v", err)
+	}
+
+	if post.Published == nil {
+		t.Fatal("Expected published to be parsed")
+	}
+	if *post.Published {
+		t.Error("Expected published to be false")
+	}
+}
+
 // TestParsePost_MissingFrontMatter tests error handling for missing frontmatter
 func TestParsePost_MissingFrontMatter(t *testing.T) {
 	tmpDir := t.TempDir()

@@ -1,0 +1,29 @@
+{{ define "notFoundMain" }}
+<div class="page-container">
+    <div class="container">
+        <div class="page-header">
+            <p class="hero-badge">
+                <span>404</span>
+                <span class="badge-dot"></span>
+                <span>Not Found</span>
+            </p>
+            <h1 class="page-title">Page Not Found</h1>
+            <div class="page-meta">
+                <p class="page-description">The page you requested does not exist or has moved.</p>
+            </div>
+        </div>
+
+        <div class="page-content">
+            <p>You can return to the homepage or continue browsing the documentation and release notes.</p>
+            <p>
+                <a href="/" class="tag-link">Go Home</a>
+                <a href="/#quickstart" class="tag-link">Quick Start</a>
+            </p>
+        </div>
+    </div>
+</div>
+{{ end }}
+
+{{ define "notFoundPage" }}
+{{ template "base" . }}
+{{ end }}

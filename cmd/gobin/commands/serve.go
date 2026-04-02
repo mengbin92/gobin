@@ -20,9 +20,11 @@ import (
 )
 
 var (
-	servePort   int
-	serveWatch  bool
+	servePort    int
+	serveWatch   bool
 	serveVerbose bool
+	serveDrafts  bool
+	serveClean   bool
 )
 
 // ServeCmd is the serve command
@@ -31,12 +33,14 @@ var ServeCmd = &cobra.Command{
 	Short: "Start the development server",
 	Long: `Start a local development server with optional file watching and automatic rebuild.
 
-The server watches for changes in your content and templates, automatically
-rebuilding the site when files change. It also injects LiveReload script
-for automatic browser refresh.`,
+The server watches for changes in your content and templates and automatically
+rebuilds the site when files change.
+
+The current serve workflow does not inject a LiveReload script into pages.
+After a rebuild, refresh the browser manually to see the latest output.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Load configuration
-		cfg, err := config.Load("config.yaml")
+		cfg, err := config.LoadDefault()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
 			os.Exit(1)
@@ -44,7 +48,7 @@ for automatic browser refresh.`,
 
 		// Build initial site
 		fmt.Println("Building site...")
-		if err := buildSite(cfg); err != nil {
+		if err := buildSite(cfg, serveDrafts); err != nil {
 			fmt.Fprintf(os.Stderr, "Error building site: %v\n", err)
 			os.Exit(1)
 		}
@@ -64,10 +68,12 @@ func init() {
 	ServeCmd.Flags().IntVarP(&servePort, "port", "p", 8080, "Port to serve on")
 	ServeCmd.Flags().BoolVarP(&serveWatch, "watch", "w", true, "Watch for file changes and rebuild")
 	ServeCmd.Flags().BoolVarP(&serveVerbose, "verbose", "v", false, "Verbose output")
+	ServeCmd.Flags().BoolVar(&serveDrafts, "drafts", false, "Include draft posts in the output")
+	ServeCmd.Flags().BoolVar(&serveClean, "clean", true, "Clean the output directory before rebuilding")
 }
 
 // buildSite builds the entire site
-func buildSite(cfg *config.Config) error {
+func buildSite(cfg *config.Config, buildDrafts bool) error {
 	// Parse posts
 	posts, err := parser.ParsePosts(cfg.ContentDir)
 	if err != nil {
@@ -76,7 +82,7 @@ func buildSite(cfg *config.Config) error {
 
 	// Generate site
 	outputDir := cfg.PublishDir
-	if err := generator.Generate(posts, cfg, outputDir, false); err != nil {
+	if err := generator.Generate(posts, cfg, outputDir, false, buildDrafts, serveClean); err != nil {
 		return fmt.Errorf("failed to generate site: %w", err)
 	}
 
@@ -85,26 +91,8 @@ func buildSite(cfg *config.Config) error {
 
 // startServer starts the HTTP development server
 func startServer(cfg *config.Config) {
-	outputDir := cfg.PublishDir
-
-	// Create file server
-	fs := http.FileServer(http.Dir(outputDir))
-	http.Handle("/", fs)
-
-	// Add CORS headers for live reload
-	http.HandleFunc("/_livereload", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.WriteHeader(http.StatusOK)
-	})
-
 	addr := fmt.Sprintf(":%d", servePort)
-	server := &http.Server{
-		Addr:         addr,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  60 * time.Second,
-	}
+	server := newDevServer(addr, cfg.PublishDir)
 
 	// Handle graceful shutdown
 	go func() {
@@ -130,6 +118,22 @@ func startServer(cfg *config.Config) {
 	}
 }
 
+func newDevServer(addr, outputDir string) *http.Server {
+	return &http.Server{
+		Addr:         addr,
+		Handler:      newDevServerHandler(outputDir),
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+}
+
+func newDevServerHandler(outputDir string) http.Handler {
+	mux := http.NewServeMux()
+	mux.Handle("/", http.FileServer(http.Dir(outputDir)))
+	return mux
+}
+
 // watchFiles watches for file changes and rebuilds the site
 func watchFiles(cfg *config.Config) {
 	watcher, err := fsnotify.NewWatcher()
@@ -139,14 +143,7 @@ func watchFiles(cfg *config.Config) {
 	}
 	defer watcher.Close()
 
-	// Watch directories
-	dirsToWatch := []string{
-		cfg.ContentDir,
-		cfg.StaticDir,
-		"templates",
-	}
-
-	for _, dir := range dirsToWatch {
+	for _, dir := range watchPaths(cfg) {
 		if err := addWatchPath(watcher, dir); err != nil {
 			if serveVerbose {
 				fmt.Printf("Warning: Could not watch %s: %v\n", dir, err)
@@ -167,10 +164,7 @@ func watchFiles(cfg *config.Config) {
 				return
 			}
 
-			// Only rebuild on write/rename/create events
-			if event.Op&fsnotify.Write == fsnotify.Write ||
-				event.Op&fsnotify.Create == fsnotify.Create ||
-				event.Op&fsnotify.Rename == fsnotify.Rename {
+			if shouldRebuildForEvent(event) {
 
 				if serveVerbose {
 					fmt.Printf("File changed: %s\n", event.Name)
@@ -186,7 +180,7 @@ func watchFiles(cfg *config.Config) {
 					fmt.Println("\nRebuilding site...")
 					start := time.Now()
 
-					if err := buildSite(cfg); err != nil {
+					if err := buildSite(cfg, serveDrafts); err != nil {
 						fmt.Fprintf(os.Stderr, "Error rebuilding site: %v\n", err)
 						return
 					}
@@ -205,6 +199,43 @@ func watchFiles(cfg *config.Config) {
 	}
 }
 
+func watchPaths(cfg *config.Config) []string {
+	paths := []string{cfg.ContentDir, cfg.StaticDir, "templates"}
+
+	if cfg.Theme != "" {
+		themesDir := cfg.ThemesDir
+		if themesDir == "" {
+			themesDir = "themes"
+		}
+
+		paths = append(paths,
+			filepath.Join(themesDir, cfg.Theme, "layouts"),
+			filepath.Join(themesDir, cfg.Theme, "assets"),
+		)
+	}
+
+	seen := make(map[string]struct{}, len(paths))
+	filtered := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if strings.TrimSpace(path) == "" {
+			continue
+		}
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
+		filtered = append(filtered, path)
+	}
+
+	return filtered
+}
+
+func shouldRebuildForEvent(event fsnotify.Event) bool {
+	return event.Op&fsnotify.Write == fsnotify.Write ||
+		event.Op&fsnotify.Create == fsnotify.Create ||
+		event.Op&fsnotify.Rename == fsnotify.Rename
+}
+
 // addWatchPath adds a path and all its subdirectories to the watcher
 func addWatchPath(watcher *fsnotify.Watcher, path string) error {
 	return filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
@@ -215,7 +246,7 @@ func addWatchPath(watcher *fsnotify.Watcher, path string) error {
 		// Skip hidden directories and node_modules
 		if info.IsDir() {
 			name := info.Name()
-			if name[0] == '.' || name == "node_modules" || name == "public" {
+			if shouldSkipWatchDir(name) {
 				return filepath.SkipDir
 			}
 
@@ -228,17 +259,6 @@ func addWatchPath(watcher *fsnotify.Watcher, path string) error {
 	})
 }
 
-// ServeWithLiveReload adds LiveReload support
-type liveReloadHandler struct {
-	handler http.Handler
-}
-
-func (h *liveReloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Inject LiveReload script for HTML files
-	if strings.HasSuffix(r.URL.Path, ".html") || r.URL.Path == "/" {
-		// TODO: Implement LiveReload script injection
-		// For now, just serve the file normally
-	}
-
-	h.handler.ServeHTTP(w, r)
+func shouldSkipWatchDir(name string) bool {
+	return strings.HasPrefix(name, ".") || name == "node_modules" || name == "public"
 }

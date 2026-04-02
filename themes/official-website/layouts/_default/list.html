@@ -261,75 +261,33 @@ cd my-blog</code></pre>
         </div>
     </div>
 </section>
+
+{{ if .Pagination }}
+<section class="section section-pagination">
+    <div class="container">
+        <nav class="pagination">
+            <div class="pagination-info">
+                Page {{ .Pagination.Page }} of {{ .Pagination.TotalPages }}
+            </div>
+            <div class="pagination-links">
+                {{ if and (gt .Pagination.PrevPage 0) (not .Pagination.IsFirstPage) }}
+                    {{ if eq .Pagination.PrevPage 1 }}
+                    <a href="/" class="pagination-prev">← Newer</a>
+                    {{ else }}
+                    <a href="/{{ $.Site.PaginatePath }}/{{ .Pagination.PrevPage }}/" class="pagination-prev">← Newer</a>
+                    {{ end }}
+                {{ end }}
+
+                {{ if and (gt .Pagination.NextPage 0) (not .Pagination.IsLastPage) }}
+                <a href="/{{ $.Site.PaginatePath }}/{{ .Pagination.NextPage }}/" class="pagination-next">Older →</a>
+                {{ end }}
+            </div>
+        </nav>
+    </div>
+</section>
+{{ end }}
 {{ end }}
 
 {{ define "listPage" }}
-<!DOCTYPE html>
-<html lang="{{ if .Site.LanguageCode }}{{ .Site.LanguageCode }}{{ else }}en{{ end }}">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-
-    <title>{{ .Site.Title }}</title>
-    {{ if .Site.Description }}
-    <meta name="description" content="{{ .Site.Description }}">
-    {{ end }}
-
-    {{ if .Site.Author }}
-    <meta name="author" content="{{ .Site.Author }}">
-    {{ end }}
-
-    <!-- Keywords -->
-    <meta name="keywords" content="gobin, static site generator, blog, go, golang, jekyll alternative, ssg">
-
-    <!-- Canonical URL -->
-    <link rel="canonical" href="{{ .Site.BaseURL }}">
-
-    <!-- Open Graph -->
-    <meta property="og:title" content="{{ .Site.Title }}">
-    {{ if .Site.Description }}
-    <meta property="og:description" content="{{ .Site.Description }}">
-    {{ end }}
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="{{ .Site.BaseURL }}">
-    {{ if .Site.SEO }}{{ if .Site.SEO.Image }}
-    <meta property="og:image" content="{{ .Site.SEO.Image }}">
-    {{ end }}{{ end }}
-
-    <!-- Twitter Card -->
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="{{ .Site.Title }}">
-    {{ if .Site.Description }}
-    <meta name="twitter:description" content="{{ .Site.Description }}">
-    {{ end }}
-    {{ if .Site.SEO }}{{ if .Site.SEO.Image }}
-    <meta name="twitter:image" content="{{ .Site.SEO.Image }}">
-    {{ end }}{{ end }}
-
-    <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
-    <link rel="apple-touch-icon" href="/images/apple-touch-icon.png">
-
-    <!-- Styles -->
-    <link rel="stylesheet" href="/css/theme.css">
-    <link rel="stylesheet" href="/css/syntax.css">
-
-    <!-- Font: JetBrains Mono for that hacker feel -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-</head>
-<body data-theme="dark">
-    {{ template "header" . }}
-
-    <main>
-        {{ template "listMain" . }}
-    </main>
-
-    {{ template "footer" . }}
-
-    <script src="/js/theme.js"></script>
-</body>
-</html>
+{{ template "base" . }}
 {{ end }}

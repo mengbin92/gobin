@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -8,71 +9,82 @@ import (
 
 // Config represents the site configuration
 type Config struct {
-	Title           string            `yaml:"title"`
-	Description     string            `yaml:"description"`
-	Author          string            `yaml:"author"`
-	LanguageCode    string            `yaml:"languageCode"`
-	BaseURL         string            `yaml:"baseURL"`
-	Timezone        string            `yaml:"timezone"`
+	Title        string `yaml:"title"`
+	Description  string `yaml:"description"`
+	Author       string `yaml:"author"`
+	LanguageCode string `yaml:"languageCode"`
+	BaseURL      string `yaml:"baseURL"`
+	Timezone     string `yaml:"timezone"`
 
 	// Directory configuration
-	ContentDir      string            `yaml:"contentDir"`
-	StaticDir       string            `yaml:"staticDir"`
-	PublishDir      string            `yaml:"publishDir"`
-	ThemesDir       string            `yaml:"themesDir"`
+	ContentDir string `yaml:"contentDir"`
+	StaticDir  string `yaml:"staticDir"`
+	PublishDir string `yaml:"publishDir"`
+	ThemesDir  string `yaml:"themesDir"`
 
 	// Theme configuration
-	Theme           string            `yaml:"theme"`
+	Theme string `yaml:"theme"`
 
 	// Pagination
-	Paginate        int               `yaml:"paginate"`
-	PaginatePath    string            `yaml:"paginatePath"`
+	Paginate     int    `yaml:"paginate"`
+	PaginatePath string `yaml:"paginatePath"`
 
 	// Permalink configuration
-	Permalinks      map[string]string `yaml:"permalinks"`
+	Permalinks map[string]string `yaml:"permalinks"`
 
 	// Navigation
-	NavbarLinks     []NavbarLink      `yaml:"navbarLinks"`
+	NavbarLinks []NavbarLink `yaml:"navbarLinks"`
 
 	// Repository URL for source code link
-	RepositoryURL   string            `yaml:"repositoryURL"`
+	RepositoryURL string `yaml:"repositoryURL"`
 
 	// Social media
-	Social          map[string]string `yaml:"social"`
+	Social map[string]string `yaml:"social"`
 
 	// Feature flags
-	EnableEmoji     bool              `yaml:"enableEmoji"`
-	EnableGitInfo   bool              `yaml:"enableGitInfo"`
-	EnableRobotsTXT bool              `yaml:"enableRobotsTXT"`
+	EnableEmoji     bool `yaml:"enableEmoji"`
+	EnableGitInfo   bool `yaml:"enableGitInfo"`
+	EnableRobotsTXT bool `yaml:"enableRobotsTXT"`
 
 	// SEO configuration
-	SEO             *SEOConfig        `yaml:"seo"`
+	SEO *SEOConfig `yaml:"seo"`
 
 	// Comments configuration
-	Comments        *CommentsConfig   `yaml:"comments"`
+	Comments *CommentsConfig `yaml:"comments"`
 
 	// Analytics configuration
-	Analytics       *AnalyticsConfig  `yaml:"analytics"`
+	Analytics *AnalyticsConfig `yaml:"analytics"`
+
+	// Output controls
+	Outputs *OutputsConfig `yaml:"outputs"`
 
 	// Extended parameters
-	Params          map[string]interface{} `yaml:"params"`
+	Params map[string]interface{} `yaml:"params"`
+}
+
+// OutputsConfig controls generated site-level artifacts.
+type OutputsConfig struct {
+	Feed    *bool `yaml:"feed"`
+	Search  *bool `yaml:"search"`
+	Sitemap *bool `yaml:"sitemap"`
+	Robots  *bool `yaml:"robots"`
 }
 
 // SEOConfig represents SEO configuration
 type SEOConfig struct {
-	Enabled         bool              `yaml:"enabled"`
-	OpenGraph       bool              `yaml:"openGraph"`
-	TwitterCard     bool              `yaml:"twitterCard"`
-	Image           string            `yaml:"image"`
-	TwitterUsername string            `yaml:"twitterUsername"`
+	Enabled         bool   `yaml:"enabled"`
+	OpenGraph       bool   `yaml:"openGraph"`
+	TwitterCard     bool   `yaml:"twitterCard"`
+	Image           string `yaml:"image"`
+	TwitterUsername string `yaml:"twitterUsername"`
 }
 
 // CommentsConfig represents comments system configuration
 type CommentsConfig struct {
-	Enabled  bool   `yaml:"enabled"`
-	Provider string `yaml:"provider"` // disqus, gitalk, utterances
-	Disqus   *DisqusConfig   `yaml:"disqus"`
-	Gitalk   *GitalkConfig   `yaml:"gitalk"`
+	Enabled    bool              `yaml:"enabled"`
+	Provider   string            `yaml:"provider"` // disqus, gitalk, utterances
+	Disqus     *DisqusConfig     `yaml:"disqus"`
+	Gitalk     *GitalkConfig     `yaml:"gitalk"`
 	Utterances *UtterancesConfig `yaml:"utterances"`
 }
 
@@ -83,12 +95,12 @@ type DisqusConfig struct {
 
 // GitalkConfig represents Gitalk configuration
 type GitalkConfig struct {
-	ClientID     string `yaml:"clientID"`
-	ClientSecret string `yaml:"clientSecret"`
-	Repo         string `yaml:"repo"`
-	Owner        string `yaml:"owner"`
-	Admin        string `yaml:"admin"`
-	DistractionFreeMode bool `yaml:"distractionFreeMode"`
+	ClientID            string `yaml:"clientID"`
+	ClientSecret        string `yaml:"clientSecret"`
+	Repo                string `yaml:"repo"`
+	Owner               string `yaml:"owner"`
+	Admin               string `yaml:"admin"`
+	DistractionFreeMode bool   `yaml:"distractionFreeMode"`
 }
 
 // UtterancesConfig represents Utterances configuration
@@ -162,4 +174,22 @@ func Load(path string) (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+// LoadDefault loads configuration from the first existing default config path.
+func LoadDefault() (*Config, error) {
+	candidates := []string{
+		"config.yaml",
+		"config.yml",
+		"_config.yml",
+		"_config.yaml",
+	}
+
+	for _, path := range candidates {
+		if _, err := os.Stat(path); err == nil {
+			return Load(path)
+		}
+	}
+
+	return nil, fmt.Errorf("no config file found (tried: %s)", candidates)
 }

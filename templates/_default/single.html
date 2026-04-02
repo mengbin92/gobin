@@ -41,50 +41,5 @@
 {{ end }}
 
 {{ define "singlePage" }}
-<!DOCTYPE html>
-<html lang="{{ if .Site.LanguageCode }}{{ .Site.LanguageCode }}{{ else }}zh-CN{{ end }}">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ .Post.Title }} - {{ .Site.Title }}</title>
-    <meta name="description" content="{{ .Post.Description }}">
-
-    <!-- Canonical URL -->
-    <link rel="canonical" href="{{ .Site.BaseURL }}{{ .Post.URL | urlize }}">
-
-    <!-- Open Graph Meta Tags -->
-    {{ if .Site.SEO }}{{ if .Site.SEO.OpenGraph }}
-    <meta property="og:title" content="{{ .Post.Title }}">
-    <meta property="og:description" content="{{ .Post.Description }}">
-    <meta property="og:type" content="article">
-    <meta property="og:url" content="{{ .Site.BaseURL }}{{ .Post.URL | urlize }}">
-    <meta property="og:site_name" content="{{ .Site.Title }}">
-    {{ if .Site.SEO.Image }}<meta property="og:image" content="{{ .Site.SEO.Image }}">{{ end }}
-    {{ end }}{{ end }}
-
-    <!-- Twitter Card Meta Tags -->
-    {{ if .Site.SEO }}{{ if .Site.SEO.TwitterCard }}
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="{{ .Post.Title }}">
-    <meta name="twitter:description" content="{{ .Post.Description }}">
-    {{ if .Site.SEO.Image }}<meta name="twitter:image" content="{{ .Site.SEO.Image }}">{{ end }}
-    {{ if .Site.SEO.TwitterUsername }}<meta name="twitter:creator" content="@{{ .Site.SEO.TwitterUsername }}">{{ end }}
-    {{ end }}{{ end }}
-
-    <!-- Author -->
-    {{ if .Site.Author }}<meta name="author" content="{{ .Site.Author }}">{{ end }}
-
-    <!-- RSS Feed -->
-    <link rel="alternate" type="application/rss+xml" title="{{ .Site.Title }}" href="{{ .Site.BaseURL }}/index.xml">
-
-    <link rel="stylesheet" href="/css/main.css">
-</head>
-<body>
-    {{ template "headerNested" . }}
-    <main>
-        {{ template "singleMain" . }}
-    </main>
-    {{ template "footerNested" . }}
-</body>
-</html>
+{{ template "base" . }}
 {{ end }}

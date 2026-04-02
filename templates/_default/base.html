@@ -4,18 +4,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ if .Title }}{{ .Title }} - {{ end }}{{ .Site.Title }}</title>
+    <title>{{ if .MetaTitle }}{{ .MetaTitle }} - {{ else if and .Title (ne .Title .Site.Title) }}{{ .Title }} - {{ end }}{{ .Site.Title }}</title>
     <meta name="description" content="{{ if .Description }}{{ .Description }}{{ else }}{{ .Site.Description }}{{ end }}">
-    <link rel="stylesheet" href="/assets/css/main.css">
+    {{ if .Site.Author }}<meta name="author" content="{{ .Site.Author }}">{{ end }}
+    {{ if .Canonical }}<link rel="canonical" href="{{ .Canonical }}">{{ end }}
+    <meta property="og:title" content="{{ if .MetaTitle }}{{ .MetaTitle }}{{ else if and .Title (ne .Title .Site.Title) }}{{ .Title }}{{ else }}{{ .Site.Title }}{{ end }}">
+    <meta property="og:description" content="{{ if .Description }}{{ .Description }}{{ else }}{{ .Site.Description }}{{ end }}">
+    <meta property="og:type" content="{{ if .OpenGraphType }}{{ .OpenGraphType }}{{ else }}website{{ end }}">
+    {{ if .Canonical }}<meta property="og:url" content="{{ .Canonical }}">{{ end }}
+    {{ if .Site.SEO }}{{ if .Site.SEO.Image }}<meta property="og:image" content="{{ .Site.SEO.Image }}">{{ end }}{{ end }}
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ if .MetaTitle }}{{ .MetaTitle }}{{ else if and .Title (ne .Title .Site.Title) }}{{ .Title }}{{ else }}{{ .Site.Title }}{{ end }}">
+    <meta name="twitter:description" content="{{ if .Description }}{{ .Description }}{{ else }}{{ .Site.Description }}{{ end }}">
+    {{ if .Site.SEO }}{{ if .Site.SEO.Image }}<meta name="twitter:image" content="{{ .Site.SEO.Image }}">{{ end }}{{ end }}
+    <link rel="alternate" type="application/rss+xml" title="{{ .Site.Title }}" href="{{ absURL "index.xml" }}">
+    <link rel="stylesheet" href="{{ stylesheetPath }}">
 </head>
 <body>
-    {{ template "header" . }}
+    {{ render .HeaderTemplate . }}
 
     <main>
-        {{ template "main" . }}
+        {{ render .MainTemplate . }}
     </main>
 
-    {{ template "footer" . }}
+    {{ render .FooterTemplate . }}
 </body>
 </html>
 {{ end }}

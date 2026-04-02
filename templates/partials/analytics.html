@@ -12,7 +12,7 @@
 <!-- End Google Analytics -->
 {{ end }}{{ end }}
 
-{{ else if eq .Site.Analytics.Provider "baidu" }}{{ if .Site.Analytics.Baidu }}
+{{ if eq .Site.Analytics.Provider "baidu" }}{{ if .Site.Analytics.Baidu }}
 <!-- Baidu Analytics -->
 <script>
   var _hmt = _hmt || [];
@@ -26,7 +26,7 @@
 <!-- End Baidu Analytics -->
 {{ end }}{{ end }}
 
-{{ else if eq .Site.Analytics.Provider "matomo" }}{{ if .Site.Analytics.Matomo }}
+{{ if eq .Site.Analytics.Provider "matomo" }}{{ if .Site.Analytics.Matomo }}
 <!-- Matomo Analytics -->
 <script>
   var _paq = window._paq = window._paq || [];

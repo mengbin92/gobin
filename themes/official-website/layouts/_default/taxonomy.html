@@ -1,0 +1,80 @@
+{{ define "taxonomyTermsMain" }}
+<div class="page-container">
+    <div class="container">
+        <div class="page-header">
+            <p class="hero-badge">
+                <span>{{ .Kind }}</span>
+                <span class="badge-dot"></span>
+                <span>{{ len .Terms }} entries</span>
+            </p>
+            <h1 class="page-title">{{ .Title }}</h1>
+            <div class="page-meta">
+                <p class="page-description">{{ .Description }}</p>
+            </div>
+        </div>
+
+        <div class="page-content">
+            {{ if .Terms }}
+            <div class="tags-list">
+                {{ range .Terms }}
+                <a href="{{ .URL }}" class="tag-link">
+                    {{ .Name }}
+                    <span class="separator">/</span>
+                    {{ .Count }}
+                </a>
+                {{ end }}
+            </div>
+            {{ else }}
+            <p>No {{ .Kind }} found.</p>
+            {{ end }}
+        </div>
+    </div>
+</div>
+{{ end }}
+
+{{ define "taxonomyMain" }}
+<div class="page-container">
+    <div class="container">
+        <div class="page-header">
+            <nav class="breadcrumb">
+                <a href="/">Home</a>
+                <span class="separator">/</span>
+                <a href="{{ .IndexURL }}">{{ .Kind }}</a>
+                <span class="separator">/</span>
+                <span>{{ .Term }}</span>
+            </nav>
+
+            <h1 class="page-title">{{ .Title }}</h1>
+            <div class="page-meta">
+                <p class="page-description">{{ .Description }}</p>
+            </div>
+        </div>
+
+        <div class="page-content">
+            {{ if .Posts }}
+            {{ range .Posts }}
+            <article class="page-footer">
+                <h2><a href="{{ .URL }}">{{ .Title }}</a></h2>
+                <p>{{ .Date.Format "2006-01-02" }}</p>
+                {{ if .SummaryHTML }}
+                {{ safeHTML .SummaryHTML }}
+                {{ else if .Summary }}
+                <p>{{ .Summary }}</p>
+                {{ end }}
+            </article>
+            {{ end }}
+            {{ else }}
+            <p>No posts found.</p>
+            {{ end }}
+        </div>
+    </div>
+</div>
+{{ end }}
+
+{{ define "taxonomyTermsPage" }}
+{{ template "base" . }}
+{{ end }}
+
+{{ define "taxonomyPage" }}
+{{ template "base" . }}
+{{ end }}

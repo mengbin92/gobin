@@ -18,7 +18,7 @@ type Post struct {
 	Date        time.Time `yaml:"date"`
 	LastMod     time.Time `yaml:"lastmod"`
 	Draft       bool      `yaml:"draft"`
-	Published   bool      `yaml:"published"`
+	Published   *bool     `yaml:"published"`
 	Description string    `yaml:"description"`
 	Tags        []string  `yaml:"tags"`
 	Categories  []string  `yaml:"categories"`
@@ -29,16 +29,116 @@ type Post struct {
 	Layout      string    `yaml:"layout"`
 
 	// Internal fields
-	FilePath      string      `yaml:"-"`
-	Content       string      `yaml:"-"`
-	ContentHTML   string      `yaml:"-"`
-	WordCount     int         `yaml:"-"`
-	ReadingTime   int         `yaml:"-"`
-	Summary       string      `yaml:"-"`
-	SummaryHTML   string      `yaml:"-"`
-	URL           string      `yaml:"-"`
-	Section       string      `yaml:"-"`
-	Params        map[string]interface{} `yaml:"-"`
+	FilePath    string                 `yaml:"-"`
+	Content     string                 `yaml:"-"`
+	ContentHTML string                 `yaml:"-"`
+	WordCount   int                    `yaml:"-"`
+	ReadingTime int                    `yaml:"-"`
+	Summary     string                 `yaml:"-"`
+	SummaryHTML string                 `yaml:"-"`
+	URL         string                 `yaml:"-"`
+	Section     string                 `yaml:"-"`
+	Params      map[string]interface{} `yaml:"-"`
+}
+
+func (p *Post) UnmarshalYAML(value *yaml.Node) error {
+	type rawPost struct {
+		Title       string                 `yaml:"title"`
+		Date        time.Time              `yaml:"date"`
+		LastMod     time.Time              `yaml:"lastmod"`
+		Draft       bool                   `yaml:"draft"`
+		Published   *bool                  `yaml:"published"`
+		Description string                 `yaml:"description"`
+		Tags        yaml.Node              `yaml:"tags"`
+		Categories  yaml.Node              `yaml:"categories"`
+		Keywords    yaml.Node              `yaml:"keywords"`
+		Slug        string                 `yaml:"slug"`
+		Aliases     yaml.Node              `yaml:"aliases"`
+		Weight      int                    `yaml:"weight"`
+		Layout      string                 `yaml:"layout"`
+		Params      map[string]interface{} `yaml:",inline"`
+	}
+
+	var raw rawPost
+	if err := value.Decode(&raw); err != nil {
+		return err
+	}
+
+	tags, err := decodeStringListNode(raw.Tags)
+	if err != nil {
+		return fmt.Errorf("invalid tags: %w", err)
+	}
+	categories, err := decodeStringListNode(raw.Categories)
+	if err != nil {
+		return fmt.Errorf("invalid categories: %w", err)
+	}
+	keywords, err := decodeStringListNode(raw.Keywords)
+	if err != nil {
+		return fmt.Errorf("invalid keywords: %w", err)
+	}
+	aliases, err := decodeStringListNode(raw.Aliases)
+	if err != nil {
+		return fmt.Errorf("invalid aliases: %w", err)
+	}
+
+	p.Title = raw.Title
+	p.Date = raw.Date
+	p.LastMod = raw.LastMod
+	p.Draft = raw.Draft
+	p.Published = raw.Published
+	p.Description = raw.Description
+	p.Tags = tags
+	p.Categories = categories
+	p.Keywords = keywords
+	p.Slug = raw.Slug
+	p.Aliases = aliases
+	p.Weight = raw.Weight
+	p.Layout = raw.Layout
+	p.Params = raw.Params
+
+	return nil
+}
+
+func decodeStringListNode(node yaml.Node) ([]string, error) {
+	if node.Kind == 0 {
+		return nil, nil
+	}
+
+	switch node.Kind {
+	case yaml.SequenceNode:
+		values := make([]string, 0, len(node.Content))
+		for _, item := range node.Content {
+			if item.Kind != yaml.ScalarNode {
+				return nil, fmt.Errorf("expected scalar sequence item")
+			}
+			value := strings.TrimSpace(item.Value)
+			if value != "" {
+				values = append(values, value)
+			}
+		}
+		return values, nil
+	case yaml.ScalarNode:
+		value := strings.TrimSpace(node.Value)
+		if value == "" {
+			return nil, nil
+		}
+
+		if strings.Contains(value, ",") {
+			parts := strings.Split(value, ",")
+			values := make([]string, 0, len(parts))
+			for _, part := range parts {
+				part = strings.TrimSpace(part)
+				if part != "" {
+					values = append(values, part)
+				}
+			}
+			return values, nil
+		}
+
+		return []string{value}, nil
+	default:
+		return nil, fmt.Errorf("expected scalar or sequence, got kind %d", node.Kind)
+	}
 }
 
 // ParsePosts parses all markdown posts from a directory
@@ -70,12 +170,6 @@ func ParsePosts(dir string) ([]*Post, error) {
 
 // ParsePost parses a single markdown post file
 func ParsePost(path string) (*Post, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err

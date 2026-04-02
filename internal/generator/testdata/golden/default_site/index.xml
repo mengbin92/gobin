@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Golden Blog</title>
+    <link>https://example.com</link>
+    <description>Golden site description.</description>
+    <language>en-us</language>
+    <pubDate><BUILD_RFC1123Z></pubDate>
+    <lastBuildDate><BUILD_RFC1123Z></lastBuildDate>
+    <generator>gobin</generator>
+    <atom:link href="https://example.com/index.xml" rel="self" type="application/rss+xml"></atom:link>
+    <item>
+      <title>Alpha Post</title>
+      <link>https://example.com/2026/03/20/alpha-post/</link>
+      <description>Alpha summary.</description>
+      <author>Golden Author</author>
+      <category>Tech</category>
+      <pubDate>Fri, 20 Mar 2026 10:00:00 +0000</pubDate>
+      <guid isPermaLink="true">https://example.com/2026/03/20/alpha-post/</guid>
+      <content:encoded>&lt;p&gt;Alpha body content.&lt;/p&gt;</content:encoded>
+    </item>
+    <item>
+      <title>Beta Post</title>
+      <link>https://example.com/2026/03/18/beta-post/</link>
+      <description>Beta summary.</description>
+      <author>Golden Author</author>
+      <category>Tech</category>
+      <pubDate>Wed, 18 Mar 2026 09:30:00 +0000</pubDate>
+      <guid isPermaLink="true">https://example.com/2026/03/18/beta-post/</guid>
+      <content:encoded>&lt;p&gt;Beta body content.&lt;/p&gt;</content:encoded>
+    </item>
+  </channel>
+</rss>

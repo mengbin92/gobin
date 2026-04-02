@@ -7,21 +7,5 @@
 {{ end }}
 
 {{ define "notFoundPage" }}
-<!DOCTYPE html>
-<html lang="{{ if .Site.LanguageCode }}{{ .Site.LanguageCode }}{{ else }}zh-CN{{ end }}">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>404 Not Found - {{ .Site.Title }}</title>
-    <meta name="description" content="Page not found">
-    <link rel="stylesheet" href="css/main.css">
-</head>
-<body>
-    {{ template "header" . }}
-    <main>
-        {{ template "notFoundMain" . }}
-    </main>
-    {{ template "footer" . }}
-</body>
-</html>
+{{ template "base" . }}
 {{ end }}

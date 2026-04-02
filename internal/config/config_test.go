@@ -207,6 +207,103 @@ baseURL: "https://example.com"
 	}
 }
 
+func TestLoadDefault_PrefersConfigYaml(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldWd, _ := os.Getwd()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Failed to change dir: %v", err)
+	}
+	defer os.Chdir(oldWd)
+
+	if err := os.WriteFile("config.yaml", []byte("title: Config YAML\nbaseURL: https://example.com\n"), 0644); err != nil {
+		t.Fatalf("Failed to write config.yaml: %v", err)
+	}
+	if err := os.WriteFile("_config.yml", []byte("title: Jekyll Config\nbaseURL: https://example.com\n"), 0644); err != nil {
+		t.Fatalf("Failed to write _config.yml: %v", err)
+	}
+
+	cfg, err := LoadDefault()
+	if err != nil {
+		t.Fatalf("LoadDefault failed: %v", err)
+	}
+	if cfg.Title != "Config YAML" {
+		t.Fatalf("Expected config.yaml to win, got %q", cfg.Title)
+	}
+}
+
+func TestLoadDefault_FallsBackToJekyllConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldWd, _ := os.Getwd()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Failed to change dir: %v", err)
+	}
+	defer os.Chdir(oldWd)
+
+	if err := os.WriteFile("_config.yml", []byte("title: Jekyll Config\nbaseURL: https://example.com\n"), 0644); err != nil {
+		t.Fatalf("Failed to write _config.yml: %v", err)
+	}
+
+	cfg, err := LoadDefault()
+	if err != nil {
+		t.Fatalf("LoadDefault failed: %v", err)
+	}
+	if cfg.Title != "Jekyll Config" {
+		t.Fatalf("Expected _config.yml fallback, got %q", cfg.Title)
+	}
+}
+
+func TestLoadDefault_NoConfigFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldWd, _ := os.Getwd()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Failed to change dir: %v", err)
+	}
+	defer os.Chdir(oldWd)
+
+	if _, err := LoadDefault(); err == nil {
+		t.Fatal("Expected LoadDefault to fail when no config file exists")
+	}
+}
+
+func TestLoadConfig_WithOutputs(t *testing.T) {
+	tmpDir := t.TempDir()
+	configContent := `title: "Outputs Blog"
+description: "Outputs config"
+baseURL: "https://example.com"
+outputs:
+  feed: false
+  search: true
+  sitemap: false
+  robots: true
+`
+
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("Failed to create test config: %v", err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	if cfg.Outputs == nil {
+		t.Fatal("Expected outputs config to be loaded")
+	}
+	if cfg.Outputs.Feed == nil || *cfg.Outputs.Feed {
+		t.Error("Expected outputs.feed to be false")
+	}
+	if cfg.Outputs.Search == nil || !*cfg.Outputs.Search {
+		t.Error("Expected outputs.search to be true")
+	}
+	if cfg.Outputs.Sitemap == nil || *cfg.Outputs.Sitemap {
+		t.Error("Expected outputs.sitemap to be false")
+	}
+	if cfg.Outputs.Robots == nil || !*cfg.Outputs.Robots {
+		t.Error("Expected outputs.robots to be true")
+	}
+}
+
 // TestLoadConfig_NonExistentFile tests error handling for missing file
 func TestLoadConfig_NonExistentFile(t *testing.T) {
 	_, err := Load("/nonexistent/config.yaml")
