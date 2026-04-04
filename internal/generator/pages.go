@@ -21,6 +21,34 @@ func buildPageSpecs(posts []*parser.Post, cfg *config.Config) ([]PageSpec, []str
 	return pages, tags, categories
 }
 
+func buildStandalonePageSpecs(standalonePages []*parser.Page, cfg *config.Config) []PageSpec {
+	pages := make([]PageSpec, 0, len(standalonePages))
+
+	for _, page := range standalonePages {
+		normalizeRenderedContent(cfg, &page.Content, &page.ContentHTML)
+		outputPath := standalonePageOutputPath(page.URL)
+		pages = append(pages, PageSpec{
+			TemplateCandidates: []string{"pagePage", "singlePage"},
+			OutputPath:         outputPath,
+			Data: StandalonePageData{
+				BasePageData: BasePageData{
+					Site:           cfg,
+					Title:          page.Title,
+					Description:    page.Description,
+					Canonical:      joinURL(cfg.BaseURL, page.URL),
+					OpenGraphType:  "website",
+					HeaderTemplate: "headerNested",
+					FooterTemplate: "footerNested",
+					MainTemplate:   "pageMain",
+				},
+				Page: page,
+			},
+		})
+	}
+
+	return pages
+}
+
 func buildIndexPageSpecs(posts []*parser.Post, cfg *config.Config) []PageSpec {
 	paginatedPosts := paginate(posts, cfg.Paginate)
 	pages := make([]PageSpec, 0, len(paginatedPosts))
@@ -106,8 +134,17 @@ func indexPageMetaTitle(pageNum int) string {
 func buildPostPageSpecs(posts []*parser.Post, cfg *config.Config) []PageSpec {
 	pages := make([]PageSpec, 0, len(posts))
 
-	for _, post := range posts {
+	for i, post := range posts {
 		postPath := filepath.Join(strings.TrimPrefix(strings.TrimSuffix(post.URL, "/"), "/"), "index.html")
+		var prevPost *parser.Post
+		var nextPost *parser.Post
+		if i+1 < len(posts) {
+			prevPost = posts[i+1]
+		}
+		if i-1 >= 0 {
+			nextPost = posts[i-1]
+		}
+
 		pages = append(pages, PageSpec{
 			TemplateCandidates: []string{"singlePage"},
 			OutputPath:         postPath,
@@ -122,7 +159,9 @@ func buildPostPageSpecs(posts []*parser.Post, cfg *config.Config) []PageSpec {
 					FooterTemplate: "footerNested",
 					MainTemplate:   "singleMain",
 				},
-				Post: post,
+				Post:     post,
+				PrevPost: prevPost,
+				NextPost: nextPost,
 			},
 		})
 	}
@@ -147,6 +186,17 @@ func buildNotFoundPageSpec(cfg *config.Config) PageSpec {
 			},
 		},
 	}
+}
+
+func standalonePageOutputPath(url string) string {
+	trimmed := strings.TrimPrefix(strings.TrimSpace(url), "/")
+	if trimmed == "" {
+		return "index.html"
+	}
+	if strings.HasSuffix(trimmed, ".html") {
+		return filepath.FromSlash(trimmed)
+	}
+	return filepath.Join(filepath.FromSlash(strings.TrimSuffix(trimmed, "/")), "index.html")
 }
 
 func canonicalForIndexPage(cfg *config.Config, pageNum int) string {

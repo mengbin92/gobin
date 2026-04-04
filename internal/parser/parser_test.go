@@ -104,6 +104,33 @@ Content here.`
 	}
 }
 
+func TestParsePost_DateFallbackFromFilename(t *testing.T) {
+	tmpDir := t.TempDir()
+	postContent := `---
+title: "Filename Date"
+draft: false
+---
+
+Content here.`
+
+	postPath := filepath.Join(tmpDir, "2023-12-26-filename-date.md")
+	if err := os.WriteFile(postPath, []byte(postContent), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	post, err := ParsePost(postPath)
+	if err != nil {
+		t.Fatalf("ParsePost failed: %v", err)
+	}
+
+	if post.Date.IsZero() {
+		t.Fatal("Expected date to fall back from filename")
+	}
+	if got := post.Date.Format("2006-01-02"); got != "2023-12-26" {
+		t.Fatalf("Expected fallback date 2023-12-26, got %s", got)
+	}
+}
+
 // TestParsePostWithCustomSlug tests that custom slug in frontmatter is used
 func TestParsePostWithCustomSlug(t *testing.T) {
 	tmpDir := t.TempDir()
@@ -287,6 +314,69 @@ Draft content.`
 	// Should parse all posts including drafts
 	if len(posts) != 3 {
 		t.Errorf("Expected 3 posts, got %d", len(posts))
+	}
+}
+
+func TestParsePages(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmpDir, "docs"), 0755); err != nil {
+		t.Fatalf("Failed to create nested dir: %v", err)
+	}
+
+	pageOne := `---
+title: "About"
+permalink: "/about/"
+---
+
+<div class="hero">hello</div>`
+
+	pageTwo := `---
+title: "Nested Page"
+description: "Nested description"
+---
+
+# Nested`
+
+	if err := os.WriteFile(filepath.Join(tmpDir, "about.md"), []byte(pageOne), 0644); err != nil {
+		t.Fatalf("Failed to create page one: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "docs", "nested.md"), []byte(pageTwo), 0644); err != nil {
+		t.Fatalf("Failed to create page two: %v", err)
+	}
+
+	pages, err := ParsePages(tmpDir)
+	if err != nil {
+		t.Fatalf("ParsePages failed: %v", err)
+	}
+	if len(pages) != 2 {
+		t.Fatalf("Expected 2 pages, got %d", len(pages))
+	}
+
+	if pages[0].ContentHTML == "" && pages[1].ContentHTML == "" {
+		t.Fatal("Expected rendered HTML content for pages")
+	}
+
+	var foundAbout, foundNested bool
+	for _, page := range pages {
+		switch page.Title {
+		case "About":
+			foundAbout = true
+			if page.URL != "/about/" {
+				t.Fatalf("Expected /about/ URL, got %s", page.URL)
+			}
+			if !strings.Contains(page.ContentHTML, `<div class="hero">hello</div>`) {
+				t.Fatalf("Expected raw HTML to be preserved, got %s", page.ContentHTML)
+			}
+		case "Nested Page":
+			foundNested = true
+			if page.URL != "/docs/nested/" {
+				t.Fatalf("Expected nested URL, got %s", page.URL)
+			}
+		}
+	}
+
+	if !foundAbout || !foundNested {
+		t.Fatalf("Expected both pages to be parsed, got %#v", pages)
 	}
 }
 

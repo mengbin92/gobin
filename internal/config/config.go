@@ -18,6 +18,7 @@ type Config struct {
 
 	// Directory configuration
 	ContentDir string `yaml:"contentDir"`
+	PageDir    string `yaml:"pageDir"`
 	StaticDir  string `yaml:"staticDir"`
 	PublishDir string `yaml:"publishDir"`
 	ThemesDir  string `yaml:"themesDir"`
@@ -162,6 +163,9 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.ContentDir == "" {
 		cfg.ContentDir = "_posts"
+	}
+	if cfg.PageDir == "" {
+		cfg.PageDir = "pages"
 	}
 	if cfg.PublishDir == "" {
 		cfg.PublishDir = "public"

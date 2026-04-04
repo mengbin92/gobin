@@ -97,6 +97,9 @@ analytics:
 	if cfg.ContentDir != "_posts" {
 		t.Errorf("Expected contentDir '_posts', got '%s'", cfg.ContentDir)
 	}
+	if cfg.PageDir != "pages" {
+		t.Errorf("Expected pageDir 'pages', got '%s'", cfg.PageDir)
+	}
 	if cfg.StaticDir != "assets" {
 		t.Errorf("Expected staticDir 'assets', got '%s'", cfg.StaticDir)
 	}
@@ -195,6 +198,9 @@ baseURL: "https://example.com"
 	}
 	if cfg.ContentDir != "_posts" {
 		t.Errorf("Expected default contentDir '_posts', got '%s'", cfg.ContentDir)
+	}
+	if cfg.PageDir != "pages" {
+		t.Errorf("Expected default pageDir 'pages', got '%s'", cfg.PageDir)
 	}
 	if cfg.PublishDir != "public" {
 		t.Errorf("Expected default publishDir 'public', got '%s'", cfg.PublishDir)

@@ -49,6 +49,12 @@ This command will:
 			os.Exit(1)
 		}
 
+		pages, err := parser.ParsePages(cfg.PageDir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error parsing pages: %v\n", err)
+			os.Exit(1)
+		}
+
 		fmt.Printf("Found %d posts\n", len(posts))
 
 		publishDir := cfg.PublishDir
@@ -56,7 +62,7 @@ This command will:
 			publishDir = "public"
 		}
 
-		err = generator.Generate(posts, cfg, publishDir, minify, buildDrafts, cleanOutput)
+		err = generator.GenerateWithPages(posts, pages, cfg, publishDir, minify, buildDrafts, cleanOutput)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error generating site: %v\n", err)
 			os.Exit(1)

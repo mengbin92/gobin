@@ -12,6 +12,7 @@ func preparePosts(posts []*parser.Post, cfg *config.Config, buildDrafts bool) []
 
 	for _, post := range posts {
 		post.URL = buildPostURL(post, cfg)
+		normalizeRenderedContent(cfg, &post.Content, &post.ContentHTML, &post.Summary, &post.SummaryHTML)
 		if !isVisiblePost(post, buildDrafts) {
 			continue
 		}
@@ -19,6 +20,29 @@ func preparePosts(posts []*parser.Post, cfg *config.Config, buildDrafts bool) []
 	}
 
 	return visiblePosts
+}
+
+func normalizeRenderedContent(cfg *config.Config, values ...*string) {
+	baseURL := ""
+	if cfg != nil {
+		baseURL = strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/")
+	}
+
+	replacer := strings.NewReplacer(
+		"{{site.url}}", baseURL,
+		"{{ site.url }}", baseURL,
+		"{{site.baseurl}}", "",
+		"{{ site.baseurl }}", "",
+		"./{{site.url}}/", "/",
+		"./{{ site.url }}/", "/",
+	)
+
+	for _, value := range values {
+		if value == nil || *value == "" {
+			continue
+		}
+		*value = replacer.Replace(*value)
+	}
 }
 
 func isVisiblePost(post *parser.Post, buildDrafts bool) bool {

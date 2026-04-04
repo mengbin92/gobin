@@ -80,9 +80,14 @@ func buildSite(cfg *config.Config, buildDrafts bool) error {
 		return fmt.Errorf("failed to parse posts: %w", err)
 	}
 
+	pages, err := parser.ParsePages(cfg.PageDir)
+	if err != nil {
+		return fmt.Errorf("failed to parse pages: %w", err)
+	}
+
 	// Generate site
 	outputDir := cfg.PublishDir
-	if err := generator.Generate(posts, cfg, outputDir, false, buildDrafts, serveClean); err != nil {
+	if err := generator.GenerateWithPages(posts, pages, cfg, outputDir, false, buildDrafts, serveClean); err != nil {
 		return fmt.Errorf("failed to generate site: %w", err)
 	}
 
@@ -200,7 +205,7 @@ func watchFiles(cfg *config.Config) {
 }
 
 func watchPaths(cfg *config.Config) []string {
-	paths := []string{cfg.ContentDir, cfg.StaticDir, "templates"}
+	paths := []string{cfg.ContentDir, cfg.PageDir, cfg.StaticDir, "templates"}
 
 	if cfg.Theme != "" {
 		themesDir := cfg.ThemesDir

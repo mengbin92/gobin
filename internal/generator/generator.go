@@ -20,6 +20,10 @@ type Pagination struct {
 
 // Generate generates the static site.
 func Generate(posts []*parser.Post, cfg *config.Config, outputDir string, minify bool, buildDrafts bool, cleanOutput bool) error {
+	return GenerateWithPages(posts, nil, cfg, outputDir, minify, buildDrafts, cleanOutput)
+}
+
+func GenerateWithPages(posts []*parser.Post, standalonePages []*parser.Page, cfg *config.Config, outputDir string, minify bool, buildDrafts bool, cleanOutput bool) error {
 	visiblePosts := preparePosts(posts, cfg, buildDrafts)
 
 	sort.Slice(visiblePosts, func(i, j int) bool {
@@ -36,6 +40,7 @@ func Generate(posts []*parser.Post, cfg *config.Config, outputDir string, minify
 	}
 
 	pages, tags, categories := buildPageSpecs(visiblePosts, cfg)
+	pages = append(pages, buildStandalonePageSpecs(standalonePages, cfg)...)
 	if err := renderPageSpecs(tmpl, outputDir, pages); err != nil {
 		return err
 	}

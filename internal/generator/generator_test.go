@@ -3351,8 +3351,67 @@ func TestCleanOutputDir_RefusesWorkingDirectory(t *testing.T) {
 	}
 }
 
+func TestGenerate_ReplacesJekyllSiteVariablesInContent(t *testing.T) {
+	siteDir := t.TempDir()
+	mustWriteFile(t, filepath.Join(siteDir, "config.yaml"), `title: Test
+author: Test
+baseURL: https://example.com
+contentDir: _posts
+publishDir: public
+`)
+	mustWriteFile(t, filepath.Join(siteDir, "_posts", "2024-01-01-test.md"), `---
+title: "Replace Vars"
+date: 2024-01-01T00:00:00Z
+---
+
+<div><img src="{{site.url}}/images/test.png"></div>`)
+	mustWriteFile(t, filepath.Join(siteDir, "templates", "_default", "base.html"), `{{ define "base" }}{{ render .MainTemplate . }}{{ end }}`)
+	mustWriteFile(t, filepath.Join(siteDir, "templates", "_default", "single.html"), `{{ define "singleMain" }}{{ safeHTML .Post.ContentHTML }}{{ end }}{{ define "singlePage" }}{{ template "base" . }}{{ end }}`)
+	mustWriteFile(t, filepath.Join(siteDir, "templates", "_default", "list.html"), `{{ define "listMain" }}{{ end }}{{ define "listPage" }}{{ template "base" . }}{{ end }}`)
+	mustWriteFile(t, filepath.Join(siteDir, "templates", "_default", "taxonomy.html"), `{{ define "taxonomyTermsMain" }}{{ end }}{{ define "taxonomyMain" }}{{ end }}{{ define "taxonomyTermsPage" }}{{ template "base" . }}{{ end }}{{ define "taxonomyPage" }}{{ template "base" . }}{{ end }}`)
+	mustWriteFile(t, filepath.Join(siteDir, "templates", "_default", "404.html"), `{{ define "notFoundMain" }}404{{ end }}{{ define "notFoundPage" }}{{ template "base" . }}{{ end }}`)
+	mustWriteFile(t, filepath.Join(siteDir, "templates", "partials", "header.html"), `{{ define "header" }}{{ end }}{{ define "headerNested" }}{{ end }}`)
+	mustWriteFile(t, filepath.Join(siteDir, "templates", "partials", "footer.html"), `{{ define "footer" }}{{ end }}{{ define "footerNested" }}{{ end }}`)
+	mustWriteFile(t, filepath.Join(siteDir, "templates", "partials", "comments.html"), `{{ define "comments" }}{{ end }}`)
+	mustWriteFile(t, filepath.Join(siteDir, "templates", "partials", "analytics.html"), `{{ define "analytics" }}{{ end }}`)
+
+	oldWd, _ := os.Getwd()
+	defer os.Chdir(oldWd)
+	if err := os.Chdir(siteDir); err != nil {
+		t.Fatalf("chdir failed: %v", err)
+	}
+
+	cfg, err := config.Load("config.yaml")
+	if err != nil {
+		t.Fatalf("load config failed: %v", err)
+	}
+	posts, err := parser.ParsePosts("_posts")
+	if err != nil {
+		t.Fatalf("parse posts failed: %v", err)
+	}
+
+	if err := Generate(posts, cfg, "public", false, false, true); err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	output, err := os.ReadFile(filepath.Join(siteDir, "public", "test", "index.html"))
+	if err != nil {
+		t.Fatalf("read output failed: %v", err)
+	}
+
+	if strings.Contains(string(output), "{{site.url}}") {
+		t.Fatalf("expected site.url placeholder to be replaced, got %s", string(output))
+	}
+	if !strings.Contains(string(output), `https://example.com/images/test.png`) {
+		t.Fatalf("expected absolute image URL, got %s", string(output))
+	}
+}
+
 func mustWriteFile(t *testing.T, path, content string) {
 	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("Failed to create dir for %s: %v", path, err)
+	}
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatalf("Failed to write %s: %v", path, err)
 	}

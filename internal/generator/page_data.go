@@ -25,7 +25,14 @@ type ListPageData struct {
 
 type SinglePageData struct {
 	BasePageData
-	Post *parser.Post
+	Post     *parser.Post
+	PrevPost *parser.Post
+	NextPost *parser.Post
+}
+
+type StandalonePageData struct {
+	BasePageData
+	Page *parser.Page
 }
 
 type NotFoundPageData struct {

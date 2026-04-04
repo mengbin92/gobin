@@ -68,6 +68,24 @@ func loadTemplates(cfg *config.Config) (*template.Template, error) {
 				return nil
 			}
 		},
+		"contains": strings.Contains,
+		"paramBool": func(params map[string]interface{}, key string) bool {
+			if params == nil {
+				return false
+			}
+			value, ok := params[key]
+			if !ok || value == nil {
+				return false
+			}
+			switch v := value.(type) {
+			case bool:
+				return v
+			case string:
+				return strings.EqualFold(strings.TrimSpace(v), "true")
+			default:
+				return false
+			}
+		},
 	}
 
 	tmpl = template.New("").Funcs(funcMap)
@@ -103,6 +121,7 @@ func getTemplatePaths(cfg *config.Config) []string {
 		"_default/base.html",
 		"_default/single.html",
 		"_default/list.html",
+		"_default/page.html",
 		"_default/404.html",
 		"_default/taxonomy.html",
 		"partials/header.html",

@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/yuin/goldmark"
+	goldmarkhtml "github.com/yuin/goldmark/renderer/html"
 	"gopkg.in/yaml.v3"
 )
 
@@ -38,6 +40,20 @@ type Post struct {
 	SummaryHTML string                 `yaml:"-"`
 	URL         string                 `yaml:"-"`
 	Section     string                 `yaml:"-"`
+	Params      map[string]interface{} `yaml:"-"`
+}
+
+// Page represents a standalone markdown page.
+type Page struct {
+	Title       string                 `yaml:"title"`
+	Description string                 `yaml:"description"`
+	Layout      string                 `yaml:"layout"`
+	Slug        string                 `yaml:"slug"`
+	Permalink   string                 `yaml:"permalink"`
+	FilePath    string                 `yaml:"-"`
+	Content     string                 `yaml:"-"`
+	ContentHTML string                 `yaml:"-"`
+	URL         string                 `yaml:"-"`
 	Params      map[string]interface{} `yaml:"-"`
 }
 
@@ -168,6 +184,43 @@ func ParsePosts(dir string) ([]*Post, error) {
 	return posts, nil
 }
 
+// ParsePages parses standalone markdown pages recursively from a directory.
+func ParsePages(dir string) ([]*Page, error) {
+	if dir == "" {
+		return nil, nil
+	}
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return nil, nil
+	}
+
+	var pages []*Page
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+
+		ext := strings.ToLower(filepath.Ext(info.Name()))
+		if ext != ".md" && ext != ".markdown" {
+			return nil
+		}
+
+		page, err := ParsePage(path, dir)
+		if err != nil {
+			return fmt.Errorf("failed to parse %s: %w", path, err)
+		}
+		pages = append(pages, page)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return pages, nil
+}
+
 // ParsePost parses a single markdown post file
 func ParsePost(path string) (*Post, error) {
 	content, err := os.ReadFile(path)
@@ -190,6 +243,10 @@ func ParsePost(path string) (*Post, error) {
 	post.FilePath = path
 	post.Content = strings.TrimSpace(markdownContent)
 
+	if post.Date.IsZero() {
+		post.Date = dateFromFilename(filepath.Base(path))
+	}
+
 	// Generate slug from filename if not specified
 	if post.Slug == "" {
 		post.Slug = strings.TrimSuffix(filepath.Base(path), ".md")
@@ -203,12 +260,11 @@ func ParsePost(path string) (*Post, error) {
 	post.URL = "/" + post.Slug + "/"
 
 	// Render markdown to HTML
-	md := goldmark.New()
-	var buf strings.Builder
-	if err := md.Convert([]byte(markdownContent), &buf); err != nil {
+	renderedHTML, err := renderMarkdown(markdownContent)
+	if err != nil {
 		return nil, fmt.Errorf("failed to render markdown: %w", err)
 	}
-	post.ContentHTML = buf.String()
+	post.ContentHTML = renderedHTML
 
 	// Calculate word count and reading time
 	post.WordCount = wordCount(markdownContent)
@@ -224,6 +280,122 @@ func ParsePost(path string) (*Post, error) {
 	}
 
 	return &post, nil
+}
+
+// ParsePage parses a standalone markdown page.
+func ParsePage(path string, baseDir string) (*Page, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	frontMatter, markdownContent, err := splitFrontMatter(string(content))
+	if err != nil {
+		return nil, err
+	}
+
+	type rawPage struct {
+		Title       string                 `yaml:"title"`
+		Description string                 `yaml:"description"`
+		Layout      string                 `yaml:"layout"`
+		Slug        string                 `yaml:"slug"`
+		Permalink   string                 `yaml:"permalink"`
+		Params      map[string]interface{} `yaml:",inline"`
+	}
+
+	var raw rawPage
+	if err := yaml.Unmarshal([]byte(frontMatter), &raw); err != nil {
+		return nil, fmt.Errorf("failed to parse front matter: %w", err)
+	}
+
+	renderedHTML, err := renderMarkdown(markdownContent)
+	if err != nil {
+		return nil, fmt.Errorf("failed to render markdown: %w", err)
+	}
+
+	page := &Page{
+		Title:       raw.Title,
+		Description: raw.Description,
+		Layout:      raw.Layout,
+		Slug:        raw.Slug,
+		Permalink:   raw.Permalink,
+		FilePath:    path,
+		Content:     strings.TrimSpace(markdownContent),
+		ContentHTML: renderedHTML,
+		Params:      raw.Params,
+	}
+
+	if page.Slug == "" {
+		page.Slug = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	}
+	if page.Title == "" {
+		page.Title = page.Slug
+	}
+
+	page.URL = pageURLForPath(path, baseDir, page)
+	if page.Layout == "" {
+		page.Layout = "page"
+	}
+
+	return page, nil
+}
+
+var filenameDatePattern = regexp.MustCompile(`^(\d{4})-(\d{2})-(\d{2})-`)
+
+func dateFromFilename(name string) time.Time {
+	match := filenameDatePattern.FindStringSubmatch(name)
+	if len(match) != 4 {
+		return time.Time{}
+	}
+
+	dateValue, err := time.Parse("2006-01-02", strings.Join(match[1:], "-"))
+	if err != nil {
+		return time.Time{}
+	}
+
+	return dateValue
+}
+
+func renderMarkdown(markdownContent string) (string, error) {
+	md := goldmark.New(
+		goldmark.WithRendererOptions(
+			goldmarkhtml.WithUnsafe(),
+		),
+	)
+
+	var buf strings.Builder
+	if err := md.Convert([]byte(markdownContent), &buf); err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
+}
+
+func pageURLForPath(path, baseDir string, page *Page) string {
+	if page != nil && strings.TrimSpace(page.Permalink) != "" {
+		url := strings.TrimSpace(page.Permalink)
+		if !strings.HasPrefix(url, "/") {
+			url = "/" + url
+		}
+		if strings.HasSuffix(url, ".html") {
+			return url
+		}
+		return strings.TrimRight(url, "/") + "/"
+	}
+
+	relPath, err := filepath.Rel(baseDir, path)
+	if err != nil {
+		relPath = filepath.Base(path)
+	}
+
+	relPath = strings.TrimSuffix(relPath, filepath.Ext(relPath))
+	relPath = filepath.ToSlash(relPath)
+	relPath = strings.Trim(relPath, "/")
+	if relPath == "" {
+		relPath = page.Slug
+	}
+
+	return "/" + relPath + "/"
 }
 
 // splitFrontMatter separates YAML front matter from markdown content
