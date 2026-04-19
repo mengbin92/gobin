@@ -1,8 +1,6 @@
 package generator
 
 import (
-	"sort"
-
 	"github.com/mengbin92/gobin/internal/config"
 	"github.com/mengbin92/gobin/internal/parser"
 )
@@ -24,38 +22,11 @@ func Generate(posts []*parser.Post, cfg *config.Config, outputDir string, minify
 }
 
 func GenerateWithPages(posts []*parser.Post, standalonePages []*parser.Page, cfg *config.Config, outputDir string, minify bool, buildDrafts bool, cleanOutput bool) error {
-	cfg = config.Normalize(cfg)
-	if outputDir == "" {
-		outputDir = cfg.PublishDir
-	}
-
-	visiblePosts := preparePosts(posts, cfg, buildDrafts)
-
-	sort.Slice(visiblePosts, func(i, j int) bool {
-		return visiblePosts[i].Date.After(visiblePosts[j].Date)
-	})
-
-	if err := prepareOutputDir(outputDir, cleanOutput); err != nil {
-		return err
-	}
-
-	tmpl, err := loadTemplates(cfg)
+	plan, err := prepareGenerationPlan(posts, standalonePages, cfg, outputDir, minify, buildDrafts)
 	if err != nil {
 		return err
 	}
-
-	pages, tags, categories := buildPageSpecs(visiblePosts, cfg)
-	pages = append(pages, buildStandalonePageSpecs(standalonePages, cfg)...)
-	if err := renderPageSpecs(tmpl, outputDir, pages); err != nil {
-		return err
-	}
-
-	artifacts := buildArtifactSpecs(visiblePosts, cfg, outputDir, tags, categories)
-	if err := executeArtifactSpecs(withMinifyArtifactEnabled(artifacts, minify)); err != nil {
-		return err
-	}
-
-	return nil
+	return plan.Execute(cleanOutput)
 }
 func paginate(posts []*parser.Post, perPage int) [][]*parser.Post {
 	if perPage <= 0 {

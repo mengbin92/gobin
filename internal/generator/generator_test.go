@@ -1207,6 +1207,70 @@ func TestWithMinifyArtifactEnabled(t *testing.T) {
 	}
 }
 
+func TestPrepareGenerationPlan(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	if err := os.MkdirAll(filepath.Join(tmpDir, "templates", "_default"), 0755); err != nil {
+		t.Fatalf("Failed to create default templates dir: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(tmpDir, "templates", "partials"), 0755); err != nil {
+		t.Fatalf("Failed to create partials dir: %v", err)
+	}
+
+	mustWriteFile(t, filepath.Join(tmpDir, "templates", "_default", "base.html"), `{{ define "base" }}{{ render .MainTemplate . }}{{ end }}`)
+	mustWriteFile(t, filepath.Join(tmpDir, "templates", "_default", "single.html"), `{{ define "singleMain" }}single{{ end }}{{ define "singlePage" }}{{ template "base" . }}{{ end }}`)
+	mustWriteFile(t, filepath.Join(tmpDir, "templates", "_default", "list.html"), `{{ define "listMain" }}list{{ end }}{{ define "listPage" }}{{ template "base" . }}{{ end }}`)
+	mustWriteFile(t, filepath.Join(tmpDir, "templates", "_default", "page.html"), `{{ define "pageMain" }}page{{ end }}{{ define "pagePage" }}{{ template "base" . }}{{ end }}`)
+	mustWriteFile(t, filepath.Join(tmpDir, "templates", "_default", "404.html"), `{{ define "notFoundMain" }}404{{ end }}{{ define "notFoundPage" }}{{ template "base" . }}{{ end }}`)
+	mustWriteFile(t, filepath.Join(tmpDir, "templates", "_default", "taxonomy.html"), `{{ define "taxonomyTermsMain" }}terms{{ end }}{{ define "taxonomyMain" }}taxonomy{{ end }}{{ define "taxonomyTermsPage" }}{{ template "base" . }}{{ end }}{{ define "taxonomyPage" }}{{ template "base" . }}{{ end }}`)
+	mustWriteFile(t, filepath.Join(tmpDir, "templates", "partials", "header.html"), `{{ define "header" }}header{{ end }}{{ define "headerNested" }}header{{ end }}`)
+	mustWriteFile(t, filepath.Join(tmpDir, "templates", "partials", "footer.html"), `{{ define "footer" }}footer{{ end }}{{ define "footerNested" }}footer{{ end }}`)
+
+	oldWd, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(oldWd)
+
+	posts := []*parser.Post{
+		{Title: "Older", Slug: "older", Date: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), Tags: []string{"Go"}, Categories: []string{"Tech"}},
+		{Title: "Newer", Slug: "newer", Date: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC), Tags: []string{"Go"}, Categories: []string{"Tech"}},
+	}
+	pages := []*parser.Page{{Title: "About", URL: "/about/"}}
+	cfg := &config.Config{
+		Title:           "Plan Site",
+		Description:     "Plan Desc",
+		BaseURL:         "https://example.com",
+		Paginate:        10,
+		PaginatePath:    "page",
+		EnableRobotsTXT: true,
+	}
+
+	plan, err := prepareGenerationPlan(posts, pages, cfg, "public", true, false)
+	if err != nil {
+		t.Fatalf("prepareGenerationPlan failed: %v", err)
+	}
+
+	if plan.outputDir != "public" {
+		t.Fatalf("Expected output dir public, got %q", plan.outputDir)
+	}
+	if plan.templates == nil {
+		t.Fatal("Expected templates to be loaded")
+	}
+	if len(plan.pageSpecs) != 9 {
+		t.Fatalf("Expected 9 page specs including standalone page, got %d", len(plan.pageSpecs))
+	}
+
+	minifyEnabled := false
+	for _, spec := range plan.artifactSpecs {
+		if spec.Name == "minify" {
+			minifyEnabled = spec.Enabled
+			break
+		}
+	}
+	if !minifyEnabled {
+		t.Fatal("Expected minify artifact to be enabled in generation plan")
+	}
+}
+
 func TestGenerate_DefaultSiteGolden(t *testing.T) {
 	tmpDir := t.TempDir()
 	siteDir := filepath.Join(tmpDir, "site")
