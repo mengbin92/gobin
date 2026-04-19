@@ -18,6 +18,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type devServer interface {
+	ListenAndServe() error
+	Shutdown(context.Context) error
+}
+
+type serveOps struct {
+	loadSiteInput func() (*siteBuildInput, error)
+	generateSite  func(*siteBuildInput, string, bool, bool, bool) error
+	startServer   func(io.Writer, *config.Config) error
+	watchFiles    func(*config.Config)
+}
+
 var (
 	servePort    int
 	serveWatch   bool
@@ -51,23 +63,32 @@ func init() {
 }
 
 func runServe(stdout io.Writer, buildDrafts bool, watch bool) error {
-	input, err := loadSiteBuildInput()
+	return runServeWithOps(stdout, buildDrafts, watch, serveOps{
+		loadSiteInput: loadSiteBuildInput,
+		generateSite:  generateSite,
+		startServer:   startServer,
+		watchFiles:    watchFiles,
+	})
+}
+
+func runServeWithOps(stdout io.Writer, buildDrafts bool, watch bool, ops serveOps) error {
+	input, err := ops.loadSiteInput()
 	if err != nil {
 		return err
 	}
 	cfg := input.cfg
 
 	fmt.Fprintln(stdout, "Building site...")
-	if err := generateSite(input, cfg.PublishDir, false, buildDrafts, serveClean); err != nil {
+	if err := ops.generateSite(input, cfg.PublishDir, false, buildDrafts, serveClean); err != nil {
 		return fmt.Errorf("build site: %w", err)
 	}
 	fmt.Fprintln(stdout, "Site built successfully!")
 
 	if watch {
-		go watchFiles(cfg)
+		go ops.watchFiles(cfg)
 	}
 
-	return startServer(stdout, cfg)
+	return ops.startServer(stdout, cfg)
 }
 
 // buildSite rebuilds the site from the current working directory configuration.
@@ -83,12 +104,16 @@ func buildSite(buildDrafts bool) error {
 func startServer(stdout io.Writer, cfg *config.Config) error {
 	addr := fmt.Sprintf(":%d", servePort)
 	server := newDevServer(addr, cfg.PublishDir)
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sigChan)
 
-	// Handle graceful shutdown
+	return runServerLifecycle(stdout, server, addr, sigChan)
+}
+
+func runServerLifecycle(stdout io.Writer, server devServer, addr string, signals <-chan os.Signal) error {
 	go func() {
-		sigChan := make(chan os.Signal, 1)
-		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-		<-sigChan
+		<-signals
 
 		fmt.Fprintln(stdout, "\nShutting down server...")
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -108,7 +133,7 @@ func startServer(stdout io.Writer, cfg *config.Config) error {
 	return nil
 }
 
-func newDevServer(addr, outputDir string) *http.Server {
+func newDevServer(addr, outputDir string) devServer {
 	return &http.Server{
 		Addr:         addr,
 		Handler:      newDevServerHandler(outputDir),
