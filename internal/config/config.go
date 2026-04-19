@@ -142,19 +142,12 @@ type NavbarLink struct {
 	URL  string `yaml:"url"`
 }
 
-// Load loads configuration from a YAML file
-func Load(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
+// Normalize applies default values and trims path-like settings into a stable form.
+func Normalize(cfg *Config) *Config {
+	if cfg == nil {
+		cfg = &Config{}
 	}
 
-	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, err
-	}
-
-	// Set defaults
 	if cfg.Paginate == 0 {
 		cfg.Paginate = 10
 	}
@@ -177,7 +170,22 @@ func Load(path string) (*Config, error) {
 		cfg.ThemesDir = "themes"
 	}
 
-	return &cfg, nil
+	return cfg
+}
+
+// Load loads configuration from a YAML file
+func Load(path string) (*Config, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var cfg Config
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, err
+	}
+
+	return Normalize(&cfg), nil
 }
 
 // LoadDefault loads configuration from the first existing default config path.

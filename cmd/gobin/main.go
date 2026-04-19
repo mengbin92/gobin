@@ -20,9 +20,8 @@ var rootCmd = &cobra.Command{
 	Short: "Blog Static Site Generator",
 	Long: `A fast and flexible static site generator for blogs.
 Supports markdown posts, customizable themes, and static asset management.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		// Default command is build
-		commands.BuildCmd.Run(cmd, args)
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return commands.RunDefaultBuild(cmd.OutOrStdout())
 	},
 }
 

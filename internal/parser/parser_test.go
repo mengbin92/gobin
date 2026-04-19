@@ -270,6 +270,9 @@ This post has no front matter.`
 // TestParsePosts tests parsing multiple posts
 func TestParsePosts(t *testing.T) {
 	tmpDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmpDir, "nested"), 0755); err != nil {
+		t.Fatalf("Failed to create nested dir: %v", err)
+	}
 
 	// Create multiple test posts
 	post1 := `---
@@ -302,7 +305,7 @@ Draft content.`
 	if err := os.WriteFile(filepath.Join(tmpDir, "2023-12-26-post-two.md"), []byte(post2), 0644); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "2023-12-27-draft-post.md"), []byte(post3), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "nested", "2023-12-27-draft-post.markdown"), []byte(post3), 0644); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 

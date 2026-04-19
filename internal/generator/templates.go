@@ -15,6 +15,8 @@ import (
 )
 
 func loadTemplates(cfg *config.Config) (*template.Template, error) {
+	cfg = config.Normalize(cfg)
+
 	var tmpl *template.Template
 
 	funcMap := template.FuncMap{
@@ -110,12 +112,9 @@ func loadTemplates(cfg *config.Config) (*template.Template, error) {
 }
 
 func getTemplatePaths(cfg *config.Config) []string {
-	var paths []string
+	cfg = config.Normalize(cfg)
 
-	themesDir := cfg.ThemesDir
-	if themesDir == "" {
-		themesDir = "themes"
-	}
+	var paths []string
 
 	tmplFiles := []string{
 		"_default/base.html",
@@ -139,11 +138,11 @@ func getTemplatePaths(cfg *config.Config) []string {
 	}
 
 	if cfg.Theme != "" {
-		themeDir := filepath.Join(themesDir, cfg.Theme, "layouts")
+		themeDir := filepath.Join(cfg.ThemesDir, cfg.Theme, "layouts")
 		if _, err := os.Stat(themeDir); err == nil {
 			for _, tmplFile := range tmplFiles {
 				themeTmplPath := filepath.Join(themeDir, tmplFile)
-				if _, err := os.Stat(themeTmplPath); err == nil && !containsTemplateSuffix(paths, tmplFile) {
+				if _, err := os.Stat(themeTmplPath); err == nil {
 					paths = append(paths, themeTmplPath)
 				}
 			}
@@ -151,15 +150,6 @@ func getTemplatePaths(cfg *config.Config) []string {
 	}
 
 	return paths
-}
-
-func containsTemplateSuffix(paths []string, suffix string) bool {
-	for _, existingPath := range paths {
-		if strings.HasSuffix(existingPath, suffix) {
-			return true
-		}
-	}
-	return false
 }
 
 func renderTemplate(tmpl *template.Template, name, path string, data interface{}) error {
@@ -173,10 +163,7 @@ func renderTemplate(tmpl *template.Template, name, path string, data interface{}
 }
 
 func detectStylesheetPath(cfg *config.Config) string {
-	staticDir := "assets"
-	if cfg != nil && cfg.StaticDir != "" {
-		staticDir = cfg.StaticDir
-	}
+	cfg = config.Normalize(cfg)
 
 	type stylesheetCandidate struct {
 		webPath    string
@@ -184,16 +171,12 @@ func detectStylesheetPath(cfg *config.Config) string {
 	}
 
 	candidates := []stylesheetCandidate{
-		{webPath: "/css/main.css", sourcePath: filepath.Join(staticDir, "css", "main.css")},
-		{webPath: "/css/style.css", sourcePath: filepath.Join(staticDir, "css", "style.css")},
+		{webPath: "/css/main.css", sourcePath: filepath.Join(cfg.StaticDir, "css", "main.css")},
+		{webPath: "/css/style.css", sourcePath: filepath.Join(cfg.StaticDir, "css", "style.css")},
 	}
 
-	if cfg != nil && cfg.Theme != "" {
-		themesDir := cfg.ThemesDir
-		if themesDir == "" {
-			themesDir = "themes"
-		}
-		themeAssetDir := filepath.Join(themesDir, cfg.Theme, "assets")
+	if cfg.Theme != "" {
+		themeAssetDir := filepath.Join(cfg.ThemesDir, cfg.Theme, "assets")
 		candidates = append(candidates, []stylesheetCandidate{
 			{webPath: "/css/main.css", sourcePath: filepath.Join(themeAssetDir, "css", "main.css")},
 			{webPath: "/css/style.css", sourcePath: filepath.Join(themeAssetDir, "css", "style.css")},

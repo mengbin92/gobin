@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -14,8 +15,6 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/mengbin92/gobin/internal/config"
-	"github.com/mengbin92/gobin/internal/generator"
-	"github.com/mengbin92/gobin/internal/parser"
 	"github.com/spf13/cobra"
 )
 
@@ -38,29 +37,8 @@ rebuilds the site when files change.
 
 The current serve workflow does not inject a LiveReload script into pages.
 After a rebuild, refresh the browser manually to see the latest output.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		// Load configuration
-		cfg, err := config.LoadDefault()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-			os.Exit(1)
-		}
-
-		// Build initial site
-		fmt.Println("Building site...")
-		if err := buildSite(cfg, serveDrafts); err != nil {
-			fmt.Fprintf(os.Stderr, "Error building site: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Println("Site built successfully!")
-
-		// Start file watcher if enabled
-		if serveWatch {
-			go watchFiles(cfg)
-		}
-
-		// Start HTTP server
-		startServer(cfg)
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runServe(cmd.OutOrStdout(), serveDrafts, serveWatch)
 	},
 }
 
@@ -72,30 +50,37 @@ func init() {
 	ServeCmd.Flags().BoolVar(&serveClean, "clean", true, "Clean the output directory before rebuilding")
 }
 
-// buildSite builds the entire site
-func buildSite(cfg *config.Config, buildDrafts bool) error {
-	// Parse posts
-	posts, err := parser.ParsePosts(cfg.ContentDir)
+func runServe(stdout io.Writer, buildDrafts bool, watch bool) error {
+	input, err := loadSiteBuildInput()
 	if err != nil {
-		return fmt.Errorf("failed to parse posts: %w", err)
+		return err
+	}
+	cfg := input.cfg
+
+	fmt.Fprintln(stdout, "Building site...")
+	if err := generateSite(input, cfg.PublishDir, false, buildDrafts, serveClean); err != nil {
+		return fmt.Errorf("build site: %w", err)
+	}
+	fmt.Fprintln(stdout, "Site built successfully!")
+
+	if watch {
+		go watchFiles(cfg)
 	}
 
-	pages, err := parser.ParsePages(cfg.PageDir)
+	return startServer(stdout, cfg)
+}
+
+// buildSite rebuilds the site from the current working directory configuration.
+func buildSite(buildDrafts bool) error {
+	input, err := loadSiteBuildInput()
 	if err != nil {
-		return fmt.Errorf("failed to parse pages: %w", err)
+		return err
 	}
-
-	// Generate site
-	outputDir := cfg.PublishDir
-	if err := generator.GenerateWithPages(posts, pages, cfg, outputDir, false, buildDrafts, serveClean); err != nil {
-		return fmt.Errorf("failed to generate site: %w", err)
-	}
-
-	return nil
+	return generateSite(input, input.cfg.PublishDir, false, buildDrafts, serveClean)
 }
 
 // startServer starts the HTTP development server
-func startServer(cfg *config.Config) {
+func startServer(stdout io.Writer, cfg *config.Config) error {
 	addr := fmt.Sprintf(":%d", servePort)
 	server := newDevServer(addr, cfg.PublishDir)
 
@@ -105,7 +90,7 @@ func startServer(cfg *config.Config) {
 		signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 		<-sigChan
 
-		fmt.Println("\nShutting down server...")
+		fmt.Fprintln(stdout, "\nShutting down server...")
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
@@ -114,13 +99,13 @@ func startServer(cfg *config.Config) {
 		}
 	}()
 
-	fmt.Printf("Development server started at http://localhost%s\n", addr)
-	fmt.Printf("Press Ctrl+C to stop\n")
+	fmt.Fprintf(stdout, "Development server started at http://localhost%s\n", addr)
+	fmt.Fprintln(stdout, "Press Ctrl+C to stop")
 
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("server error: %w", err)
 	}
+	return nil
 }
 
 func newDevServer(addr, outputDir string) *http.Server {
@@ -185,7 +170,7 @@ func watchFiles(cfg *config.Config) {
 					fmt.Println("\nRebuilding site...")
 					start := time.Now()
 
-					if err := buildSite(cfg, serveDrafts); err != nil {
+					if err := buildSite(serveDrafts); err != nil {
 						fmt.Fprintf(os.Stderr, "Error rebuilding site: %v\n", err)
 						return
 					}
@@ -205,17 +190,14 @@ func watchFiles(cfg *config.Config) {
 }
 
 func watchPaths(cfg *config.Config) []string {
+	cfg = config.Normalize(cfg)
+
 	paths := []string{cfg.ContentDir, cfg.PageDir, cfg.StaticDir, "templates"}
 
 	if cfg.Theme != "" {
-		themesDir := cfg.ThemesDir
-		if themesDir == "" {
-			themesDir = "themes"
-		}
-
 		paths = append(paths,
-			filepath.Join(themesDir, cfg.Theme, "layouts"),
-			filepath.Join(themesDir, cfg.Theme, "assets"),
+			filepath.Join(cfg.ThemesDir, cfg.Theme, "layouts"),
+			filepath.Join(cfg.ThemesDir, cfg.Theme, "assets"),
 		)
 	}
 

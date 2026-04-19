@@ -475,7 +475,7 @@ func TestLoadTemplates_WithCommentAndAnalyticsPartials(t *testing.T) {
 	}
 }
 
-func TestGetTemplatePaths_SiteTemplatesOverrideTheme(t *testing.T) {
+func TestGetTemplatePaths_ThemeTemplatesOverrideSite(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	if err := os.MkdirAll(filepath.Join(tmpDir, "templates", "_default"), 0755); err != nil {
@@ -500,6 +500,7 @@ func TestGetTemplatePaths_SiteTemplatesOverrideTheme(t *testing.T) {
 	paths := getTemplatePaths(&config.Config{Theme: "demo", ThemesDir: "themes"})
 	expected := []string{
 		filepath.Join("templates", "_default", "single.html"),
+		filepath.Join("themes", "demo", "layouts", "_default", "single.html"),
 		filepath.Join("themes", "demo", "layouts", "_default", "base.html"),
 		filepath.Join("themes", "demo", "layouts", "partials", "header.html"),
 	}
@@ -509,12 +510,14 @@ func TestGetTemplatePaths_SiteTemplatesOverrideTheme(t *testing.T) {
 			t.Fatalf("Expected template paths to contain %s, got %#v", want, paths)
 		}
 	}
-	if slices.Contains(paths, filepath.Join("themes", "demo", "layouts", "_default", "single.html")) {
-		t.Fatalf("Expected site template to override theme single template, got %#v", paths)
+	siteSingle := slices.Index(paths, filepath.Join("templates", "_default", "single.html"))
+	themeSingle := slices.Index(paths, filepath.Join("themes", "demo", "layouts", "_default", "single.html"))
+	if siteSingle == -1 || themeSingle == -1 || themeSingle <= siteSingle {
+		t.Fatalf("Expected theme template to be loaded after site template for override, got %#v", paths)
 	}
 }
 
-func TestLoadTemplates_SiteTemplatesOverrideTheme(t *testing.T) {
+func TestLoadTemplates_ThemeTemplatesOverrideSite(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	if err := os.MkdirAll(filepath.Join(tmpDir, "templates", "_default"), 0755); err != nil {
@@ -537,7 +540,7 @@ func TestLoadTemplates_SiteTemplatesOverrideTheme(t *testing.T) {
 	mustWriteFile(t, filepath.Join(tmpDir, "templates", "partials", "header.html"), `{{ define "header" }}site-header{{ end }}{{ define "headerNested" }}site-header{{ end }}`)
 	mustWriteFile(t, filepath.Join(tmpDir, "templates", "partials", "footer.html"), `{{ define "footer" }}site-footer{{ end }}{{ define "footerNested" }}site-footer{{ end }}`)
 	mustWriteFile(t, filepath.Join(tmpDir, "themes", "demo", "layouts", "_default", "single.html"), `{{ define "singleMain" }}theme{{ end }}{{ define "singlePage" }}{{ template "base" . }}{{ end }}`)
-	mustWriteFile(t, filepath.Join(tmpDir, "themes", "demo", "layouts", "_default", "base.html"), `{{ define "base" }}theme-base{{ end }}`)
+	mustWriteFile(t, filepath.Join(tmpDir, "themes", "demo", "layouts", "_default", "base.html"), `{{ define "base" }}{{ render .MainTemplate . }}{{ end }}`)
 
 	oldWd, _ := os.Getwd()
 	os.Chdir(tmpDir)
@@ -555,12 +558,12 @@ func TestLoadTemplates_SiteTemplatesOverrideTheme(t *testing.T) {
 		t.Fatalf("Failed to render singlePage: %v", err)
 	}
 
-	if buf.String() != "site" {
-		t.Fatalf("Expected site template to override theme template, got %q", buf.String())
+	if buf.String() != "theme" {
+		t.Fatalf("Expected theme template to override site template, got %q", buf.String())
 	}
 }
 
-func TestLoadTemplates_SitePartialsOverrideTheme(t *testing.T) {
+func TestLoadTemplates_ThemePartialsOverrideSite(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	if err := os.MkdirAll(filepath.Join(tmpDir, "templates", "_default"), 0755); err != nil {
@@ -596,8 +599,8 @@ func TestLoadTemplates_SitePartialsOverrideTheme(t *testing.T) {
 		t.Fatalf("Failed to render singlePage: %v", err)
 	}
 
-	if buf.String() != "site-header" {
-		t.Fatalf("Expected site partial to override theme partial, got %q", buf.String())
+	if buf.String() != "theme-header" {
+		t.Fatalf("Expected theme partial to override site partial, got %q", buf.String())
 	}
 }
 
@@ -660,7 +663,7 @@ func TestLoadTemplates_ThemeMissingSingleFallsBackToSiteSingle(t *testing.T) {
 	mustWriteFile(t, filepath.Join(tmpDir, "templates", "_default", "404.html"), `{{ define "notFoundMain" }}404{{ end }}{{ define "notFoundPage" }}{{ template "base" . }}{{ end }}`)
 	mustWriteFile(t, filepath.Join(tmpDir, "templates", "partials", "header.html"), `{{ define "header" }}site-header{{ end }}{{ define "headerNested" }}site-header{{ end }}`)
 	mustWriteFile(t, filepath.Join(tmpDir, "templates", "partials", "footer.html"), `{{ define "footer" }}site-footer{{ end }}{{ define "footerNested" }}site-footer{{ end }}`)
-	mustWriteFile(t, filepath.Join(tmpDir, "themes", "demo", "layouts", "_default", "base.html"), `{{ define "base" }}theme-base{{ end }}`)
+	mustWriteFile(t, filepath.Join(tmpDir, "themes", "demo", "layouts", "_default", "base.html"), `{{ define "base" }}{{ render .MainTemplate . }}{{ end }}`)
 	mustWriteFile(t, filepath.Join(tmpDir, "themes", "demo", "layouts", "_default", "list.html"), `{{ define "listMain" }}theme-list{{ end }}{{ define "listPage" }}{{ template "base" . }}{{ end }}`)
 
 	oldWd, _ := os.Getwd()
@@ -707,7 +710,7 @@ func TestLoadTemplates_ThemeMissingTaxonomyFallsBackToSiteTaxonomy(t *testing.T)
 	mustWriteFile(t, filepath.Join(tmpDir, "templates", "_default", "taxonomy.html"), `{{ define "taxonomyTermsMain" }}site-terms{{ end }}{{ define "taxonomyMain" }}site-taxonomy{{ end }}{{ define "taxonomyTermsPage" }}{{ template "base" . }}{{ end }}{{ define "taxonomyPage" }}{{ template "base" . }}{{ end }}`)
 	mustWriteFile(t, filepath.Join(tmpDir, "templates", "partials", "header.html"), `{{ define "header" }}site-header{{ end }}{{ define "headerNested" }}site-header{{ end }}`)
 	mustWriteFile(t, filepath.Join(tmpDir, "templates", "partials", "footer.html"), `{{ define "footer" }}site-footer{{ end }}{{ define "footerNested" }}site-footer{{ end }}`)
-	mustWriteFile(t, filepath.Join(tmpDir, "themes", "demo", "layouts", "_default", "base.html"), `{{ define "base" }}theme-base{{ end }}`)
+	mustWriteFile(t, filepath.Join(tmpDir, "themes", "demo", "layouts", "_default", "base.html"), `{{ define "base" }}{{ render .MainTemplate . }}{{ end }}`)
 	mustWriteFile(t, filepath.Join(tmpDir, "themes", "demo", "layouts", "_default", "single.html"), `{{ define "singleMain" }}theme-single{{ end }}{{ define "singlePage" }}{{ template "base" . }}{{ end }}`)
 	mustWriteFile(t, filepath.Join(tmpDir, "themes", "demo", "layouts", "_default", "list.html"), `{{ define "listMain" }}theme-list{{ end }}{{ define "listPage" }}{{ template "base" . }}{{ end }}`)
 
@@ -755,7 +758,7 @@ func TestLoadTemplates_ThemeMissingNotFoundFallsBackToSiteNotFound(t *testing.T)
 	mustWriteFile(t, filepath.Join(tmpDir, "templates", "_default", "taxonomy.html"), `{{ define "taxonomyTermsMain" }}site-terms{{ end }}{{ define "taxonomyMain" }}site-taxonomy{{ end }}{{ define "taxonomyTermsPage" }}{{ template "base" . }}{{ end }}{{ define "taxonomyPage" }}{{ template "base" . }}{{ end }}`)
 	mustWriteFile(t, filepath.Join(tmpDir, "templates", "partials", "header.html"), `{{ define "header" }}site-header{{ end }}{{ define "headerNested" }}site-header{{ end }}`)
 	mustWriteFile(t, filepath.Join(tmpDir, "templates", "partials", "footer.html"), `{{ define "footer" }}site-footer{{ end }}{{ define "footerNested" }}site-footer{{ end }}`)
-	mustWriteFile(t, filepath.Join(tmpDir, "themes", "demo", "layouts", "_default", "base.html"), `{{ define "base" }}theme-base{{ end }}`)
+	mustWriteFile(t, filepath.Join(tmpDir, "themes", "demo", "layouts", "_default", "base.html"), `{{ define "base" }}{{ render .MainTemplate . }}{{ end }}`)
 	mustWriteFile(t, filepath.Join(tmpDir, "themes", "demo", "layouts", "_default", "single.html"), `{{ define "singleMain" }}theme-single{{ end }}{{ define "singlePage" }}{{ template "base" . }}{{ end }}`)
 	mustWriteFile(t, filepath.Join(tmpDir, "themes", "demo", "layouts", "_default", "list.html"), `{{ define "listMain" }}theme-list{{ end }}{{ define "listPage" }}{{ template "base" . }}{{ end }}`)
 
@@ -834,7 +837,7 @@ func TestGenerate_MinimalTemplateSet(t *testing.T) {
 	}
 
 	checks := map[string]string{
-		"index.html":                        "header|list:1|footer",
+		"index.html": "header|list:1|footer",
 		filepath.Join("minimal-post", "index.html"): "header-nested|single:Minimal Post|footer-nested",
 		"404.html":                          "header|notfound|footer",
 		filepath.Join("tags", "index.html"): "header|terms:tags:1|footer",
@@ -1523,14 +1526,14 @@ func TestGenerate_OfficialWebsiteTheme(t *testing.T) {
 	}
 
 	cfg := &config.Config{
-		Title:        "Gobin Official",
-		Description:  "Official theme golden coverage.",
-		BaseURL:      "https://example.com",
-		Theme:        "official-website",
-		ThemesDir:    "themes",
-		StaticDir:    "assets",
-		Paginate:     1,
-		PaginatePath: "page",
+		Title:         "Gobin Official",
+		Description:   "Official theme golden coverage.",
+		BaseURL:       "https://example.com",
+		Theme:         "official-website",
+		ThemesDir:     "themes",
+		StaticDir:     "assets",
+		Paginate:      1,
+		PaginatePath:  "page",
 		RepositoryURL: "https://github.com/mengbin92/gobin",
 		Outputs: &config.OutputsConfig{
 			Feed:    boolPtr(false),
@@ -1835,14 +1838,14 @@ func TestGenerate_OfficialWebsiteTheme_CustomPermalinksWithCommentsAndAnalytics(
 	}
 
 	cfg := &config.Config{
-		Title:         "Gobin Official",
-		Description:   "Official theme deep integration coverage.",
-		BaseURL:       "https://example.com",
-		Theme:         "official-website",
-		ThemesDir:     "themes",
-		StaticDir:     "assets",
-		Paginate:      10,
-		PaginatePath:  "page",
+		Title:        "Gobin Official",
+		Description:  "Official theme deep integration coverage.",
+		BaseURL:      "https://example.com",
+		Theme:        "official-website",
+		ThemesDir:    "themes",
+		StaticDir:    "assets",
+		Paginate:     10,
+		PaginatePath: "page",
 		Permalinks: map[string]string{
 			"posts": "/:year/:month/:day/:slug/",
 		},
@@ -2854,9 +2857,9 @@ func TestGenerate_OfficialWebsiteThemeWithAliases(t *testing.T) {
 	}
 
 	aliasChecks := map[string]string{
-		"old-theme-alias/index.html":     "/theme-alias/",
-		"legacy/theme-alias.html":        "/theme-alias/",
-		"theme-alias/index.html":         "Theme alias content.",
+		"old-theme-alias/index.html": "/theme-alias/",
+		"legacy/theme-alias.html":    "/theme-alias/",
+		"theme-alias/index.html":     "Theme alias content.",
 	}
 
 	for relPath, expected := range aliasChecks {

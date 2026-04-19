@@ -159,26 +159,32 @@ func decodeStringListNode(node yaml.Node) ([]string, error) {
 
 // ParsePosts parses all markdown posts from a directory
 func ParsePosts(dir string) ([]*Post, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read directory %s: %w", dir, err)
-	}
-
 	var posts []*Post
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
-			continue
+
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
 		}
 
-		path := filepath.Join(dir, entry.Name())
+		ext := strings.ToLower(filepath.Ext(info.Name()))
+		if ext != ".md" && ext != ".markdown" {
+			return nil
+		}
+
 		post, err := ParsePost(path)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse %s: %w", path, err)
+			return fmt.Errorf("failed to parse %s: %w", path, err)
 		}
-
 		if post != nil {
 			posts = append(posts, post)
 		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to read directory %s: %w", dir, err)
 	}
 
 	return posts, nil

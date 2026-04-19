@@ -22,6 +22,7 @@ func TestWatchPaths_DefaultAndTheme(t *testing.T) {
 	got := watchPaths(cfg)
 	want := []string{
 		"content",
+		"pages",
 		"assets",
 		"templates",
 		filepath.Join("themes", "official-website", "layouts"),

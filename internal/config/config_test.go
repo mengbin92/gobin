@@ -271,6 +271,32 @@ func TestLoadDefault_NoConfigFound(t *testing.T) {
 	}
 }
 
+func TestNormalize_AppliesDefaultsToNilConfig(t *testing.T) {
+	cfg := Normalize(nil)
+
+	if cfg.Paginate != 10 {
+		t.Fatalf("Expected default paginate 10, got %d", cfg.Paginate)
+	}
+	if cfg.PaginatePath != "page" {
+		t.Fatalf("Expected default paginatePath 'page', got %q", cfg.PaginatePath)
+	}
+	if cfg.ContentDir != "_posts" {
+		t.Fatalf("Expected default contentDir '_posts', got %q", cfg.ContentDir)
+	}
+	if cfg.PageDir != "pages" {
+		t.Fatalf("Expected default pageDir 'pages', got %q", cfg.PageDir)
+	}
+	if cfg.PublishDir != "public" {
+		t.Fatalf("Expected default publishDir 'public', got %q", cfg.PublishDir)
+	}
+	if cfg.StaticDir != "assets" {
+		t.Fatalf("Expected default staticDir 'assets', got %q", cfg.StaticDir)
+	}
+	if cfg.ThemesDir != "themes" {
+		t.Fatalf("Expected default themesDir 'themes', got %q", cfg.ThemesDir)
+	}
+}
+
 func TestLoadConfig_WithOutputs(t *testing.T) {
 	tmpDir := t.TempDir()
 	configContent := `title: "Outputs Blog"

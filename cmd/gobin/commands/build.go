@@ -2,11 +2,8 @@ package commands
 
 import (
 	"fmt"
-	"os"
+	"io"
 
-	"github.com/mengbin92/gobin/internal/config"
-	"github.com/mengbin92/gobin/internal/generator"
-	"github.com/mengbin92/gobin/internal/parser"
 	"github.com/spf13/cobra"
 )
 
@@ -28,52 +25,37 @@ This command will:
 2. Parse all markdown posts from the content directory
 3. Generate HTML pages using templates
 4. Copy static assets to the output directory`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("Blog Static Site Generator v%s\n", Version)
-		fmt.Println("===================================")
-
-		cfg, err := config.LoadDefault()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-			os.Exit(1)
-		}
-
-		contentDir := cfg.ContentDir
-		if contentDir == "" {
-			contentDir = "_posts"
-		}
-
-		posts, err := parser.ParsePosts(contentDir)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error parsing posts: %v\n", err)
-			os.Exit(1)
-		}
-
-		pages, err := parser.ParsePages(cfg.PageDir)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error parsing pages: %v\n", err)
-			os.Exit(1)
-		}
-
-		fmt.Printf("Found %d posts\n", len(posts))
-
-		publishDir := cfg.PublishDir
-		if publishDir == "" {
-			publishDir = "public"
-		}
-
-		err = generator.GenerateWithPages(posts, pages, cfg, publishDir, minify, buildDrafts, cleanOutput)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error generating site: %v\n", err)
-			os.Exit(1)
-		}
-
-		if minify {
-			fmt.Printf("Site generated and minified successfully in '%s' directory\n", publishDir)
-		} else {
-			fmt.Printf("Site generated successfully in '%s' directory\n", publishDir)
-		}
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runBuild(cmd.OutOrStdout(), minify, buildDrafts, cleanOutput)
 	},
+}
+
+func runBuild(stdout io.Writer, minify bool, buildDrafts bool, cleanOutput bool) error {
+	fmt.Fprintf(stdout, "Blog Static Site Generator v%s\n", Version)
+	fmt.Fprintln(stdout, "===================================")
+
+	input, err := loadSiteBuildInput()
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(stdout, "Found %d posts\n", len(input.posts))
+
+	if err := generateSite(input, input.cfg.PublishDir, minify, buildDrafts, cleanOutput); err != nil {
+		return err
+	}
+
+	if minify {
+		fmt.Fprintf(stdout, "Site generated and minified successfully in '%s' directory\n", input.cfg.PublishDir)
+	} else {
+		fmt.Fprintf(stdout, "Site generated successfully in '%s' directory\n", input.cfg.PublishDir)
+	}
+
+	return nil
+}
+
+func RunDefaultBuild(stdout io.Writer) error {
+	return runBuild(stdout, false, false, true)
 }
 
 func init() {

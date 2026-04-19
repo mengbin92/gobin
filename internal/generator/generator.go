@@ -24,6 +24,11 @@ func Generate(posts []*parser.Post, cfg *config.Config, outputDir string, minify
 }
 
 func GenerateWithPages(posts []*parser.Post, standalonePages []*parser.Page, cfg *config.Config, outputDir string, minify bool, buildDrafts bool, cleanOutput bool) error {
+	cfg = config.Normalize(cfg)
+	if outputDir == "" {
+		outputDir = cfg.PublishDir
+	}
+
 	visiblePosts := preparePosts(posts, cfg, buildDrafts)
 
 	sort.Slice(visiblePosts, func(i, j int) bool {
