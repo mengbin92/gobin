@@ -169,7 +169,7 @@ jobs:
 
 ### Vercel / Netlify
 直接连接 Git 仓库，配置：
-- **构建命令**: `gobin build --minify`
+- **构建命令**: `gobin build --minify`（当前为保守 HTML/CSS 压缩）
 - **输出目录**: `public`
 
 ---

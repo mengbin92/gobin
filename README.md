@@ -121,7 +121,7 @@ gobin serve --watch
 # 构建静态文件
 gobin build
 
-# 压缩输出
+# 轻量压缩输出（保守模式）
 gobin build --minify
 
 # 包含草稿文章
@@ -130,6 +130,8 @@ gobin build --drafts
 # 跳过输出目录清理
 gobin build --clean=false
 ```
+
+`--minify` 当前会对 HTML 和 CSS 做保守压缩，并保留 JavaScript 原始内容，优先保证输出正确性而不是做激进资源改写。
 
 ## 配置说明
 
@@ -222,7 +224,7 @@ gobin/
 | 命令 | 说明 | 示例 |
 |------|------|------|
 | `gobin init [name]` | 初始化新站点 | `gobin init myblog` |
-| `gobin build` | 构建静态站点 | `gobin build --minify --drafts --clean=false` |
+| `gobin build` | 构建静态站点，可选启用保守 HTML/CSS 压缩 | `gobin build --minify --drafts --clean=false` |
 | `gobin serve` | 启动开发服务器 | `gobin serve -p 8080 --drafts --clean=false` |
 | `gobin version` | 显示版本信息 | `gobin version` |
 | `gobin help` | 显示帮助信息 | `gobin help` |

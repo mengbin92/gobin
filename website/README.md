@@ -29,7 +29,7 @@ cd website
 ../gobin serve --watch
 ```
 
-修改文件后，Gobin 会自动检测变更并重新构建。
+修改文件后，Gobin 会自动检测变更并重新构建；浏览器需要手动刷新查看最新内容。
 
 ### 构建静态文件
 
@@ -37,9 +37,11 @@ cd website
 # 普通构建
 ../gobin build
 
-# 压缩构建（生产环境推荐）
+# 轻量压缩构建（生产环境推荐）
 ../gobin build --minify
 ```
+
+`--minify` 当前会对 HTML 和 CSS 做保守压缩，JavaScript 内容保持原样，适合先保证站点输出安全稳定。
 
 生成的文件在 `public/` 目录。
 
