@@ -187,7 +187,19 @@ func TestRunServeWithOps_StartsWatcherAndServer(t *testing.T) {
 			}
 			return nil
 		},
-		watchFiles: func(cfg *config.Config) {
+		watchFiles: func(ctx context.Context, cfg *config.Config, runtime serveRuntime) {
+			if ctx == nil {
+				t.Fatal("Expected watcher context to be set")
+			}
+			if runtime.stdout == nil {
+				t.Fatal("Expected watcher runtime stdout to be set")
+			}
+			if runtime.stderr == nil {
+				t.Fatal("Expected watcher runtime stderr to be set")
+			}
+			if !runtime.buildDrafts {
+				t.Fatal("Expected watcher runtime to forward buildDrafts")
+			}
 			watchedCh <- struct{}{}
 		},
 		startServer: func(stdout io.Writer, cfg *config.Config) error {
@@ -224,7 +236,7 @@ func TestRunServeWithOps_BuildFailureStopsBeforeServer(t *testing.T) {
 		generateSite: func(*siteBuildInput, string, bool, bool, bool) error {
 			return buildErr
 		},
-		watchFiles: func(*config.Config) {
+		watchFiles: func(context.Context, *config.Config, serveRuntime) {
 			t.Fatal("watchFiles should not run on build failure")
 		},
 		startServer: func(io.Writer, *config.Config) error {
@@ -282,6 +294,293 @@ func TestRunServerLifecycle_ReturnsServerError(t *testing.T) {
 	err := runServerLifecycle(io.Discard, server, ":8080", make(chan os.Signal))
 	if err == nil || !strings.Contains(err.Error(), "server error: listen failed") {
 		t.Fatalf("Expected wrapped server error, got %v", err)
+	}
+}
+
+func TestBuildSiteWithDeps_ForwardsFlags(t *testing.T) {
+	var gotDrafts bool
+	var gotClean bool
+	err := buildSiteWithDeps(func() (*siteBuildInput, error) {
+		return &siteBuildInput{
+			cfg: &config.Config{PublishDir: "public"},
+		}, nil
+	}, func(input *siteBuildInput, outputDir string, minify bool, buildDrafts bool, cleanOutput bool) error {
+		gotDrafts = buildDrafts
+		gotClean = cleanOutput
+		return nil
+	}, true, false)
+	if err != nil {
+		t.Fatalf("buildSiteWithOptions failed: %v", err)
+	}
+	if !gotDrafts {
+		t.Fatal("Expected drafts flag to be forwarded")
+	}
+	if gotClean {
+		t.Fatal("Expected clean flag to be forwarded as false")
+	}
+}
+
+func TestRegisterWatchPaths_UsesProvidedOutputsOnWatcherFailure(t *testing.T) {
+	cfg := &config.Config{
+		ContentDir: "missing-content",
+		PageDir:    "missing-pages",
+		StaticDir:  "missing-assets",
+	}
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		t.Fatalf("create watcher: %v", err)
+	}
+	defer watcher.Close()
+
+	err = registerWatchPaths(watcher, cfg, serveRuntime{
+		stdout:  &stdout,
+		stderr:  &stderr,
+		verbose: true,
+	})
+	if err != nil {
+		t.Fatalf("registerWatchPaths failed: %v", err)
+	}
+
+	if !strings.Contains(stdout.String(), "Warning: Could not watch missing-content") {
+		t.Fatalf("Expected watch warning on provided stdout, got %q", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("Expected no stderr output for watch path warnings, got %q", stderr.String())
+	}
+}
+
+func TestRunWatchLoop_SchedulesRebuildFromEvents(t *testing.T) {
+	events := make(chan fsnotify.Event, 1)
+	errorsCh := make(chan error)
+	done := make(chan struct{})
+	var scheduled bool
+	var rebuilt bool
+
+	go func() {
+		runWatchLoop(context.Background(), events, errorsCh, serveRuntime{
+			stdout:  io.Discard,
+			stderr:  io.Discard,
+			verbose: true,
+		}, func(run func()) {
+			scheduled = true
+			run()
+		}, func() {
+			rebuilt = true
+		})
+		close(done)
+	}()
+
+	events <- fsnotify.Event{Name: "content/post.md", Op: fsnotify.Write}
+	close(events)
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Expected watch loop to exit after events channel closed")
+	}
+
+	if !scheduled {
+		t.Fatal("Expected runWatchLoop to schedule rebuild")
+	}
+	if !rebuilt {
+		t.Fatal("Expected scheduled rebuild callback to run")
+	}
+}
+
+func TestRunWatchLoop_WritesWatcherErrors(t *testing.T) {
+	events := make(chan fsnotify.Event)
+	errorsCh := make(chan error, 1)
+	done := make(chan struct{})
+	var stderr bytes.Buffer
+
+	go func() {
+		runWatchLoop(context.Background(), events, errorsCh, serveRuntime{
+			stdout: io.Discard,
+			stderr: &stderr,
+		}, func(func()) {}, func() {})
+		close(done)
+	}()
+
+	errorsCh <- errors.New("watch failed")
+	close(errorsCh)
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Expected watch loop to exit after errors channel closed")
+	}
+
+	if !strings.Contains(stderr.String(), "Watcher error: watch failed") {
+		t.Fatalf("Expected watcher error output, got %q", stderr.String())
+	}
+}
+
+func TestRunWatchLoop_ExitsWhenErrorsChannelClosesFirst(t *testing.T) {
+	events := make(chan fsnotify.Event)
+	errorsCh := make(chan error)
+	done := make(chan struct{})
+
+	go func() {
+		runWatchLoop(context.Background(), events, errorsCh, serveRuntime{
+			stdout: io.Discard,
+			stderr: io.Discard,
+		}, func(func()) {}, func() {})
+		close(done)
+	}()
+
+	close(errorsCh)
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Expected watch loop to exit when errors channel closes")
+	}
+}
+
+func TestRunWatchLoop_ExitsWhenContextCancelled(t *testing.T) {
+	events := make(chan fsnotify.Event)
+	errorsCh := make(chan error)
+	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		runWatchLoop(ctx, events, errorsCh, serveRuntime{
+			stdout: io.Discard,
+			stderr: io.Discard,
+		}, func(func()) {}, func() {})
+		close(done)
+	}()
+
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Expected watch loop to exit when context is cancelled")
+	}
+}
+
+func TestHandleWatchEvent_SchedulesRebuildForSupportedEvents(t *testing.T) {
+	var stdout bytes.Buffer
+	var scheduled bool
+	var rebuilt bool
+
+	triggered := handleWatchEvent(fsnotify.Event{
+		Name: "content/post.md",
+		Op:   fsnotify.Write,
+	}, serveRuntime{
+		stdout:  &stdout,
+		stderr:  io.Discard,
+		verbose: true,
+	}, func(run func()) {
+		scheduled = true
+		run()
+	}, func() {
+		rebuilt = true
+	})
+
+	if !triggered {
+		t.Fatal("Expected write event to trigger rebuild scheduling")
+	}
+	if !scheduled {
+		t.Fatal("Expected rebuild to be scheduled")
+	}
+	if !rebuilt {
+		t.Fatal("Expected scheduled rebuild callback to run")
+	}
+	if !strings.Contains(stdout.String(), "File changed: content/post.md") {
+		t.Fatalf("Expected verbose watch output, got %q", stdout.String())
+	}
+}
+
+func TestHandleWatchEvent_IgnoresUnsupportedEvents(t *testing.T) {
+	var scheduled bool
+	triggered := handleWatchEvent(fsnotify.Event{
+		Name: "content/post.md",
+		Op:   fsnotify.Remove,
+	}, serveRuntime{
+		stdout:  io.Discard,
+		stderr:  io.Discard,
+		verbose: true,
+	}, func(func()) {
+		scheduled = true
+	}, func() {})
+
+	if triggered {
+		t.Fatal("Expected remove event to be ignored")
+	}
+	if scheduled {
+		t.Fatal("Expected ignored event not to schedule rebuild")
+	}
+}
+
+func TestNewDebounceScheduler_CancelsPreviousTimer(t *testing.T) {
+	var stopCalls int
+	var scheduled []func()
+	scheduler := newDebounceScheduler(500*time.Millisecond, func(delay time.Duration, run func()) debounceCancelFunc {
+		if delay != 500*time.Millisecond {
+			t.Fatalf("Expected debounce delay 500ms, got %v", delay)
+		}
+		scheduled = append(scheduled, run)
+		return func() bool {
+			stopCalls++
+			return true
+		}
+	})
+
+	scheduler(func() {})
+	scheduler(func() {})
+
+	if len(scheduled) != 2 {
+		t.Fatalf("Expected two scheduled callbacks, got %d", len(scheduled))
+	}
+	if stopCalls != 1 {
+		t.Fatalf("Expected previous debounce timer to be stopped once, got %d", stopCalls)
+	}
+}
+
+func TestRebuildSiteAndReport_Success(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	rebuildSiteAndReportWithDeps(serveRuntime{
+		stdout:      &stdout,
+		stderr:      &stderr,
+		buildDrafts: true,
+		cleanOutput: false,
+	}, func(serveRuntime) error {
+		return nil
+	})
+
+	if !strings.Contains(stdout.String(), "Rebuilding site...") {
+		t.Fatalf("Expected rebuild start output, got %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Site rebuilt successfully in") {
+		t.Fatalf("Expected rebuild success output, got %q", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("Expected no stderr output on rebuild success, got %q", stderr.String())
+	}
+}
+
+func TestRebuildSiteAndReport_Failure(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	rebuildSiteAndReportWithDeps(serveRuntime{
+		stdout:      &stdout,
+		stderr:      &stderr,
+		buildDrafts: true,
+		cleanOutput: false,
+	}, func(serveRuntime) error {
+		return errors.New("boom")
+	})
+
+	if !strings.Contains(stdout.String(), "Rebuilding site...") {
+		t.Fatalf("Expected rebuild start output, got %q", stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "Error rebuilding site: boom") {
+		t.Fatalf("Expected rebuild failure output, got %q", stderr.String())
 	}
 }
 

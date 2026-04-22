@@ -27,8 +27,19 @@ type serveOps struct {
 	loadSiteInput func() (*siteBuildInput, error)
 	generateSite  func(*siteBuildInput, string, bool, bool, bool) error
 	startServer   func(io.Writer, *config.Config) error
-	watchFiles    func(*config.Config)
+	watchFiles    func(context.Context, *config.Config, serveRuntime)
 }
+
+type serveRuntime struct {
+	stdout      io.Writer
+	stderr      io.Writer
+	buildDrafts bool
+	cleanOutput bool
+	verbose     bool
+}
+
+type debounceCancelFunc func() bool
+type debounceAfterFunc func(time.Duration, func()) debounceCancelFunc
 
 var (
 	servePort    int
@@ -67,7 +78,7 @@ func runServe(stdout io.Writer, buildDrafts bool, watch bool) error {
 		loadSiteInput: loadSiteBuildInput,
 		generateSite:  generateSite,
 		startServer:   startServer,
-		watchFiles:    watchFiles,
+		watchFiles:    watchFilesWithRuntime,
 	})
 }
 
@@ -77,6 +88,8 @@ func runServeWithOps(stdout io.Writer, buildDrafts bool, watch bool, ops serveOp
 		return err
 	}
 	cfg := input.cfg
+	watchCtx, cancelWatch := context.WithCancel(context.Background())
+	defer cancelWatch()
 
 	fmt.Fprintln(stdout, "Building site...")
 	if err := ops.generateSite(input, cfg.PublishDir, false, buildDrafts, serveClean); err != nil {
@@ -85,19 +98,46 @@ func runServeWithOps(stdout io.Writer, buildDrafts bool, watch bool, ops serveOp
 	fmt.Fprintln(stdout, "Site built successfully!")
 
 	if watch {
-		go ops.watchFiles(cfg)
+		go ops.watchFiles(watchCtx, cfg, serveRuntime{
+			stdout:      stdout,
+			stderr:      os.Stderr,
+			buildDrafts: buildDrafts,
+			cleanOutput: serveClean,
+			verbose:     serveVerbose,
+		})
 	}
 
-	return ops.startServer(stdout, cfg)
+	err = ops.startServer(stdout, cfg)
+	cancelWatch()
+	return err
 }
 
 // buildSite rebuilds the site from the current working directory configuration.
 func buildSite(buildDrafts bool) error {
-	input, err := loadSiteBuildInput()
+	return buildSiteWithOptions(buildDrafts, serveClean)
+}
+
+func buildSiteWithOptions(buildDrafts bool, cleanOutput bool) error {
+	return buildSiteWithDeps(loadSiteBuildInput, generateSite, buildDrafts, cleanOutput)
+}
+
+func buildSiteWithDeps(loadInput func() (*siteBuildInput, error), generate func(*siteBuildInput, string, bool, bool, bool) error, buildDrafts bool, cleanOutput bool) error {
+	if loadInput == nil {
+		return fmt.Errorf("load site input function is nil")
+	}
+	if generate == nil {
+		return fmt.Errorf("generate site function is nil")
+	}
+
+	input, err := loadInput()
 	if err != nil {
 		return err
 	}
-	return generateSite(input, input.cfg.PublishDir, false, buildDrafts, serveClean)
+	return generate(input, input.cfg.PublishDir, false, buildDrafts, cleanOutput)
+}
+
+func buildSiteWithRuntime(runtime serveRuntime) error {
+	return buildSiteWithDeps(loadSiteBuildInput, generateSite, runtime.buildDrafts, runtime.cleanOutput)
 }
 
 // startServer starts the HTTP development server
@@ -149,68 +189,117 @@ func newDevServerHandler(outputDir string) http.Handler {
 	return mux
 }
 
-// watchFiles watches for file changes and rebuilds the site
+// watchFiles watches for file changes and rebuilds the site.
 func watchFiles(cfg *config.Config) {
+	watchFilesWithRuntime(context.Background(), cfg, serveRuntime{
+		stdout:      os.Stdout,
+		stderr:      os.Stderr,
+		buildDrafts: serveDrafts,
+		cleanOutput: serveClean,
+		verbose:     serveVerbose,
+	})
+}
+
+func watchFilesWithRuntime(ctx context.Context, cfg *config.Config, runtime serveRuntime) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create file watcher: %v\n", err)
+		fmt.Fprintf(runtime.stderr, "Failed to create file watcher: %v\n", err)
 		return
 	}
 	defer watcher.Close()
 
+	if err := registerWatchPaths(watcher, cfg, runtime); err != nil {
+		fmt.Fprintf(runtime.stderr, "Failed to register watch paths: %v\n", err)
+		return
+	}
+
+	fmt.Fprintln(runtime.stdout, "Watching for file changes...")
+
+	scheduleRebuild := newDebounceScheduler(500*time.Millisecond, func(delay time.Duration, run func()) debounceCancelFunc {
+		timer := time.AfterFunc(delay, run)
+		return timer.Stop
+	})
+	runWatchLoop(ctx, watcher.Events, watcher.Errors, runtime, scheduleRebuild, func() {
+		rebuildSiteAndReport(runtime)
+	})
+}
+
+func registerWatchPaths(watcher *fsnotify.Watcher, cfg *config.Config, runtime serveRuntime) error {
+	if watcher == nil {
+		return fmt.Errorf("watcher is nil")
+	}
+
 	for _, dir := range watchPaths(cfg) {
 		if err := addWatchPath(watcher, dir); err != nil {
-			if serveVerbose {
-				fmt.Printf("Warning: Could not watch %s: %v\n", dir, err)
+			if runtime.verbose {
+				fmt.Fprintf(runtime.stdout, "Warning: Could not watch %s: %v\n", dir, err)
 			}
 		}
 	}
 
-	fmt.Println("Watching for file changes...")
+	return nil
+}
 
-	// Debounce timer
-	var timer *time.Timer
-	debounceDuration := 500 * time.Millisecond
-
+func runWatchLoop(ctx context.Context, events <-chan fsnotify.Event, errors <-chan error, runtime serveRuntime, schedule func(func()), rebuild func()) {
 	for {
 		select {
-		case event, ok := <-watcher.Events:
+		case <-ctx.Done():
+			return
+		case event, ok := <-events:
 			if !ok {
 				return
 			}
-
-			if shouldRebuildForEvent(event) {
-
-				if serveVerbose {
-					fmt.Printf("File changed: %s\n", event.Name)
-				}
-
-				// Cancel existing timer
-				if timer != nil {
-					timer.Stop()
-				}
-
-				// Set new timer for debouncing
-				timer = time.AfterFunc(debounceDuration, func() {
-					fmt.Println("\nRebuilding site...")
-					start := time.Now()
-
-					if err := buildSite(serveDrafts); err != nil {
-						fmt.Fprintf(os.Stderr, "Error rebuilding site: %v\n", err)
-						return
-					}
-
-					elapsed := time.Since(start)
-					fmt.Printf("Site rebuilt successfully in %v\n", elapsed)
-				})
-			}
-
-		case err, ok := <-watcher.Errors:
+			handleWatchEvent(event, runtime, schedule, rebuild)
+		case err, ok := <-errors:
 			if !ok {
 				return
 			}
-			fmt.Fprintf(os.Stderr, "Watcher error: %v\n", err)
+			fmt.Fprintf(runtime.stderr, "Watcher error: %v\n", err)
 		}
+	}
+}
+
+func rebuildSiteAndReport(runtime serveRuntime) {
+	rebuildSiteAndReportWithDeps(runtime, func(runtime serveRuntime) error {
+		return buildSiteWithRuntime(runtime)
+	})
+}
+
+func rebuildSiteAndReportWithDeps(runtime serveRuntime, rebuild func(serveRuntime) error) {
+	if rebuild == nil {
+		fmt.Fprintln(runtime.stderr, "Error rebuilding site: rebuild function is nil")
+		return
+	}
+	fmt.Fprintln(runtime.stdout, "\nRebuilding site...")
+	start := time.Now()
+
+	if err := rebuild(runtime); err != nil {
+		fmt.Fprintf(runtime.stderr, "Error rebuilding site: %v\n", err)
+		return
+	}
+
+	elapsed := time.Since(start)
+	fmt.Fprintf(runtime.stdout, "Site rebuilt successfully in %v\n", elapsed)
+}
+
+func handleWatchEvent(event fsnotify.Event, runtime serveRuntime, schedule func(func()), rebuild func()) bool {
+	if !shouldRebuildForEvent(event) {
+		return false
+	}
+	if runtime.verbose {
+		fmt.Fprintf(runtime.stdout, "File changed: %s\n", event.Name)
+	}
+	schedule(rebuild)
+	return true
+}
+
+func newDebounceScheduler(delay time.Duration, afterFunc debounceAfterFunc) func(func()) {
+	var cancel debounceCancelFunc
+	return func(run func()) {
+		if cancel != nil {
+			cancel()
+		}
+		cancel = afterFunc(delay, run)
 	}
 }
 
