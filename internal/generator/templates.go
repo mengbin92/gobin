@@ -152,7 +152,7 @@ func getTemplatePaths(cfg *config.Config) []string {
 	return paths
 }
 
-func renderTemplate(tmpl *template.Template, name, path string, data interface{}) error {
+func renderTemplate(tmpl renderer, name, path string, data interface{}) error {
 	f, err := os.Create(path)
 	if err != nil {
 		return err

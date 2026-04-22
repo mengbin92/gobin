@@ -1,6 +1,8 @@
 package generator
 
 import (
+	"fmt"
+
 	"github.com/mengbin92/gobin/internal/config"
 	"github.com/mengbin92/gobin/internal/parser"
 )
@@ -9,6 +11,10 @@ type ArtifactSpec struct {
 	Name    string
 	Enabled bool
 	Run     func() error
+}
+
+type artifactPipeline struct {
+	specs []ArtifactSpec
 }
 
 func buildArtifactSpecs(posts []*parser.Post, cfg *config.Config, outputDir string, tags, categories []string) []ArtifactSpec {
@@ -68,12 +74,19 @@ func buildArtifactSpecs(posts []*parser.Post, cfg *config.Config, outputDir stri
 }
 
 func executeArtifactSpecs(specs []ArtifactSpec) error {
-	for _, spec := range specs {
+	return artifactPipeline{specs: specs}.Execute()
+}
+
+func (p artifactPipeline) Execute() error {
+	for _, spec := range p.specs {
 		if !spec.Enabled {
 			continue
 		}
 		if err := spec.Run(); err != nil {
-			return err
+			if spec.Name == "" {
+				return err
+			}
+			return fmt.Errorf("%s artifact: %w", spec.Name, err)
 		}
 	}
 
@@ -93,4 +106,12 @@ func withMinifyArtifactEnabled(specs []ArtifactSpec, enabled bool) []ArtifactSpe
 	}
 
 	return cloned
+}
+
+func (p artifactPipeline) Names() []string {
+	names := make([]string, 0, len(p.specs))
+	for _, spec := range p.specs {
+		names = append(names, spec.Name)
+	}
+	return names
 }

@@ -3,10 +3,16 @@ package generator
 import (
 	"fmt"
 	"html/template"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 )
+
+type renderer interface {
+	Lookup(name string) *template.Template
+	ExecuteTemplate(wr io.Writer, name string, data interface{}) error
+}
 
 type PageSpec struct {
 	TemplateCandidates []string
@@ -14,7 +20,7 @@ type PageSpec struct {
 	Data               interface{}
 }
 
-func renderPageSpecs(tmpl *template.Template, outputDir string, pages []PageSpec) error {
+func renderPageSpecs(tmpl renderer, outputDir string, pages []PageSpec) error {
 	for _, page := range pages {
 		templateName, err := resolveTemplateName(tmpl, page.TemplateCandidates)
 		if err != nil {
@@ -33,7 +39,7 @@ func renderPageSpecs(tmpl *template.Template, outputDir string, pages []PageSpec
 	return nil
 }
 
-func resolveTemplateName(tmpl *template.Template, candidates []string) (string, error) {
+func resolveTemplateName(tmpl renderer, candidates []string) (string, error) {
 	for _, candidate := range candidates {
 		if tmpl.Lookup(candidate) != nil {
 			return candidate, nil

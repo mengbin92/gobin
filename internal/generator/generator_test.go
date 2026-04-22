@@ -1252,15 +1252,15 @@ func TestPrepareGenerationPlan(t *testing.T) {
 	if plan.outputDir != "public" {
 		t.Fatalf("Expected output dir public, got %q", plan.outputDir)
 	}
-	if plan.templates == nil {
+	if plan.pagePlan.templates == nil {
 		t.Fatal("Expected templates to be loaded")
 	}
-	if len(plan.pageSpecs) != 9 {
-		t.Fatalf("Expected 9 page specs including standalone page, got %d", len(plan.pageSpecs))
+	if len(plan.pagePlan.pages) != 9 {
+		t.Fatalf("Expected 9 page specs including standalone page, got %d", len(plan.pagePlan.pages))
 	}
 
 	minifyEnabled := false
-	for _, spec := range plan.artifactSpecs {
+	for _, spec := range plan.artifacts.specs {
 		if spec.Name == "minify" {
 			minifyEnabled = spec.Enabled
 			break
@@ -1269,6 +1269,95 @@ func TestPrepareGenerationPlan(t *testing.T) {
 	if !minifyEnabled {
 		t.Fatal("Expected minify artifact to be enabled in generation plan")
 	}
+}
+
+func TestArtifactPipelineExecute_WrapsNamedErrors(t *testing.T) {
+	err := artifactPipeline{
+		specs: []ArtifactSpec{
+			{Name: "feed", Enabled: true, Run: func() error { return fmt.Errorf("boom") }},
+		},
+	}.Execute()
+	if err == nil || !strings.Contains(err.Error(), "feed artifact: boom") {
+		t.Fatalf("Expected wrapped artifact error, got %v", err)
+	}
+}
+
+func TestArtifactPipelineExecute_SkipsDisabledSpecs(t *testing.T) {
+	var ran bool
+	err := artifactPipeline{
+		specs: []ArtifactSpec{
+			{Name: "search", Enabled: false, Run: func() error { ran = true; return nil }},
+		},
+	}.Execute()
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+	if ran {
+		t.Fatal("Expected disabled artifact not to run")
+	}
+}
+
+func TestGenerationPlanExecute_Order(t *testing.T) {
+	var steps []string
+	plan := &generationPlan{
+		outputDir: "public",
+		pagePlan: pageRenderPlan{
+			outputDir: "public",
+			templates: mustParseTemplate(t, `{{ define "page" }}ok{{ end }}`),
+			pages: []PageSpec{
+				{
+					TemplateCandidates: []string{"page"},
+					OutputPath:         "index.html",
+					Data:               nil,
+				},
+			},
+		},
+		artifacts: artifactPipeline{
+			specs: []ArtifactSpec{
+				{
+					Name:    "assets",
+					Enabled: true,
+					Run: func() error {
+						steps = append(steps, "artifacts")
+						return nil
+					},
+				},
+			},
+		},
+	}
+
+	tmpDir := t.TempDir()
+	plan.outputDir = tmpDir
+	plan.pagePlan.outputDir = tmpDir
+
+	err := plan.executeWith(true, func(outputDir string, cleanOutput bool) error {
+		steps = append(steps, "prepare")
+		return os.MkdirAll(outputDir, 0755)
+	}, func() error {
+		steps = append(steps, "render")
+		return plan.pagePlan.Execute()
+	}, func() error {
+		return plan.artifacts.Execute()
+	})
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	if len(steps) != 3 || steps[0] != "prepare" || steps[1] != "render" || steps[2] != "artifacts" {
+		t.Fatalf("Unexpected execution order: %#v", steps)
+	}
+	if _, err := os.Stat(filepath.Join(tmpDir, "index.html")); err != nil {
+		t.Fatalf("Expected page render output, got %v", err)
+	}
+}
+
+func mustParseTemplate(t *testing.T, src string) *template.Template {
+	t.Helper()
+	tpl, err := template.New("test").Parse(src)
+	if err != nil {
+		t.Fatalf("parse template: %v", err)
+	}
+	return tpl
 }
 
 func TestGenerate_DefaultSiteGolden(t *testing.T) {

@@ -1,7 +1,6 @@
 package generator
 
 import (
-	"html/template"
 	"sort"
 
 	"github.com/mengbin92/gobin/internal/config"
@@ -9,10 +8,9 @@ import (
 )
 
 type generationPlan struct {
-	outputDir     string
-	templates     *template.Template
-	pageSpecs     []PageSpec
-	artifactSpecs []ArtifactSpec
+	outputDir string
+	pagePlan  pageRenderPlan
+	artifacts artifactPipeline
 }
 
 type pageBuildResult struct {
@@ -39,10 +37,15 @@ func prepareGenerationPlan(posts []*parser.Post, standalonePages []*parser.Page,
 	artifactSpecs := buildArtifactSpecs(visiblePosts, cfg, outputDir, pageResult.tags, pageResult.categories)
 
 	return &generationPlan{
-		outputDir:     outputDir,
-		templates:     tmpl,
-		pageSpecs:     pageResult.pageSpecs,
-		artifactSpecs: withMinifyArtifactEnabled(artifactSpecs, minify),
+		outputDir: outputDir,
+		pagePlan: pageRenderPlan{
+			outputDir: outputDir,
+			templates: tmpl,
+			pages:     pageResult.pageSpecs,
+		},
+		artifacts: artifactPipeline{
+			specs: withMinifyArtifactEnabled(artifactSpecs, minify),
+		},
 	}, nil
 }
 
@@ -64,11 +67,38 @@ func sortPostsByDateDesc(posts []*parser.Post) {
 }
 
 func (p *generationPlan) Execute(cleanOutput bool) error {
-	if err := prepareOutputDir(p.outputDir, cleanOutput); err != nil {
+	return p.executeWith(cleanOutput, prepareOutputDir, func() error {
+		return p.pagePlan.Execute()
+	}, func() error {
+		return p.artifacts.Execute()
+	})
+}
+
+func (p *generationPlan) executeWith(cleanOutput bool, prepare func(string, bool) error, renderPages func() error, runArtifacts func() error) error {
+	if prepare == nil {
+		return nil
+	}
+	if err := prepare(p.outputDir, cleanOutput); err != nil {
 		return err
 	}
-	if err := renderPageSpecs(p.templates, p.outputDir, p.pageSpecs); err != nil {
+	if renderPages == nil {
+		return nil
+	}
+	if err := renderPages(); err != nil {
 		return err
 	}
-	return executeArtifactSpecs(p.artifactSpecs)
+	if runArtifacts == nil {
+		return nil
+	}
+	return runArtifacts()
+}
+
+type pageRenderPlan struct {
+	outputDir string
+	templates renderer
+	pages     []PageSpec
+}
+
+func (p pageRenderPlan) Execute() error {
+	return renderPageSpecs(p.templates, p.outputDir, p.pages)
 }
