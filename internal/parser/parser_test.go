@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // TestParsePost tests parsing a single post with valid frontmatter
@@ -246,6 +249,70 @@ Hidden content.`
 	}
 	if *post.Published {
 		t.Error("Expected published to be false")
+	}
+}
+
+func TestNormalizePostFrontMatter(t *testing.T) {
+	raw := postFrontMatter{
+		Title:       "Normalized Post",
+		Date:        time.Date(2026, 4, 23, 0, 0, 0, 0, time.UTC),
+		Description: "desc",
+		Tags:        stringListNode("go"),
+		Categories:  stringListNode("tech"),
+		Layout:      "",
+	}
+
+	post, err := normalizePostFrontMatter(raw, filepath.Join("content", "2026-04-23-normalized-post.md"), "Hello world", "<p>Hello world</p>")
+	if err != nil {
+		t.Fatalf("normalizePostFrontMatter failed: %v", err)
+	}
+	if post.Slug != "normalized-post" {
+		t.Fatalf("Expected derived slug normalized-post, got %q", post.Slug)
+	}
+	if post.URL != "/normalized-post/" {
+		t.Fatalf("Expected derived URL /normalized-post/, got %q", post.URL)
+	}
+	if post.Layout != "post" {
+		t.Fatalf("Expected default layout post, got %q", post.Layout)
+	}
+}
+
+func stringListNode(values ...string) yaml.Node {
+	content := make([]*yaml.Node, 0, len(values))
+	for _, value := range values {
+		content = append(content, &yaml.Node{
+			Kind:  yaml.ScalarNode,
+			Value: value,
+		})
+	}
+	return yaml.Node{
+		Kind:    yaml.SequenceNode,
+		Content: content,
+	}
+}
+
+func TestNormalizePageFrontMatter(t *testing.T) {
+	raw := pageFrontMatter{
+		Title:       "",
+		Description: "desc",
+		Permalink:   "",
+	}
+
+	page, err := normalizePageFrontMatter(raw, filepath.Join("pages", "about.md"), "pages", "About", "<p>About</p>")
+	if err != nil {
+		t.Fatalf("normalizePageFrontMatter failed: %v", err)
+	}
+	if page.Slug != "about" {
+		t.Fatalf("Expected derived slug about, got %q", page.Slug)
+	}
+	if page.Title != "about" {
+		t.Fatalf("Expected empty title to fall back to slug, got %q", page.Title)
+	}
+	if page.URL != "/about/" {
+		t.Fatalf("Expected derived URL /about/, got %q", page.URL)
+	}
+	if page.Layout != "page" {
+		t.Fatalf("Expected default layout page, got %q", page.Layout)
 	}
 }
 

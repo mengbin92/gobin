@@ -25,6 +25,28 @@ type fakeDevServer struct {
 	listenRelease  chan struct{}
 }
 
+type fakeFSWatcher struct {
+	added   []string
+	events  chan fsnotify.Event
+	errors  chan error
+	closeFn func() error
+}
+
+func (w *fakeFSWatcher) Add(name string) error {
+	w.added = append(w.added, name)
+	return nil
+}
+
+func (w *fakeFSWatcher) Close() error {
+	if w.closeFn != nil {
+		return w.closeFn()
+	}
+	return nil
+}
+
+func (w *fakeFSWatcher) Events() <-chan fsnotify.Event { return w.events }
+func (w *fakeFSWatcher) Errors() <-chan error          { return w.errors }
+
 func (s *fakeDevServer) ListenAndServe() error {
 	s.listenCalled = true
 	if s.listenRelease != nil {
@@ -249,6 +271,92 @@ func TestRunServeWithOps_BuildFailureStopsBeforeServer(t *testing.T) {
 	}
 	if started {
 		t.Fatal("startServer should not run on build failure")
+	}
+}
+
+func TestServeBuilder_InitialBuildForwardsOptions(t *testing.T) {
+	var gotOutputDir string
+	var gotDrafts bool
+	var gotClean bool
+
+	builder := serveBuilder{
+		loadSiteInput: func() (*siteBuildInput, error) {
+			return &siteBuildInput{cfg: &config.Config{PublishDir: "public"}}, nil
+		},
+		generateSite: func(input *siteBuildInput, outputDir string, minify bool, buildDrafts bool, cleanOutput bool) error {
+			gotOutputDir = outputDir
+			gotDrafts = buildDrafts
+			gotClean = cleanOutput
+			return nil
+		},
+	}
+
+	input, err := builder.initialBuild(true, false)
+	if err != nil {
+		t.Fatalf("initialBuild failed: %v", err)
+	}
+	if input == nil || input.cfg.PublishDir != "public" {
+		t.Fatalf("Expected built input with publish dir, got %#v", input)
+	}
+	if gotOutputDir != "public" {
+		t.Fatalf("Expected outputDir public, got %q", gotOutputDir)
+	}
+	if !gotDrafts {
+		t.Fatal("Expected drafts flag to be forwarded")
+	}
+	if gotClean {
+		t.Fatal("Expected clean flag false to be forwarded")
+	}
+}
+
+func TestServeWatcher_RunDelegatesToWatchLoop(t *testing.T) {
+	called := false
+	watcher := serveWatcher{
+		registerPaths: func(fsWatcher, *config.Config, serveRuntime) error { return nil },
+		newWatcher: func() (fsWatcher, error) {
+			return &fakeFSWatcher{
+				events: make(chan fsnotify.Event),
+				errors: make(chan error),
+				closeFn: func() error {
+					return nil
+				},
+			}, nil
+		},
+		runLoop: func(ctx context.Context, events <-chan fsnotify.Event, errors <-chan error, runtime serveRuntime, schedule func(func()), rebuild func()) {
+			called = true
+		},
+		afterFunc: func(delay time.Duration, run func()) debounceCancelFunc {
+			return func() bool { return true }
+		},
+	}
+
+	watcher.run(context.Background(), &config.Config{}, serveRuntime{
+		stdout: io.Discard,
+		stderr: io.Discard,
+	})
+
+	if !called {
+		t.Fatal("Expected watcher run loop to be called")
+	}
+}
+
+func TestServeServer_RunDelegatesToLifecycle(t *testing.T) {
+	server := serveServer{
+		addr: ":9000",
+		newServer: func(addr string, cfg *config.Config) devServer {
+			return &fakeDevServer{listenErr: http.ErrServerClosed}
+		},
+		signals: make(chan os.Signal),
+		runLifecycle: func(stdout io.Writer, server devServer, addr string, signals <-chan os.Signal) error {
+			if addr != ":9000" {
+				t.Fatalf("Expected addr :9000, got %q", addr)
+			}
+			return nil
+		},
+	}
+
+	if err := server.run(io.Discard, &config.Config{PublishDir: "public"}); err != nil {
+		t.Fatalf("serveServer.run failed: %v", err)
 	}
 }
 

@@ -28,41 +28,44 @@ type SearchDocument struct {
 	Category string   `json:"category,omitempty"`
 }
 
-// GenerateSearchIndex generates a search index JSON file
-func GenerateSearchIndex(posts []*parser.Post, cfg *config.Config, outputDir string) error {
-	index := SearchIndex{
-		Index: []SearchDocument{},
-	}
-
-	// Limit indexed content to avoid huge files
-	maxContentLength := 2000
-
+func buildSearchDocuments(posts []*parser.Post, cfg *config.Config, includeContent bool) []SearchDocument {
+	documents := make([]SearchDocument, 0, len(posts))
 	for _, post := range posts {
-		doc := SearchDocument{
-			Title:   post.Title,
-			URL:     post.URL,
-			Date:    post.Date.Format("2006-01-02"),
-			Tags:    post.Tags,
-			Summary: post.Summary,
-			Author:  cfg.Author,
-		}
+		documents = append(documents, buildSearchDocument(post, cfg, includeContent))
+	}
+	return documents
+}
 
-		// Add first category if available
-		if len(post.Categories) > 0 {
-			doc.Category = post.Categories[0]
-		}
-
-		// Optionally include full content (with length limit)
+func buildSearchDocument(post *parser.Post, cfg *config.Config, includeContent bool) SearchDocument {
+	doc := SearchDocument{
+		Title:   post.Title,
+		URL:     post.URL,
+		Date:    post.Date.Format("2006-01-02"),
+		Tags:    post.Tags,
+		Summary: post.Summary,
+	}
+	if cfg != nil {
+		doc.Author = cfg.Author
+	}
+	if len(post.Categories) > 0 {
+		doc.Category = post.Categories[0]
+	}
+	if includeContent {
+		const maxContentLength = 2000
 		if len(post.Content) > maxContentLength {
 			doc.Content = post.Content[:maxContentLength] + "..."
 		} else {
 			doc.Content = post.Content
 		}
-
-		// Clean content (remove excessive whitespace)
 		doc.Content = strings.Join(strings.Fields(doc.Content), " ")
+	}
+	return doc
+}
 
-		index.Index = append(index.Index, doc)
+// GenerateSearchIndex generates a search index JSON file
+func GenerateSearchIndex(posts []*parser.Post, cfg *config.Config, outputDir string) error {
+	index := SearchIndex{
+		Index: buildSearchDocuments(posts, cfg, true),
 	}
 
 	// Create output file
@@ -86,25 +89,7 @@ func GenerateSearchIndex(posts []*parser.Post, cfg *config.Config, outputDir str
 // GenerateSearchIndexMin generates a minimal search index (only metadata, no content)
 func GenerateSearchIndexMin(posts []*parser.Post, cfg *config.Config, outputDir string) error {
 	index := SearchIndex{
-		Index: []SearchDocument{},
-	}
-
-	for _, post := range posts {
-		doc := SearchDocument{
-			Title:   post.Title,
-			URL:     post.URL,
-			Date:    post.Date.Format("2006-01-02"),
-			Tags:    post.Tags,
-			Summary: post.Summary,
-			Author:  cfg.Author,
-		}
-
-		// Add first category if available
-		if len(post.Categories) > 0 {
-			doc.Category = post.Categories[0]
-		}
-
-		index.Index = append(index.Index, doc)
+		Index: buildSearchDocuments(posts, cfg, false),
 	}
 
 	// Create output file

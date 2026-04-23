@@ -57,62 +57,116 @@ type Page struct {
 	Params      map[string]interface{} `yaml:"-"`
 }
 
-func (p *Post) UnmarshalYAML(value *yaml.Node) error {
-	type rawPost struct {
-		Title       string                 `yaml:"title"`
-		Date        time.Time              `yaml:"date"`
-		LastMod     time.Time              `yaml:"lastmod"`
-		Draft       bool                   `yaml:"draft"`
-		Published   *bool                  `yaml:"published"`
-		Description string                 `yaml:"description"`
-		Tags        yaml.Node              `yaml:"tags"`
-		Categories  yaml.Node              `yaml:"categories"`
-		Keywords    yaml.Node              `yaml:"keywords"`
-		Slug        string                 `yaml:"slug"`
-		Aliases     yaml.Node              `yaml:"aliases"`
-		Weight      int                    `yaml:"weight"`
-		Layout      string                 `yaml:"layout"`
-		Params      map[string]interface{} `yaml:",inline"`
-	}
+type postFrontMatter struct {
+	Title       string                 `yaml:"title"`
+	Date        time.Time              `yaml:"date"`
+	LastMod     time.Time              `yaml:"lastmod"`
+	Draft       bool                   `yaml:"draft"`
+	Published   *bool                  `yaml:"published"`
+	Description string                 `yaml:"description"`
+	Tags        yaml.Node              `yaml:"tags"`
+	Categories  yaml.Node              `yaml:"categories"`
+	Keywords    yaml.Node              `yaml:"keywords"`
+	Slug        string                 `yaml:"slug"`
+	Aliases     yaml.Node              `yaml:"aliases"`
+	Weight      int                    `yaml:"weight"`
+	Layout      string                 `yaml:"layout"`
+	Params      map[string]interface{} `yaml:",inline"`
+}
 
-	var raw rawPost
-	if err := value.Decode(&raw); err != nil {
-		return err
-	}
+type pageFrontMatter struct {
+	Title       string                 `yaml:"title"`
+	Description string                 `yaml:"description"`
+	Layout      string                 `yaml:"layout"`
+	Slug        string                 `yaml:"slug"`
+	Permalink   string                 `yaml:"permalink"`
+	Params      map[string]interface{} `yaml:",inline"`
+}
 
+func normalizePostFrontMatter(raw postFrontMatter, path string, markdownContent string, renderedHTML string) (*Post, error) {
 	tags, err := decodeStringListNode(raw.Tags)
 	if err != nil {
-		return fmt.Errorf("invalid tags: %w", err)
+		return nil, fmt.Errorf("invalid tags: %w", err)
 	}
 	categories, err := decodeStringListNode(raw.Categories)
 	if err != nil {
-		return fmt.Errorf("invalid categories: %w", err)
+		return nil, fmt.Errorf("invalid categories: %w", err)
 	}
 	keywords, err := decodeStringListNode(raw.Keywords)
 	if err != nil {
-		return fmt.Errorf("invalid keywords: %w", err)
+		return nil, fmt.Errorf("invalid keywords: %w", err)
 	}
 	aliases, err := decodeStringListNode(raw.Aliases)
 	if err != nil {
-		return fmt.Errorf("invalid aliases: %w", err)
+		return nil, fmt.Errorf("invalid aliases: %w", err)
 	}
 
-	p.Title = raw.Title
-	p.Date = raw.Date
-	p.LastMod = raw.LastMod
-	p.Draft = raw.Draft
-	p.Published = raw.Published
-	p.Description = raw.Description
-	p.Tags = tags
-	p.Categories = categories
-	p.Keywords = keywords
-	p.Slug = raw.Slug
-	p.Aliases = aliases
-	p.Weight = raw.Weight
-	p.Layout = raw.Layout
-	p.Params = raw.Params
+	post := &Post{
+		Title:       raw.Title,
+		Date:        raw.Date,
+		LastMod:     raw.LastMod,
+		Draft:       raw.Draft,
+		Published:   raw.Published,
+		Description: raw.Description,
+		Tags:        tags,
+		Categories:  categories,
+		Keywords:    keywords,
+		Slug:        raw.Slug,
+		Aliases:     aliases,
+		Weight:      raw.Weight,
+		Layout:      raw.Layout,
+		FilePath:    path,
+		Content:     strings.TrimSpace(markdownContent),
+		ContentHTML: renderedHTML,
+		Params:      raw.Params,
+	}
 
-	return nil
+	if post.Date.IsZero() {
+		post.Date = dateFromFilename(filepath.Base(path))
+	}
+	if post.Slug == "" {
+		post.Slug = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+		if len(post.Slug) > 11 && post.Slug[10] == '-' {
+			post.Slug = post.Slug[11:]
+		}
+	}
+	post.URL = "/" + post.Slug + "/"
+	post.WordCount = wordCount(markdownContent)
+	post.ReadingTime = (post.WordCount + 200) / 250
+	post.Summary = generateSummary(markdownContent)
+	post.SummaryHTML = generateSummaryHTML(post.ContentHTML)
+	if post.Layout == "" {
+		post.Layout = "post"
+	}
+
+	return post, nil
+}
+
+func normalizePageFrontMatter(raw pageFrontMatter, path string, baseDir string, markdownContent string, renderedHTML string) (*Page, error) {
+	page := &Page{
+		Title:       raw.Title,
+		Description: raw.Description,
+		Layout:      raw.Layout,
+		Slug:        raw.Slug,
+		Permalink:   raw.Permalink,
+		FilePath:    path,
+		Content:     strings.TrimSpace(markdownContent),
+		ContentHTML: renderedHTML,
+		Params:      raw.Params,
+	}
+
+	if page.Slug == "" {
+		page.Slug = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	}
+	if page.Title == "" {
+		page.Title = page.Slug
+	}
+	page.URL = pageURLForPath(path, baseDir, page)
+	if page.Layout == "" {
+		page.Layout = "page"
+	}
+
+	return page, nil
 }
 
 func decodeStringListNode(node yaml.Node) ([]string, error) {
@@ -240,52 +294,23 @@ func ParsePost(path string) (*Post, error) {
 		return nil, err
 	}
 
-	// Parse front matter
-	var post Post
-	if err := yaml.Unmarshal([]byte(frontMatter), &post); err != nil {
+	var raw postFrontMatter
+	if err := yaml.Unmarshal([]byte(frontMatter), &raw); err != nil {
 		return nil, fmt.Errorf("failed to parse front matter: %w", err)
 	}
-
-	post.FilePath = path
-	post.Content = strings.TrimSpace(markdownContent)
-
-	if post.Date.IsZero() {
-		post.Date = dateFromFilename(filepath.Base(path))
-	}
-
-	// Generate slug from filename if not specified
-	if post.Slug == "" {
-		post.Slug = strings.TrimSuffix(filepath.Base(path), ".md")
-		// Remove date prefix if present (2023-01-01-)
-		if len(post.Slug) > 11 && post.Slug[10] == '-' {
-			post.Slug = post.Slug[11:]
-		}
-	}
-
-	// Generate URL based on slug
-	post.URL = "/" + post.Slug + "/"
 
 	// Render markdown to HTML
 	renderedHTML, err := renderMarkdown(markdownContent)
 	if err != nil {
 		return nil, fmt.Errorf("failed to render markdown: %w", err)
 	}
-	post.ContentHTML = renderedHTML
 
-	// Calculate word count and reading time
-	post.WordCount = wordCount(markdownContent)
-	post.ReadingTime = (post.WordCount + 200) / 250 // ~250 words per minute
-
-	// Generate summary (first paragraph or first 200 chars)
-	post.Summary = generateSummary(markdownContent)
-	post.SummaryHTML = generateSummaryHTML(post.ContentHTML)
-
-	// Set defaults
-	if post.Layout == "" {
-		post.Layout = "post"
+	post, err := normalizePostFrontMatter(raw, path, markdownContent, renderedHTML)
+	if err != nil {
+		return nil, err
 	}
 
-	return &post, nil
+	return post, nil
 }
 
 // ParsePage parses a standalone markdown page.
@@ -300,16 +325,7 @@ func ParsePage(path string, baseDir string) (*Page, error) {
 		return nil, err
 	}
 
-	type rawPage struct {
-		Title       string                 `yaml:"title"`
-		Description string                 `yaml:"description"`
-		Layout      string                 `yaml:"layout"`
-		Slug        string                 `yaml:"slug"`
-		Permalink   string                 `yaml:"permalink"`
-		Params      map[string]interface{} `yaml:",inline"`
-	}
-
-	var raw rawPage
+	var raw pageFrontMatter
 	if err := yaml.Unmarshal([]byte(frontMatter), &raw); err != nil {
 		return nil, fmt.Errorf("failed to parse front matter: %w", err)
 	}
@@ -319,31 +335,7 @@ func ParsePage(path string, baseDir string) (*Page, error) {
 		return nil, fmt.Errorf("failed to render markdown: %w", err)
 	}
 
-	page := &Page{
-		Title:       raw.Title,
-		Description: raw.Description,
-		Layout:      raw.Layout,
-		Slug:        raw.Slug,
-		Permalink:   raw.Permalink,
-		FilePath:    path,
-		Content:     strings.TrimSpace(markdownContent),
-		ContentHTML: renderedHTML,
-		Params:      raw.Params,
-	}
-
-	if page.Slug == "" {
-		page.Slug = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
-	}
-	if page.Title == "" {
-		page.Title = page.Slug
-	}
-
-	page.URL = pageURLForPath(path, baseDir, page)
-	if page.Layout == "" {
-		page.Layout = "page"
-	}
-
-	return page, nil
+	return normalizePageFrontMatter(raw, path, baseDir, markdownContent, renderedHTML)
 }
 
 var filenameDatePattern = regexp.MustCompile(`^(\d{4})-(\d{2})-(\d{2})-`)

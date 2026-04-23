@@ -288,6 +288,37 @@ func TestCollectStaticAssetFiles_SiteOverridesTheme(t *testing.T) {
 	}
 }
 
+func TestBuildSearchDocuments(t *testing.T) {
+	posts := []*parser.Post{
+		{
+			Title:      "Alpha",
+			URL:        "/alpha/",
+			Date:       time.Date(2026, 4, 23, 0, 0, 0, 0, time.UTC),
+			Tags:       []string{"go"},
+			Summary:    "alpha summary",
+			Content:    "alpha    content\nwith spacing",
+			Categories: []string{"tech"},
+		},
+	}
+	cfg := &config.Config{Author: "mengbin"}
+
+	full := buildSearchDocuments(posts, cfg, true)
+	minimal := buildSearchDocuments(posts, cfg, false)
+
+	if len(full) != 1 || len(minimal) != 1 {
+		t.Fatalf("Expected one search document in each variant, got %d and %d", len(full), len(minimal))
+	}
+	if full[0].Title != minimal[0].Title || full[0].URL != minimal[0].URL || full[0].Category != "tech" {
+		t.Fatalf("Expected shared metadata to match, got full=%#v minimal=%#v", full[0], minimal[0])
+	}
+	if full[0].Content != "alpha content with spacing" {
+		t.Fatalf("Expected normalized content in full search doc, got %q", full[0].Content)
+	}
+	if minimal[0].Content != "" {
+		t.Fatalf("Expected minimal search doc to omit content, got %q", minimal[0].Content)
+	}
+}
+
 // TestCopyFile tests file copying functionality
 func TestCopyFile(t *testing.T) {
 	tmpDir := t.TempDir()
