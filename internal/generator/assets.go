@@ -2,34 +2,38 @@ package generator
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/mengbin92/gobin/internal/config"
 )
 
+type staticAssetFile struct {
+	SourcePath string
+	OutputPath string
+}
+
 func copyStaticAssets(cfg *config.Config, outputDir string) error {
-	if cfg.Theme != "" && cfg.ThemesDir != "" {
-		themeStaticDir := filepath.Join(cfg.ThemesDir, cfg.Theme, "assets")
-		if _, err := os.Stat(themeStaticDir); err == nil {
-			if err := copyStaticAssetsFromDir(themeStaticDir, outputDir, themeStaticDir); err != nil {
-				return err
-			}
+	assets, err := collectStaticAssetFiles(cfg)
+	if err != nil {
+		return err
+	}
+
+	for _, asset := range assets {
+		destPath := filepath.Join(outputDir, asset.OutputPath)
+		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+			return err
+		}
+		if err := copyFile(asset.SourcePath, destPath); err != nil {
+			return err
 		}
 	}
 
-	staticDir := cfg.StaticDir
-	if staticDir == "" {
-		staticDir = "assets"
-	}
-
-	if _, err := os.Stat(staticDir); os.IsNotExist(err) {
-		return nil
-	}
-
-	return copyStaticAssetsFromDir(staticDir, outputDir, staticDir)
+	return nil
 }
 
 func copyStaticAssetsFromDir(sourceDir, outputDir, baseDir string) error {
@@ -70,6 +74,71 @@ func copyFile(src, dst string) error {
 
 	_, err = dstFile.ReadFrom(srcFile)
 	return err
+}
+
+func collectStaticAssetFiles(cfg *config.Config) ([]staticAssetFile, error) {
+	cfg = config.Normalize(cfg)
+
+	type assetSource struct {
+		rootDir string
+	}
+
+	sources := make([]assetSource, 0, 2)
+	if cfg.Theme != "" && cfg.ThemesDir != "" {
+		themeStaticDir := filepath.Join(cfg.ThemesDir, cfg.Theme, "assets")
+		if _, err := os.Stat(themeStaticDir); err == nil {
+			sources = append(sources, assetSource{rootDir: themeStaticDir})
+		} else if err != nil && !os.IsNotExist(err) {
+			return nil, fmt.Errorf("stat theme assets: %w", err)
+		}
+	}
+
+	if _, err := os.Stat(cfg.StaticDir); err == nil {
+		sources = append(sources, assetSource{rootDir: cfg.StaticDir})
+	} else if err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("stat static assets: %w", err)
+	}
+
+	overlay := make(map[string]staticAssetFile)
+	order := make([]string, 0)
+
+	for _, source := range sources {
+		err := filepath.Walk(source.rootDir, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return nil
+			}
+
+			relPath, err := filepath.Rel(source.rootDir, path)
+			if err != nil {
+				return err
+			}
+
+			outputPath := filepath.Clean(relPath)
+			if _, seen := overlay[outputPath]; !seen {
+				order = append(order, outputPath)
+			}
+			overlay[outputPath] = staticAssetFile{
+				SourcePath: filepath.Clean(path),
+				OutputPath: outputPath,
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	sort.Strings(order)
+
+	assets := make([]staticAssetFile, 0, len(order))
+	for _, outputPath := range order {
+		assets = append(assets, overlay[outputPath])
+	}
+
+	return assets, nil
 }
 
 func minifyOutput(outputDir string) error {

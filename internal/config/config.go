@@ -2,7 +2,10 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -173,6 +176,129 @@ func Normalize(cfg *Config) *Config {
 	return cfg
 }
 
+// Validate checks whether the normalized configuration is internally consistent.
+func Validate(cfg *Config) error {
+	return ValidateInDir(cfg, ".")
+}
+
+// ValidateInDir checks whether the normalized configuration is internally
+// consistent when resolved from the provided base directory.
+func ValidateInDir(cfg *Config, baseDir string) error {
+	cfg = Normalize(cfg)
+
+	if err := validateBaseURL(cfg.BaseURL); err != nil {
+		return err
+	}
+	if err := validatePostsPermalink(cfg.Permalinks); err != nil {
+		return err
+	}
+	if err := validateThemeDir(cfg.Theme, cfg.ThemesDir, baseDir); err != nil {
+		return err
+	}
+	if err := validateOutputDirConflicts(cfg); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateBaseURL(raw string) error {
+	baseURL := strings.TrimSpace(raw)
+	if baseURL == "" {
+		return nil
+	}
+	if strings.HasPrefix(baseURL, "/") {
+		return nil
+	}
+
+	parsed, err := url.Parse(baseURL)
+	if err != nil {
+		return fmt.Errorf("invalid baseURL %q: %w", raw, err)
+	}
+	if !parsed.IsAbs() || parsed.Host == "" {
+		return fmt.Errorf("invalid baseURL %q: must be an absolute URL", raw)
+	}
+
+	return nil
+}
+
+func validatePostsPermalink(permalinks map[string]string) error {
+	if len(permalinks) == 0 {
+		return nil
+	}
+
+	pattern := strings.TrimSpace(permalinks["posts"])
+	if pattern == "" {
+		return nil
+	}
+	if !strings.HasPrefix(pattern, "/") || !strings.HasSuffix(pattern, "/") {
+		return fmt.Errorf("invalid permalinks.posts %q: must start and end with '/'", pattern)
+	}
+
+	return nil
+}
+
+func validateThemeDir(theme string, themesDir string, baseDir string) error {
+	theme = strings.TrimSpace(theme)
+	if theme == "" {
+		return nil
+	}
+
+	themePath := filepath.Join(resolveConfigPath(baseDir, strings.TrimSpace(themesDir)), theme)
+	if _, err := os.Stat(themePath); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("invalid theme %q: theme directory %q does not exist", theme, themePath)
+		}
+		return fmt.Errorf("invalid theme %q: stat %q: %w", theme, themePath, err)
+	}
+
+	return nil
+}
+
+func validateOutputDirConflicts(cfg *Config) error {
+	publishDir := normalizeConfigPath(cfg.PublishDir)
+	if publishDir == "" {
+		return nil
+	}
+
+	inputs := map[string]string{
+		"contentDir": normalizeConfigPath(cfg.ContentDir),
+		"pageDir":    normalizeConfigPath(cfg.PageDir),
+		"staticDir":  normalizeConfigPath(cfg.StaticDir),
+	}
+
+	for name, path := range inputs {
+		if path == "" {
+			continue
+		}
+		if path == publishDir {
+			return fmt.Errorf("invalid publishDir %q: must not overlap %s %q", cfg.PublishDir, name, path)
+		}
+	}
+
+	return nil
+}
+
+func normalizeConfigPath(path string) string {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return ""
+	}
+	cleaned := filepath.Clean(trimmed)
+	return filepath.ToSlash(cleaned)
+}
+
+func resolveConfigPath(baseDir string, path string) string {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return strings.TrimSpace(baseDir)
+	}
+	if filepath.IsAbs(trimmed) {
+		return trimmed
+	}
+	return filepath.Join(strings.TrimSpace(baseDir), trimmed)
+}
+
 // Load loads configuration from a YAML file
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
@@ -185,7 +311,12 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 
-	return Normalize(&cfg), nil
+	normalized := Normalize(&cfg)
+	if err := ValidateInDir(normalized, filepath.Dir(path)); err != nil {
+		return nil, err
+	}
+
+	return normalized, nil
 }
 
 // LoadDefault loads configuration from the first existing default config path.

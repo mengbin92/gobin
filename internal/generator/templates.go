@@ -189,7 +189,7 @@ func detectStylesheetPath(cfg *config.Config) string {
 		}
 	}
 
-	return "/css/main.css"
+	return ""
 }
 
 func joinURL(base, path string) string {

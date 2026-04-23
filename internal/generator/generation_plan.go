@@ -19,23 +19,42 @@ type pageBuildResult struct {
 	categories []string
 }
 
+type renderableContent struct {
+	posts           []*parser.Post
+	standalonePages []*parser.Page
+	pageResult      pageBuildResult
+}
+
 func prepareGenerationPlan(posts []*parser.Post, standalonePages []*parser.Page, cfg *config.Config, outputDir string, minify bool, buildDrafts bool) (*generationPlan, error) {
 	cfg = config.Normalize(cfg)
 	if outputDir == "" {
 		outputDir = cfg.PublishDir
 	}
 
-	visiblePosts := preparePosts(posts, cfg, buildDrafts)
-	sortPostsByDateDesc(visiblePosts)
+	content := prepareRenderableContent(posts, standalonePages, cfg, buildDrafts)
 
 	tmpl, err := loadTemplates(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	pageResult := buildSitePageSpecs(visiblePosts, standalonePages, cfg)
-	artifactSpecs := buildArtifactSpecs(visiblePosts, cfg, outputDir, pageResult.tags, pageResult.categories)
+	artifactSpecs := buildArtifactSpecs(content.posts, cfg, outputDir, content.pageResult.tags, content.pageResult.categories)
+	return assembleGenerationPlan(outputDir, tmpl, content.pageResult, artifactSpecs, minify), nil
+}
 
+func prepareRenderableContent(posts []*parser.Post, standalonePages []*parser.Page, cfg *config.Config, buildDrafts bool) renderableContent {
+	visiblePosts := preparePosts(posts, cfg, buildDrafts)
+	sortPostsByDateDesc(visiblePosts)
+	pageResult := buildSitePageSpecs(visiblePosts, standalonePages, cfg)
+
+	return renderableContent{
+		posts:           visiblePosts,
+		standalonePages: standalonePages,
+		pageResult:      pageResult,
+	}
+}
+
+func assembleGenerationPlan(outputDir string, tmpl renderer, pageResult pageBuildResult, artifactSpecs []ArtifactSpec, minify bool) *generationPlan {
 	return &generationPlan{
 		outputDir: outputDir,
 		pagePlan: pageRenderPlan{
@@ -46,7 +65,7 @@ func prepareGenerationPlan(posts []*parser.Post, standalonePages []*parser.Page,
 		artifacts: artifactPipeline{
 			specs: withMinifyArtifactEnabled(artifactSpecs, minify),
 		},
-	}, nil
+	}
 }
 
 func buildSitePageSpecs(posts []*parser.Post, standalonePages []*parser.Page, cfg *config.Config) pageBuildResult {

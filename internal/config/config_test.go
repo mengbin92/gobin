@@ -70,6 +70,9 @@ analytics:
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
 		t.Fatalf("Failed to create test config: %v", err)
 	}
+	if err := os.MkdirAll(filepath.Join(tmpDir, "themes", "default"), 0755); err != nil {
+		t.Fatalf("Failed to create test theme directory: %v", err)
+	}
 
 	cfg, err := Load(configPath)
 	if err != nil {

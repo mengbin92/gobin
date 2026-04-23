@@ -138,6 +138,47 @@ func TestPreparePostsVisibility(t *testing.T) {
 	}
 }
 
+func TestPrepareRenderableContent_FiltersAndSortsPosts(t *testing.T) {
+	posts := []*parser.Post{
+		{Title: "draft", Slug: "draft", Date: time.Date(2026, 4, 2, 0, 0, 0, 0, time.UTC), Draft: true},
+		{Title: "older", Slug: "older", Date: time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)},
+		{Title: "newer", Slug: "newer", Date: time.Date(2026, 4, 3, 0, 0, 0, 0, time.UTC)},
+	}
+
+	state := prepareRenderableContent(posts, nil, &config.Config{}, false)
+	if len(state.posts) != 2 {
+		t.Fatalf("Expected 2 visible posts, got %d", len(state.posts))
+	}
+	if state.posts[0].Slug != "newer" || state.posts[1].Slug != "older" {
+		t.Fatalf("Expected visible posts to be sorted desc, got %#v", []string{state.posts[0].Slug, state.posts[1].Slug})
+	}
+}
+
+func TestAssembleGenerationPlan_UsesProvidedPlans(t *testing.T) {
+	tmpl := template.Must(template.New("singlePage").Parse(`{{ define "singlePage" }}ok{{ end }}`))
+	pageSpecs := []PageSpec{{
+		TemplateCandidates: []string{"singlePage"},
+		OutputPath:         "post/index.html",
+		Data:               "ok",
+	}}
+	artifacts := []ArtifactSpec{{
+		Name:    "search",
+		Enabled: true,
+		Run:     func() error { return nil },
+	}}
+
+	plan := assembleGenerationPlan("public", tmpl, pageBuildResult{pageSpecs: pageSpecs}, artifacts, true)
+	if plan.outputDir != "public" {
+		t.Fatalf("Expected outputDir public, got %q", plan.outputDir)
+	}
+	if len(plan.pagePlan.pages) != 1 {
+		t.Fatalf("Expected 1 page spec, got %d", len(plan.pagePlan.pages))
+	}
+	if len(plan.artifacts.specs) != 1 || plan.artifacts.specs[0].Name != "search" {
+		t.Fatalf("Expected artifact plan to keep provided artifacts, got %#v", plan.artifacts.specs)
+	}
+}
+
 func TestDetectStylesheetPath(t *testing.T) {
 	tmpDir := t.TempDir()
 
@@ -187,6 +228,63 @@ func TestDetectStylesheetPath_SiteAssetsOverrideTheme(t *testing.T) {
 	want := "/css/style.css"
 	if got != want {
 		t.Fatalf("Expected stylesheet path %q, got %q", want, got)
+	}
+}
+
+func TestDetectStylesheetPath_EmptyWhenNoStylesheetExists(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	oldWd, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(oldWd)
+
+	if err := os.MkdirAll(filepath.Join(tmpDir, "assets", "images"), 0755); err != nil {
+		t.Fatalf("Failed to create assets directory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "assets", "images", "logo.svg"), []byte("<svg/>"), 0644); err != nil {
+		t.Fatalf("Failed to create image asset: %v", err)
+	}
+
+	got := detectStylesheetPath(&config.Config{StaticDir: "assets"})
+	if got != "" {
+		t.Fatalf("Expected no stylesheet path, got %q", got)
+	}
+}
+
+func TestCollectStaticAssetFiles_SiteOverridesTheme(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	oldWd, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(oldWd)
+
+	if err := os.MkdirAll(filepath.Join(tmpDir, "assets", "css"), 0755); err != nil {
+		t.Fatalf("Failed to create site asset directory: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(tmpDir, "themes", "demo", "assets", "css"), 0755); err != nil {
+		t.Fatalf("Failed to create theme asset directory: %v", err)
+	}
+	mustWriteFile(t, filepath.Join(tmpDir, "assets", "css", "main.css"), "site")
+	mustWriteFile(t, filepath.Join(tmpDir, "themes", "demo", "assets", "css", "main.css"), "theme")
+	mustWriteFile(t, filepath.Join(tmpDir, "themes", "demo", "assets", "css", "syntax.css"), "syntax")
+
+	assets, err := collectStaticAssetFiles(&config.Config{
+		Theme:     "demo",
+		ThemesDir: "themes",
+		StaticDir: "assets",
+	})
+	if err != nil {
+		t.Fatalf("collectStaticAssetFiles failed: %v", err)
+	}
+
+	if len(assets) != 2 {
+		t.Fatalf("Expected 2 assets after overlay, got %d", len(assets))
+	}
+	if assets[0].OutputPath != filepath.Join("css", "main.css") || assets[0].SourcePath != filepath.Join("assets", "css", "main.css") {
+		t.Fatalf("Expected site asset to win for css/main.css, got %#v", assets[0])
+	}
+	if assets[1].OutputPath != filepath.Join("css", "syntax.css") {
+		t.Fatalf("Expected syntax.css to remain from theme, got %#v", assets[1])
 	}
 }
 
