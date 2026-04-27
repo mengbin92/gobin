@@ -194,12 +194,17 @@ comments:
     repo: "username/repo"
     theme: "github-light"
 
-# 代码高亮
+# Markdown 渲染和代码高亮
 markup:
+  # 默认保持兼容，允许 Markdown 中的原始 HTML。
+  # 如果内容来源不完全可信，建议设为 false。
+  allowUnsafeHTML: true
   highlight:
     style: github
     lineNos: true
 ```
+
+`markup.allowUnsafeHTML` 默认为兼容模式。显式设置为 `false` 时，Markdown 中的原始 HTML 不会作为活动 HTML 输出，适合内容来源不完全可信的站点。
 
 ## 项目结构
 
