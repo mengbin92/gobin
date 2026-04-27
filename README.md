@@ -133,6 +133,8 @@ gobin build --clean=false
 
 `--minify` 当前会对 HTML 和 CSS 做保守压缩，并保留 JavaScript 原始内容，优先保证输出正确性而不是做激进资源改写。
 
+使用 `--clean=false` 时，未变化的静态资源会跳过复制以加快重建。该模式不会删除输出目录中已经失去源文件的旧资源；需要清理旧文件时请运行默认 clean 构建。
+
 ## 配置说明
 
 ### 主配置文件（config.yaml）

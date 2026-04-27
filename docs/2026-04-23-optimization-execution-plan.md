@@ -119,8 +119,10 @@
 
 - 已完成 P2 部分优化：Markdown raw HTML 渲染安全开关
 - 已完成 P2 部分优化：`serve` 生命周期与重建失败恢复测试补强
+- 已完成 P2 部分优化：资源管线 v1，未变化静态资源跳过复制
 - `markup.allowUnsafeHTML` 默认保持兼容，显式设为 `false` 时禁用原始 HTML 输出
 - 站点构建和 `serve` 的解析入口现在会使用配置派生的 Markdown 渲染选项
+- 静态资源复制新增可测试 copy plan，为后续指纹和完整增量构建打底
 
 ## 5. 验收记录
 
@@ -150,9 +152,19 @@
   - command 层站点输入加载会把配置转换为 parser 渲染选项
   - `serve` watcher 覆盖重建失败后继续接受后续重建事件的生命周期行为
 
+- 2026-04-27
+- 验证命令：`go test ./internal/generator -run 'TestPlanStaticAssetCopies|TestExecuteStaticAssetCopyPlan|TestCopyStaticAssets'`
+- 验证结果：通过
+- 验收结论：
+  - 静态资源复制现在先生成 copy/skip plan
+  - 目标文件已是最新时会跳过复制，避免非 clean rebuild 重写未变化资源
+  - 资源变化检测覆盖目标缺失、大小变化、权限变化和源文件更新时间更新
+  - `--clean=false` 仍不删除 stale 输出文件，旧文件清理由 clean build 负责
+
 ## 6. 提交记录
 
 - `7b9f468` `Complete P0 optimization cleanup`
 - `a241ed6` `Update optimization execution record`
 - 待补充 P1 统一提交哈希
 - 待补充 P2 Markdown safety / serve lifecycle 提交哈希
+- 待补充 P2 asset pipeline incremental copy 提交哈希
