@@ -319,6 +319,86 @@ func TestPlanStaticAssetCopies_SkipsCurrentDestination(t *testing.T) {
 	}
 }
 
+func TestPlanStaticAssetCopies_CopiesChangedAssets(t *testing.T) {
+	tests := []struct {
+		name       string
+		setup      func(t *testing.T, sourcePath string, destPath string)
+		want       staticAssetCopyAction
+		wantReason string
+	}{
+		{
+			name: "missing destination",
+			setup: func(t *testing.T, sourcePath string, destPath string) {
+				mustWriteFile(t, sourcePath, "body{}")
+			},
+			want:       staticAssetCopy,
+			wantReason: "missing",
+		},
+		{
+			name: "size differs",
+			setup: func(t *testing.T, sourcePath string, destPath string) {
+				mustWriteFile(t, sourcePath, "body{}")
+				mustWriteFile(t, destPath, "different")
+			},
+			want:       staticAssetCopy,
+			wantReason: "size",
+		},
+		{
+			name: "mode differs",
+			setup: func(t *testing.T, sourcePath string, destPath string) {
+				mustWriteFile(t, sourcePath, "body{}")
+				mustWriteFile(t, destPath, "body{}")
+				if err := os.Chmod(sourcePath, 0600); err != nil {
+					t.Fatalf("chmod source: %v", err)
+				}
+				if err := os.Chmod(destPath, 0644); err != nil {
+					t.Fatalf("chmod dest: %v", err)
+				}
+			},
+			want:       staticAssetCopy,
+			wantReason: "mode",
+		},
+		{
+			name: "source newer",
+			setup: func(t *testing.T, sourcePath string, destPath string) {
+				mustWriteFile(t, sourcePath, "body{}")
+				mustWriteFile(t, destPath, "body{}")
+				past := time.Now().Add(-time.Hour)
+				future := time.Now().Add(time.Hour)
+				if err := os.Chtimes(destPath, past, past); err != nil {
+					t.Fatalf("set dest time: %v", err)
+				}
+				if err := os.Chtimes(sourcePath, future, future); err != nil {
+					t.Fatalf("set source time: %v", err)
+				}
+			},
+			want:       staticAssetCopy,
+			wantReason: "source-newer",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			t.Chdir(tmpDir)
+			sourcePath := filepath.Join(tmpDir, "assets", "css", "main.css")
+			destPath := filepath.Join(tmpDir, "public", "css", "main.css")
+			tt.setup(t, sourcePath, destPath)
+
+			plans, err := planStaticAssetCopies(&config.Config{StaticDir: "assets"}, filepath.Join(tmpDir, "public"))
+			if err != nil {
+				t.Fatalf("planStaticAssetCopies failed: %v", err)
+			}
+			if len(plans) != 1 {
+				t.Fatalf("Expected 1 plan, got %d", len(plans))
+			}
+			if plans[0].Action != tt.want || plans[0].Reason != tt.wantReason {
+				t.Fatalf("Expected %s/%s, got %#v", tt.want, tt.wantReason, plans[0])
+			}
+		})
+	}
+}
+
 func TestBuildSearchDocuments(t *testing.T) {
 	posts := []*parser.Post{
 		{
