@@ -115,6 +115,13 @@
 - 已完成 P1.3：内容模型拆分为 front matter 输入模型和规范化运行时模型
 - P1 阶段已完成
 
+### 2026-04-27
+
+- 已完成 P2 部分优化：Markdown raw HTML 渲染安全开关
+- 已完成 P2 部分优化：`serve` 生命周期与重建失败恢复测试补强
+- `markup.allowUnsafeHTML` 默认保持兼容，显式设为 `false` 时禁用原始 HTML 输出
+- 站点构建和 `serve` 的解析入口现在会使用配置派生的 Markdown 渲染选项
+
 ## 5. 验收记录
 
 - 2026-04-23
@@ -134,8 +141,18 @@
   - 搜索索引 full/min 两条输出链路改为共用搜索文档构建器
   - parser 层新增 front matter 输入模型和归一化函数，`ParsePost` / `ParsePage` 对外行为保持不变
 
+- 2026-04-27
+- 验证命令：`go test ./internal/config ./internal/parser ./cmd/gobin/commands`
+- 验证结果：通过
+- 验收结论：
+  - 配置层新增 `markup.allowUnsafeHTML` 解析
+  - parser 层新增 option-aware Markdown 解析入口，并保留默认 raw HTML 兼容行为
+  - command 层站点输入加载会把配置转换为 parser 渲染选项
+  - `serve` watcher 覆盖重建失败后继续接受后续重建事件的生命周期行为
+
 ## 6. 提交记录
 
 - `7b9f468` `Complete P0 optimization cleanup`
 - `a241ed6` `Update optimization execution record`
 - 待补充 P1 统一提交哈希
+- 待补充 P2 Markdown safety / serve lifecycle 提交哈希
