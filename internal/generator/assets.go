@@ -3,6 +3,7 @@ package generator
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -116,33 +117,56 @@ func decideStaticAssetCopy(sourcePath, destPath string) (staticAssetCopyAction, 
 		return staticAssetCopy, "source-newer", nil
 	}
 
+	sameContent, err := filesHaveSameContent(sourcePath, destPath)
+	if err != nil {
+		return "", "", err
+	}
+	if !sameContent {
+		return staticAssetCopy, "content", nil
+	}
+
 	return staticAssetSkip, "current", nil
 }
 
-func copyStaticAssetsFromDir(sourceDir, outputDir, baseDir string) error {
-	return filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			return nil
-		}
+func filesHaveSameContent(sourcePath, destPath string) (bool, error) {
+	sourceFile, err := os.Open(sourcePath)
+	if err != nil {
+		return false, err
+	}
+	defer sourceFile.Close()
 
-		relPath, err := filepath.Rel(baseDir, path)
-		if err != nil {
-			return err
-		}
+	destFile, err := os.Open(destPath)
+	if err != nil {
+		return false, err
+	}
+	defer destFile.Close()
 
-		destPath := filepath.Join(outputDir, relPath)
-		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
-			return err
+	sourceBuffer := make([]byte, 32*1024)
+	destBuffer := make([]byte, 32*1024)
+	for {
+		sourceRead, sourceErr := sourceFile.Read(sourceBuffer)
+		destRead, destErr := destFile.Read(destBuffer)
+		if sourceRead != destRead || !bytes.Equal(sourceBuffer[:sourceRead], destBuffer[:destRead]) {
+			return false, nil
 		}
-
-		return copyFile(path, destPath)
-	})
+		if sourceErr == io.EOF && destErr == io.EOF {
+			return true, nil
+		}
+		if sourceErr != nil && sourceErr != io.EOF {
+			return false, sourceErr
+		}
+		if destErr != nil && destErr != io.EOF {
+			return false, destErr
+		}
+	}
 }
 
 func copyFile(src, dst string) error {
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+
 	srcFile, err := os.Open(src)
 	if err != nil {
 		return err
@@ -153,10 +177,19 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer dstFile.Close()
 
 	_, err = dstFile.ReadFrom(srcFile)
-	return err
+	closeErr := dstFile.Close()
+	if err != nil {
+		return err
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	if err := os.Chmod(dst, srcInfo.Mode().Perm()); err != nil {
+		return err
+	}
+	return os.Chtimes(dst, srcInfo.ModTime(), srcInfo.ModTime())
 }
 
 func collectStaticAssetFiles(cfg *config.Config) ([]staticAssetFile, error) {

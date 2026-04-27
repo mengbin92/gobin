@@ -375,6 +375,23 @@ func TestPlanStaticAssetCopies_CopiesChangedAssets(t *testing.T) {
 			want:       staticAssetCopy,
 			wantReason: "source-newer",
 		},
+		{
+			name: "content differs with same metadata",
+			setup: func(t *testing.T, sourcePath string, destPath string) {
+				mustWriteFile(t, sourcePath, "new!")
+				mustWriteFile(t, destPath, "old!")
+				sourceInfo, err := os.Stat(sourcePath)
+				if err != nil {
+					t.Fatalf("stat source: %v", err)
+				}
+				future := sourceInfo.ModTime().Add(time.Hour)
+				if err := os.Chtimes(destPath, future, future); err != nil {
+					t.Fatalf("set dest time: %v", err)
+				}
+			},
+			want:       staticAssetCopy,
+			wantReason: "content",
+		},
 	}
 
 	for _, tt := range tests {
@@ -396,6 +413,42 @@ func TestPlanStaticAssetCopies_CopiesChangedAssets(t *testing.T) {
 				t.Fatalf("Expected %s/%s, got %#v", tt.want, tt.wantReason, plans[0])
 			}
 		})
+	}
+}
+
+func TestCopyStaticAssets_PreservesSourcePermissionsForSkip(t *testing.T) {
+	tmpDir := t.TempDir()
+	outputDir := filepath.Join(tmpDir, "output")
+	sourcePath := filepath.Join(tmpDir, "assets", "css", "main.css")
+	destPath := filepath.Join(outputDir, "css", "main.css")
+	mustWriteFile(t, sourcePath, "body{}")
+	if err := os.Chmod(sourcePath, 0600); err != nil {
+		t.Fatalf("chmod source: %v", err)
+	}
+
+	t.Chdir(tmpDir)
+	cfg := &config.Config{StaticDir: "assets"}
+	if err := copyStaticAssets(cfg, outputDir); err != nil {
+		t.Fatalf("first copyStaticAssets failed: %v", err)
+	}
+
+	destInfo, err := os.Stat(destPath)
+	if err != nil {
+		t.Fatalf("stat dest: %v", err)
+	}
+	if destInfo.Mode().Perm() != 0600 {
+		t.Fatalf("Expected copied asset mode 0600, got %v", destInfo.Mode().Perm())
+	}
+
+	plans, err := planStaticAssetCopies(cfg, outputDir)
+	if err != nil {
+		t.Fatalf("planStaticAssetCopies failed: %v", err)
+	}
+	if len(plans) != 1 {
+		t.Fatalf("Expected 1 plan, got %d", len(plans))
+	}
+	if plans[0].Action != staticAssetSkip || plans[0].Reason != "current" {
+		t.Fatalf("Expected preserved-mode asset to be skipped, got %#v", plans[0])
 	}
 }
 
@@ -547,55 +600,6 @@ func TestCopyFile_NonExistent(t *testing.T) {
 	err := copyFile("/nonexistent/file.txt", dstFile)
 	if err == nil {
 		t.Error("Expected error for non-existent source file")
-	}
-}
-
-// TestCopyStaticAssetsFromDir tests static asset copying with nested directories
-func TestCopyStaticAssetsFromDir(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	// Create nested directory structure
-	assetsDir := filepath.Join(tmpDir, "assets")
-	cssDir := filepath.Join(assetsDir, "css")
-	jsDir := filepath.Join(assetsDir, "js")
-
-	os.MkdirAll(cssDir, 0755)
-	os.MkdirAll(jsDir, 0755)
-
-	// Create test files
-	cssFile := filepath.Join(cssDir, "style.css")
-	jsFile := filepath.Join(jsDir, "script.js")
-	rootFile := filepath.Join(assetsDir, "root.txt")
-
-	if err := os.WriteFile(cssFile, []byte("body { margin: 0; }"), 0644); err != nil {
-		t.Fatalf("Failed to create CSS file: %v", err)
-	}
-	if err := os.WriteFile(jsFile, []byte("console.log('test');"), 0644); err != nil {
-		t.Fatalf("Failed to create JS file: %v", err)
-	}
-	if err := os.WriteFile(rootFile, []byte("root content"), 0644); err != nil {
-		t.Fatalf("Failed to create root file: %v", err)
-	}
-
-	// Create output directory
-	outputDir := filepath.Join(tmpDir, "output")
-
-	// Copy static assets
-	if err := copyStaticAssetsFromDir(assetsDir, outputDir, assetsDir); err != nil {
-		t.Fatalf("copyStaticAssetsFromDir failed: %v", err)
-	}
-
-	// Verify files were copied
-	verifyFiles := []string{
-		filepath.Join(outputDir, "css", "style.css"),
-		filepath.Join(outputDir, "js", "script.js"),
-		filepath.Join(outputDir, "root.txt"),
-	}
-
-	for _, file := range verifyFiles {
-		if _, err := os.Stat(file); os.IsNotExist(err) {
-			t.Errorf("Expected file to exist: %s", file)
-		}
 	}
 }
 
