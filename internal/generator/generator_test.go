@@ -666,6 +666,44 @@ func TestCopyStaticAssets_SiteAssetsOverrideThemeAssets(t *testing.T) {
 	}
 }
 
+func TestCopyStaticAssets_SkipsCurrentAssets(t *testing.T) {
+	tmpDir := t.TempDir()
+	outputDir := filepath.Join(tmpDir, "output")
+	sourcePath := filepath.Join(tmpDir, "assets", "css", "main.css")
+	destPath := filepath.Join(outputDir, "css", "main.css")
+	mustWriteFile(t, sourcePath, "body{}")
+
+	t.Chdir(tmpDir)
+	cfg := &config.Config{StaticDir: "assets"}
+	if err := copyStaticAssets(cfg, outputDir); err != nil {
+		t.Fatalf("first copyStaticAssets failed: %v", err)
+	}
+
+	sourceInfo, err := os.Stat(sourcePath)
+	if err != nil {
+		t.Fatalf("stat source: %v", err)
+	}
+	destTime := sourceInfo.ModTime().Add(time.Hour)
+	if err := os.Chtimes(destPath, destTime, destTime); err != nil {
+		t.Fatalf("set dest time: %v", err)
+	}
+	before, err := os.Stat(destPath)
+	if err != nil {
+		t.Fatalf("stat dest before: %v", err)
+	}
+
+	if err := copyStaticAssets(cfg, outputDir); err != nil {
+		t.Fatalf("second copyStaticAssets failed: %v", err)
+	}
+	after, err := os.Stat(destPath)
+	if err != nil {
+		t.Fatalf("stat dest after: %v", err)
+	}
+	if !after.ModTime().Equal(before.ModTime()) {
+		t.Fatalf("Expected current asset not to be rewritten; before=%v after=%v", before.ModTime(), after.ModTime())
+	}
+}
+
 // TestLoadTemplates tests template loading
 func TestLoadTemplates(t *testing.T) {
 	tmpDir := t.TempDir()

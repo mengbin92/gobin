@@ -37,22 +37,13 @@ type staticAssetCopyResult struct {
 }
 
 func copyStaticAssets(cfg *config.Config, outputDir string) error {
-	assets, err := collectStaticAssetFiles(cfg)
+	plans, err := planStaticAssetCopies(cfg, outputDir)
 	if err != nil {
 		return err
 	}
 
-	for _, asset := range assets {
-		destPath := filepath.Join(outputDir, asset.OutputPath)
-		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
-			return err
-		}
-		if err := copyFile(asset.SourcePath, destPath); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	_, err = executeStaticAssetCopyPlan(plans)
+	return err
 }
 
 func planStaticAssetCopies(cfg *config.Config, outputDir string) ([]staticAssetCopyPlan, error) {
