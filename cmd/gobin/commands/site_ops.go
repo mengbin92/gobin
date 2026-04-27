@@ -21,12 +21,14 @@ func loadSiteBuildInput() (*siteBuildInput, error) {
 	}
 	cfg = config.Normalize(cfg)
 
-	posts, err := parser.ParsePosts(cfg.ContentDir)
+	renderOptions := renderOptionsFromConfig(cfg)
+
+	posts, err := parser.ParsePostsWithOptions(cfg.ContentDir, renderOptions)
 	if err != nil {
 		return nil, fmt.Errorf("parse posts: %w", err)
 	}
 
-	pages, err := parser.ParsePages(cfg.PageDir)
+	pages, err := parser.ParsePagesWithOptions(cfg.PageDir, renderOptions)
 	if err != nil {
 		return nil, fmt.Errorf("parse pages: %w", err)
 	}
@@ -36,6 +38,14 @@ func loadSiteBuildInput() (*siteBuildInput, error) {
 		posts: posts,
 		pages: pages,
 	}, nil
+}
+
+func renderOptionsFromConfig(cfg *config.Config) parser.RenderOptions {
+	opts := parser.DefaultRenderOptions()
+	if cfg != nil && cfg.Markup != nil && cfg.Markup.AllowUnsafeHTML != nil {
+		opts.AllowUnsafeHTML = *cfg.Markup.AllowUnsafeHTML
+	}
+	return opts
 }
 
 func generateSite(input *siteBuildInput, outputDir string, minify bool, buildDrafts bool, cleanOutput bool) error {

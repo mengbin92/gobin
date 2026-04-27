@@ -105,6 +105,53 @@ func TestRunBuild_ReturnsConfigError(t *testing.T) {
 	}
 }
 
+func TestLoadSiteBuildInput_UsesMarkupRenderOptions(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmpDir, "_posts"), 0755); err != nil {
+		t.Fatalf("Failed to create posts dir: %v", err)
+	}
+
+	configContent := `title: "Markup Test"
+baseURL: "https://example.com"
+contentDir: "_posts"
+pageDir: "pages"
+staticDir: "assets"
+publishDir: "public"
+markup:
+  allowUnsafeHTML: false
+`
+	if err := os.WriteFile(filepath.Join(tmpDir, "config.yaml"), []byte(configContent), 0644); err != nil {
+		t.Fatalf("Failed to write config: %v", err)
+	}
+
+	postContent := `---
+title: "Unsafe Post"
+date: 2026-04-27T10:00:00+08:00
+---
+
+<div class="hero">hello</div>`
+	if err := os.WriteFile(filepath.Join(tmpDir, "_posts", "2026-04-27-unsafe-post.md"), []byte(postContent), 0644); err != nil {
+		t.Fatalf("Failed to write post: %v", err)
+	}
+
+	oldWd, _ := os.Getwd()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Failed to change dir: %v", err)
+	}
+	defer os.Chdir(oldWd)
+
+	input, err := loadSiteBuildInput()
+	if err != nil {
+		t.Fatalf("loadSiteBuildInput failed: %v", err)
+	}
+	if len(input.posts) != 1 {
+		t.Fatalf("Expected 1 post, got %d", len(input.posts))
+	}
+	if strings.Contains(input.posts[0].ContentHTML, `<div class="hero">`) {
+		t.Fatalf("Expected markup.allowUnsafeHTML=false to disable raw HTML, got %s", input.posts[0].ContentHTML)
+	}
+}
+
 func TestPrintVersion(t *testing.T) {
 	var stdout bytes.Buffer
 	if err := printVersion(&stdout); err != nil {
