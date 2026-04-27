@@ -11,7 +11,7 @@ GOBUILD = $(GOCMD) build
 GOTEST = $(GOCMD) test
 GOCLEAN = $(GOCMD) clean
 GOINSTALL = $(GOCMD) install
-LDFLAGS = -ldflags "-s -w -X 'github.com/mengbin92/gobin/cmd/gobin/commands.Version=${VERSION}' -X 'github.com/mengbin92/gobin/cmd/gobin/commands.Commit=${COMMIT}'"
+LDFLAGS = -ldflags "-s -w -X 'github.com/mengbin92/gobin/cmd/gobin/commands.Version=${VERSION}' -X 'github.com/mengbin92/gobin/cmd/gobin/commands.Commit=${COMMIT}' -X 'github.com/mengbin92/gobin/cmd/gobin/commands.BuildDate=${BUILD_DATE}'"
 
 # 帮助信息
 help:

@@ -47,7 +47,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version-file: go.mod
 
       - name: Build binary
         env:
@@ -55,10 +55,14 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
         run: |
           mkdir -p dist
+          VERSION="${GITHUB_REF_NAME}"
+          COMMIT="$(git rev-parse --short HEAD)"
+          BUILD_DATE="$(date -u '+%Y-%m-%d_%H:%M:%S')"
+          LDFLAGS="-s -w -X 'github.com/mengbin92/gobin/cmd/gobin/commands.Version=${VERSION}' -X 'github.com/mengbin92/gobin/cmd/gobin/commands.Commit=${COMMIT}' -X 'github.com/mengbin92/gobin/cmd/gobin/commands.BuildDate=${BUILD_DATE}'"
           if [ "${{ matrix.goos }}" = "windows" ]; then
-            go build -ldflags "-s -w" -o dist/gobin-${{ matrix.suffix }} ./cmd/gobin
+            go build -ldflags "${LDFLAGS}" -o dist/gobin-${{ matrix.suffix }} ./cmd/gobin
           else
-            go build -ldflags "-s -w" -o dist/gobin-${{ matrix.suffix }} ./cmd/gobin
+            go build -ldflags "${LDFLAGS}" -o dist/gobin-${{ matrix.suffix }} ./cmd/gobin
             chmod +x dist/gobin-${{ matrix.suffix }}
           fi
 

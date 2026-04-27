@@ -1194,6 +1194,26 @@ func TestRenderTemplate(t *testing.T) {
 	}
 }
 
+func TestRenderHelperReturnsTemplateExecutionError(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+
+	mustWriteFile(t, filepath.Join(tmpDir, "templates", "_default", "single.html"), `{{ define "singlePage" }}before {{ render "missingPartial" . }} after{{ end }}`)
+
+	tpl, err := loadTemplates(&config.Config{})
+	if err != nil {
+		t.Fatalf("loadTemplates failed: %v", err)
+	}
+
+	err = renderTemplate(tpl, "singlePage", filepath.Join(tmpDir, "out.html"), map[string]string{})
+	if err == nil {
+		t.Fatal("Expected renderTemplate to fail when render helper targets a missing template")
+	}
+	if !strings.Contains(err.Error(), "missingPartial") {
+		t.Fatalf("Expected error to mention missing partial, got %v", err)
+	}
+}
+
 func TestRenderPageSpecs_UsesFirstAvailableTemplate(t *testing.T) {
 	tmpDir := t.TempDir()
 	tpl, err := template.New("pages").Parse(`{{ define "fallback" }}fallback: {{ . }}{{ end }}`)

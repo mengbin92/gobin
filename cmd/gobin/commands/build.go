@@ -7,9 +7,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Version is the current version of the application
-const Version = "1.0.0"
-
 var minify bool
 var buildDrafts bool
 var cleanOutput bool

@@ -307,7 +307,7 @@ jobs:
     - uses: actions/checkout@v4
     - uses: actions/setup-go@v5
       with:
-        go-version: '1.21'
+        go-version-file: go.mod
     - run: go install github.com/mengbin92/gobin/cmd/gobin@latest
     - run: gobin build --minify
     - uses: actions/upload-pages-artifact@v2
@@ -337,7 +337,7 @@ jobs:
   publish = "public"
 
 [build.environment]
-  GO_VERSION = "1.21"
+  GO_VERSION = "1.25"
 ```
 
 ## 性能指标

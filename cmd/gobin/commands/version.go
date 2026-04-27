@@ -3,8 +3,17 @@ package commands
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/spf13/cobra"
+)
+
+// Build metadata. These variables are overridden by release builds via
+// -ldflags -X.
+var (
+	Version   = "1.0.0"
+	Commit    = ""
+	BuildDate = ""
 )
 
 // VersionCmd is the version command
@@ -18,6 +27,29 @@ var VersionCmd = &cobra.Command{
 }
 
 func printVersion(stdout io.Writer) error {
-	_, err := fmt.Fprintf(stdout, "Blog Static Site Generator v%s\n", Version)
-	return err
+	if _, err := fmt.Fprintf(stdout, "Blog Static Site Generator %s\n", displayVersion(Version)); err != nil {
+		return err
+	}
+	if Commit != "" {
+		if _, err := fmt.Fprintf(stdout, "Commit: %s\n", Commit); err != nil {
+			return err
+		}
+	}
+	if BuildDate != "" {
+		if _, err := fmt.Fprintf(stdout, "Build date: %s\n", BuildDate); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func displayVersion(version string) string {
+	version = strings.TrimSpace(version)
+	if version == "" {
+		return "dev"
+	}
+	if strings.HasPrefix(version, "v") {
+		return version
+	}
+	return "v" + version
 }

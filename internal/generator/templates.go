@@ -36,12 +36,15 @@ func loadTemplates(cfg *config.Config) (*template.Template, error) {
 		"stylesheetPath": func() string {
 			return detectStylesheetPath(cfg)
 		},
-		"render": func(name string, data interface{}) template.HTML {
+		"render": func(name string, data interface{}) (template.HTML, error) {
 			var buf bytes.Buffer
-			if err := tmpl.ExecuteTemplate(&buf, name, data); err != nil {
-				return template.HTML("")
+			if tmpl == nil {
+				return "", fmt.Errorf("template set is not initialized")
 			}
-			return template.HTML(buf.String())
+			if err := tmpl.ExecuteTemplate(&buf, name, data); err != nil {
+				return "", err
+			}
+			return template.HTML(buf.String()), nil
 		},
 		"default": func(fallback, value interface{}) interface{} {
 			switch v := value.(type) {

@@ -117,3 +117,28 @@ func TestPrintVersion(t *testing.T) {
 		t.Fatalf("Expected %q, got %q", want, got)
 	}
 }
+
+func TestPrintVersionIncludesInjectedBuildMetadata(t *testing.T) {
+	oldVersion := Version
+	oldCommit := Commit
+	oldBuildDate := BuildDate
+	t.Cleanup(func() {
+		Version = oldVersion
+		Commit = oldCommit
+		BuildDate = oldBuildDate
+	})
+
+	Version = "v9.9.9"
+	Commit = "abc1234"
+	BuildDate = "2026-04-27_10:20:30"
+
+	var stdout bytes.Buffer
+	if err := printVersion(&stdout); err != nil {
+		t.Fatalf("printVersion failed: %v", err)
+	}
+
+	want := "Blog Static Site Generator v9.9.9\nCommit: abc1234\nBuild date: 2026-04-27_10:20:30\n"
+	if got := stdout.String(); got != want {
+		t.Fatalf("Expected %q, got %q", want, got)
+	}
+}
