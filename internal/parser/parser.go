@@ -57,6 +57,16 @@ type Page struct {
 	Params      map[string]interface{} `yaml:"-"`
 }
 
+// RenderOptions controls Markdown rendering behavior.
+type RenderOptions struct {
+	AllowUnsafeHTML bool
+}
+
+// DefaultRenderOptions returns parser settings that preserve current behavior.
+func DefaultRenderOptions() RenderOptions {
+	return RenderOptions{AllowUnsafeHTML: true}
+}
+
 type postFrontMatter struct {
 	Title       string                 `yaml:"title"`
 	Date        time.Time              `yaml:"date"`
@@ -213,6 +223,11 @@ func decodeStringListNode(node yaml.Node) ([]string, error) {
 
 // ParsePosts parses all markdown posts from a directory
 func ParsePosts(dir string) ([]*Post, error) {
+	return ParsePostsWithOptions(dir, DefaultRenderOptions())
+}
+
+// ParsePostsWithOptions parses all markdown posts from a directory using render options.
+func ParsePostsWithOptions(dir string, opts RenderOptions) ([]*Post, error) {
 	var posts []*Post
 
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
@@ -228,7 +243,7 @@ func ParsePosts(dir string) ([]*Post, error) {
 			return nil
 		}
 
-		post, err := ParsePost(path)
+		post, err := ParsePostWithOptions(path, opts)
 		if err != nil {
 			return fmt.Errorf("failed to parse %s: %w", path, err)
 		}
@@ -246,6 +261,11 @@ func ParsePosts(dir string) ([]*Post, error) {
 
 // ParsePages parses standalone markdown pages recursively from a directory.
 func ParsePages(dir string) ([]*Page, error) {
+	return ParsePagesWithOptions(dir, DefaultRenderOptions())
+}
+
+// ParsePagesWithOptions parses standalone markdown pages recursively using render options.
+func ParsePagesWithOptions(dir string, opts RenderOptions) ([]*Page, error) {
 	if dir == "" {
 		return nil, nil
 	}
@@ -267,7 +287,7 @@ func ParsePages(dir string) ([]*Page, error) {
 			return nil
 		}
 
-		page, err := ParsePage(path, dir)
+		page, err := ParsePageWithOptions(path, dir, opts)
 		if err != nil {
 			return fmt.Errorf("failed to parse %s: %w", path, err)
 		}
@@ -283,6 +303,11 @@ func ParsePages(dir string) ([]*Page, error) {
 
 // ParsePost parses a single markdown post file
 func ParsePost(path string) (*Post, error) {
+	return ParsePostWithOptions(path, DefaultRenderOptions())
+}
+
+// ParsePostWithOptions parses a single markdown post file using render options.
+func ParsePostWithOptions(path string, opts RenderOptions) (*Post, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -300,7 +325,7 @@ func ParsePost(path string) (*Post, error) {
 	}
 
 	// Render markdown to HTML
-	renderedHTML, err := renderMarkdown(markdownContent)
+	renderedHTML, err := renderMarkdownWithOptions(markdownContent, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to render markdown: %w", err)
 	}
@@ -315,6 +340,11 @@ func ParsePost(path string) (*Post, error) {
 
 // ParsePage parses a standalone markdown page.
 func ParsePage(path string, baseDir string) (*Page, error) {
+	return ParsePageWithOptions(path, baseDir, DefaultRenderOptions())
+}
+
+// ParsePageWithOptions parses a standalone markdown page using render options.
+func ParsePageWithOptions(path string, baseDir string, opts RenderOptions) (*Page, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -330,7 +360,7 @@ func ParsePage(path string, baseDir string) (*Page, error) {
 		return nil, fmt.Errorf("failed to parse front matter: %w", err)
 	}
 
-	renderedHTML, err := renderMarkdown(markdownContent)
+	renderedHTML, err := renderMarkdownWithOptions(markdownContent, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to render markdown: %w", err)
 	}
@@ -355,11 +385,16 @@ func dateFromFilename(name string) time.Time {
 }
 
 func renderMarkdown(markdownContent string) (string, error) {
-	md := goldmark.New(
-		goldmark.WithRendererOptions(
-			goldmarkhtml.WithUnsafe(),
-		),
-	)
+	return renderMarkdownWithOptions(markdownContent, DefaultRenderOptions())
+}
+
+func renderMarkdownWithOptions(markdownContent string, opts RenderOptions) (string, error) {
+	options := []goldmark.Option{}
+	if opts.AllowUnsafeHTML {
+		options = append(options, goldmark.WithRendererOptions(goldmarkhtml.WithUnsafe()))
+	}
+
+	md := goldmark.New(options...)
 
 	var buf strings.Builder
 	if err := md.Convert([]byte(markdownContent), &buf); err != nil {

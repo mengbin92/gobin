@@ -450,6 +450,49 @@ description: "Nested description"
 	}
 }
 
+func TestParsePageWithOptions_DisablesUnsafeHTML(t *testing.T) {
+	tmpDir := t.TempDir()
+	pagePath := filepath.Join(tmpDir, "unsafe.md")
+	content := `---
+title: "Unsafe"
+---
+
+<script>alert("x")</script>
+<div class="hero">hello</div>`
+	if err := os.WriteFile(pagePath, []byte(content), 0644); err != nil {
+		t.Fatalf("Failed to write page: %v", err)
+	}
+
+	page, err := ParsePageWithOptions(pagePath, tmpDir, RenderOptions{AllowUnsafeHTML: false})
+	if err != nil {
+		t.Fatalf("ParsePageWithOptions failed: %v", err)
+	}
+	if strings.Contains(page.ContentHTML, "<script>") || strings.Contains(page.ContentHTML, `<div class="hero">`) {
+		t.Fatalf("Expected raw HTML to be disabled, got %s", page.ContentHTML)
+	}
+}
+
+func TestParsePage_DefaultPreservesUnsafeHTML(t *testing.T) {
+	tmpDir := t.TempDir()
+	pagePath := filepath.Join(tmpDir, "unsafe.md")
+	content := `---
+title: "Unsafe"
+---
+
+<div class="hero">hello</div>`
+	if err := os.WriteFile(pagePath, []byte(content), 0644); err != nil {
+		t.Fatalf("Failed to write page: %v", err)
+	}
+
+	page, err := ParsePage(pagePath, tmpDir)
+	if err != nil {
+		t.Fatalf("ParsePage failed: %v", err)
+	}
+	if !strings.Contains(page.ContentHTML, `<div class="hero">hello</div>`) {
+		t.Fatalf("Expected default parser to preserve raw HTML, got %s", page.ContentHTML)
+	}
+}
+
 // TestSplitFrontMatter tests frontmatter parsing logic
 func TestSplitFrontMatter(t *testing.T) {
 	tests := []struct {
