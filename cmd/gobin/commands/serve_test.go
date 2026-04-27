@@ -247,6 +247,41 @@ func TestRunServeWithOps_StartsWatcherAndServer(t *testing.T) {
 	}
 }
 
+func TestRunServeWithOps_BuildsBeforeStartingServer(t *testing.T) {
+	var order []string
+
+	err := runServeWithOps(io.Discard, false, false, serveOps{
+		loadSiteInput: func() (*siteBuildInput, error) {
+			order = append(order, "load")
+			return &siteBuildInput{cfg: &config.Config{PublishDir: "public"}}, nil
+		},
+		generateSite: func(*siteBuildInput, string, bool, bool, bool) error {
+			order = append(order, "generate")
+			return nil
+		},
+		watchFiles: func(context.Context, *config.Config, serveRuntime) {
+			t.Fatal("watchFiles should not run when watch is disabled")
+		},
+		startServer: func(io.Writer, *config.Config) error {
+			order = append(order, "server")
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("runServeWithOps failed: %v", err)
+	}
+
+	want := []string{"load", "generate", "server"}
+	if len(order) != len(want) {
+		t.Fatalf("Expected order %#v, got %#v", want, order)
+	}
+	for i := range want {
+		if order[i] != want[i] {
+			t.Fatalf("Expected order %#v, got %#v", want, order)
+		}
+	}
+}
+
 func TestRunServeWithOps_BuildFailureStopsBeforeServer(t *testing.T) {
 	buildErr := errors.New("boom")
 	var started bool
@@ -494,6 +529,57 @@ func TestRunWatchLoop_SchedulesRebuildFromEvents(t *testing.T) {
 	}
 	if !rebuilt {
 		t.Fatal("Expected scheduled rebuild callback to run")
+	}
+}
+
+func TestServeWatchLoop_RebuildFailureDoesNotStopLaterRebuild(t *testing.T) {
+	events := make(chan fsnotify.Event, 2)
+	errorsCh := make(chan error)
+	done := make(chan struct{})
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	var rebuildCalls int
+
+	go func() {
+		runWatchLoop(context.Background(), events, errorsCh, serveRuntime{
+			stdout: &stdout,
+			stderr: &stderr,
+		}, func(run func()) {
+			run()
+		}, func() {
+			rebuildCalls++
+			call := rebuildCalls
+			rebuildSiteAndReportWithDeps(serveRuntime{
+				stdout: &stdout,
+				stderr: &stderr,
+			}, func(serveRuntime) error {
+				if call == 1 {
+					return errors.New("first rebuild failed")
+				}
+				return nil
+			})
+		})
+		close(done)
+	}()
+
+	events <- fsnotify.Event{Name: "content/first.md", Op: fsnotify.Write}
+	events <- fsnotify.Event{Name: "content/second.md", Op: fsnotify.Write}
+	close(events)
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Expected watch loop to exit after events channel closed")
+	}
+
+	if rebuildCalls != 2 {
+		t.Fatalf("Expected two rebuild attempts, got %d", rebuildCalls)
+	}
+	if !strings.Contains(stderr.String(), "Error rebuilding site: first rebuild failed") {
+		t.Fatalf("Expected first rebuild failure output, got %q", stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Site rebuilt successfully in") {
+		t.Fatalf("Expected later rebuild success output, got %q", stdout.String())
 	}
 }
 
