@@ -32,6 +32,7 @@ go.work.sum
 .vscode/
 .cursor/
 .claude/
+.worktrees/
 
 static-blog-technical-proposal.md
 
