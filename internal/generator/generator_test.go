@@ -288,6 +288,37 @@ func TestCollectStaticAssetFiles_SiteOverridesTheme(t *testing.T) {
 	}
 }
 
+func TestPlanStaticAssetCopies_SkipsCurrentDestination(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+
+	sourcePath := filepath.Join(tmpDir, "assets", "css", "main.css")
+	mustWriteFile(t, sourcePath, "body{}")
+	outputDir := filepath.Join(tmpDir, "public")
+	destPath := filepath.Join(outputDir, "css", "main.css")
+	mustWriteFile(t, destPath, "body{}")
+
+	sourceInfo, err := os.Stat(sourcePath)
+	if err != nil {
+		t.Fatalf("stat source: %v", err)
+	}
+	future := sourceInfo.ModTime().Add(time.Hour)
+	if err := os.Chtimes(destPath, future, future); err != nil {
+		t.Fatalf("set dest time: %v", err)
+	}
+
+	plans, err := planStaticAssetCopies(&config.Config{StaticDir: "assets"}, outputDir)
+	if err != nil {
+		t.Fatalf("planStaticAssetCopies failed: %v", err)
+	}
+	if len(plans) != 1 {
+		t.Fatalf("Expected 1 plan, got %d", len(plans))
+	}
+	if plans[0].Action != staticAssetSkip || plans[0].Reason != "current" {
+		t.Fatalf("Expected current asset to be skipped, got %#v", plans[0])
+	}
+}
+
 func TestBuildSearchDocuments(t *testing.T) {
 	posts := []*parser.Post{
 		{

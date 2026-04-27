@@ -17,6 +17,20 @@ type staticAssetFile struct {
 	OutputPath string
 }
 
+type staticAssetCopyAction string
+
+const (
+	staticAssetCopy staticAssetCopyAction = "copy"
+	staticAssetSkip staticAssetCopyAction = "skip"
+)
+
+type staticAssetCopyPlan struct {
+	Asset    staticAssetFile
+	DestPath string
+	Action   staticAssetCopyAction
+	Reason   string
+}
+
 func copyStaticAssets(cfg *config.Config, outputDir string) error {
 	assets, err := collectStaticAssetFiles(cfg)
 	if err != nil {
@@ -34,6 +48,59 @@ func copyStaticAssets(cfg *config.Config, outputDir string) error {
 	}
 
 	return nil
+}
+
+func planStaticAssetCopies(cfg *config.Config, outputDir string) ([]staticAssetCopyPlan, error) {
+	assets, err := collectStaticAssetFiles(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	plans := make([]staticAssetCopyPlan, 0, len(assets))
+	for _, asset := range assets {
+		destPath := filepath.Join(outputDir, asset.OutputPath)
+		action, reason, err := decideStaticAssetCopy(asset.SourcePath, destPath)
+		if err != nil {
+			return nil, err
+		}
+		plans = append(plans, staticAssetCopyPlan{
+			Asset:    asset,
+			DestPath: destPath,
+			Action:   action,
+			Reason:   reason,
+		})
+	}
+
+	return plans, nil
+}
+
+func decideStaticAssetCopy(sourcePath, destPath string) (staticAssetCopyAction, string, error) {
+	sourceInfo, err := os.Stat(sourcePath)
+	if err != nil {
+		return "", "", err
+	}
+
+	destInfo, err := os.Stat(destPath)
+	if os.IsNotExist(err) {
+		return staticAssetCopy, "missing", nil
+	}
+	if err != nil {
+		return "", "", err
+	}
+	if !destInfo.Mode().IsRegular() {
+		return staticAssetCopy, "not-regular", nil
+	}
+	if sourceInfo.Size() != destInfo.Size() {
+		return staticAssetCopy, "size", nil
+	}
+	if sourceInfo.Mode().Perm() != destInfo.Mode().Perm() {
+		return staticAssetCopy, "mode", nil
+	}
+	if sourceInfo.ModTime().After(destInfo.ModTime()) {
+		return staticAssetCopy, "source-newer", nil
+	}
+
+	return staticAssetSkip, "current", nil
 }
 
 func copyStaticAssetsFromDir(sourceDir, outputDir, baseDir string) error {
