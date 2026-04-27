@@ -31,6 +31,11 @@ type staticAssetCopyPlan struct {
 	Reason   string
 }
 
+type staticAssetCopyResult struct {
+	Copied  int
+	Skipped int
+}
+
 func copyStaticAssets(cfg *config.Config, outputDir string) error {
 	assets, err := collectStaticAssetFiles(cfg)
 	if err != nil {
@@ -72,6 +77,26 @@ func planStaticAssetCopies(cfg *config.Config, outputDir string) ([]staticAssetC
 	}
 
 	return plans, nil
+}
+
+func executeStaticAssetCopyPlan(plans []staticAssetCopyPlan) (staticAssetCopyResult, error) {
+	var result staticAssetCopyResult
+	for _, plan := range plans {
+		if plan.Action == staticAssetSkip {
+			result.Skipped++
+			continue
+		}
+
+		if err := os.MkdirAll(filepath.Dir(plan.DestPath), 0755); err != nil {
+			return result, err
+		}
+		if err := copyFile(plan.Asset.SourcePath, plan.DestPath); err != nil {
+			return result, err
+		}
+		result.Copied++
+	}
+
+	return result, nil
 }
 
 func decideStaticAssetCopy(sourcePath, destPath string) (staticAssetCopyAction, string, error) {

@@ -399,6 +399,85 @@ func TestPlanStaticAssetCopies_CopiesChangedAssets(t *testing.T) {
 	}
 }
 
+func TestExecuteStaticAssetCopyPlan_SkipsCurrentFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+	sourcePath := filepath.Join(tmpDir, "assets", "css", "main.css")
+	destPath := filepath.Join(tmpDir, "public", "css", "main.css")
+	mustWriteFile(t, sourcePath, "body{}")
+	mustWriteFile(t, destPath, "body{}")
+
+	sourceInfo, err := os.Stat(sourcePath)
+	if err != nil {
+		t.Fatalf("stat source: %v", err)
+	}
+	destTime := sourceInfo.ModTime().Add(time.Hour)
+	if err := os.Chtimes(destPath, destTime, destTime); err != nil {
+		t.Fatalf("set dest time: %v", err)
+	}
+	before, err := os.Stat(destPath)
+	if err != nil {
+		t.Fatalf("stat dest before: %v", err)
+	}
+
+	plans, err := planStaticAssetCopies(&config.Config{StaticDir: "assets"}, filepath.Join(tmpDir, "public"))
+	if err != nil {
+		t.Fatalf("planStaticAssetCopies failed: %v", err)
+	}
+	result, err := executeStaticAssetCopyPlan(plans)
+	if err != nil {
+		t.Fatalf("executeStaticAssetCopyPlan failed: %v", err)
+	}
+	if result.Copied != 0 || result.Skipped != 1 {
+		t.Fatalf("Expected copied=0 skipped=1, got %#v", result)
+	}
+
+	after, err := os.Stat(destPath)
+	if err != nil {
+		t.Fatalf("stat dest after: %v", err)
+	}
+	if !after.ModTime().Equal(before.ModTime()) {
+		t.Fatalf("Expected skipped file modtime to remain %v, got %v", before.ModTime(), after.ModTime())
+	}
+}
+
+func TestExecuteStaticAssetCopyPlan_CopiesChangedFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
+	sourcePath := filepath.Join(tmpDir, "assets", "css", "main.css")
+	destPath := filepath.Join(tmpDir, "public", "css", "main.css")
+	mustWriteFile(t, sourcePath, "new")
+	mustWriteFile(t, destPath, "old")
+	past := time.Now().Add(-time.Hour)
+	future := time.Now().Add(time.Hour)
+	if err := os.Chtimes(destPath, past, past); err != nil {
+		t.Fatalf("set dest time: %v", err)
+	}
+	if err := os.Chtimes(sourcePath, future, future); err != nil {
+		t.Fatalf("set source time: %v", err)
+	}
+
+	plans, err := planStaticAssetCopies(&config.Config{StaticDir: "assets"}, filepath.Join(tmpDir, "public"))
+	if err != nil {
+		t.Fatalf("planStaticAssetCopies failed: %v", err)
+	}
+	result, err := executeStaticAssetCopyPlan(plans)
+	if err != nil {
+		t.Fatalf("executeStaticAssetCopyPlan failed: %v", err)
+	}
+	if result.Copied != 1 || result.Skipped != 0 {
+		t.Fatalf("Expected copied=1 skipped=0, got %#v", result)
+	}
+
+	content, err := os.ReadFile(destPath)
+	if err != nil {
+		t.Fatalf("read dest: %v", err)
+	}
+	if string(content) != "new" {
+		t.Fatalf("Expected copied content %q, got %q", "new", string(content))
+	}
+}
+
 func TestBuildSearchDocuments(t *testing.T) {
 	posts := []*parser.Post{
 		{
