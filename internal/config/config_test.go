@@ -173,6 +173,30 @@ analytics:
 	}
 }
 
+func TestLoadConfig_MarkupAllowUnsafeHTML(t *testing.T) {
+	tmpDir := t.TempDir()
+	configContent := `title: "Markup Test"
+baseURL: "https://example.com"
+markup:
+  allowUnsafeHTML: false
+`
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("Failed to create config: %v", err)
+	}
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if cfg.Markup == nil || cfg.Markup.AllowUnsafeHTML == nil {
+		t.Fatalf("Expected markup.allowUnsafeHTML to be loaded")
+	}
+	if *cfg.Markup.AllowUnsafeHTML {
+		t.Fatal("Expected allowUnsafeHTML=false")
+	}
+}
+
 // TestLoadConfig_WithDefaults tests that default values are set
 func TestLoadConfig_WithDefaults(t *testing.T) {
 	tmpDir := t.TempDir()

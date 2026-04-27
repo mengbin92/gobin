@@ -62,8 +62,16 @@ type Config struct {
 	// Output controls
 	Outputs *OutputsConfig `yaml:"outputs"`
 
+	// Markdown and rendering configuration
+	Markup *MarkupConfig `yaml:"markup"`
+
 	// Extended parameters
 	Params map[string]interface{} `yaml:"params"`
+}
+
+// MarkupConfig controls Markdown rendering behavior.
+type MarkupConfig struct {
+	AllowUnsafeHTML *bool `yaml:"allowUnsafeHTML"`
 }
 
 // OutputsConfig controls generated site-level artifacts.
