@@ -357,7 +357,7 @@ func TestServeWatcher_RunDelegatesToWatchLoop(t *testing.T) {
 				},
 			}, nil
 		},
-		runLoop: func(ctx context.Context, events <-chan fsnotify.Event, errors <-chan error, runtime serveRuntime, schedule func(func()), rebuild func()) {
+		runLoop: func(ctx context.Context, watcher fsWatcher, events <-chan fsnotify.Event, errors <-chan error, runtime serveRuntime, schedule func(func()), rebuild func()) {
 			called = true
 		},
 		afterFunc: func(delay time.Duration, run func()) debounceCancelFunc {
@@ -687,6 +687,35 @@ func TestHandleWatchEvent_SchedulesRebuildForSupportedEvents(t *testing.T) {
 	if !strings.Contains(stdout.String(), "File changed: content/post.md") {
 		t.Fatalf("Expected verbose watch output, got %q", stdout.String())
 	}
+}
+
+func TestHandleWatchEventWithWatcher_RegistersCreatedDirectories(t *testing.T) {
+	tmpDir := t.TempDir()
+	newDir := filepath.Join(tmpDir, "content", "posts")
+	mustMkdirAll(t, filepath.Join(newDir, "nested"))
+
+	fakeWatcher := &fakeFSWatcher{}
+	var scheduled bool
+
+	triggered := handleWatchEventWithWatcher(fsnotify.Event{
+		Name: newDir,
+		Op:   fsnotify.Create,
+	}, fakeWatcher, serveRuntime{
+		stdout:  io.Discard,
+		stderr:  io.Discard,
+		verbose: true,
+	}, func(run func()) {
+		scheduled = true
+	}, func() {})
+
+	if !triggered {
+		t.Fatal("Expected created directory event to trigger rebuild scheduling")
+	}
+	if !scheduled {
+		t.Fatal("Expected rebuild to be scheduled")
+	}
+	assertContainsPath(t, fakeWatcher.added, newDir)
+	assertContainsPath(t, fakeWatcher.added, filepath.Join(newDir, "nested"))
 }
 
 func TestHandleWatchEvent_IgnoresUnsupportedEvents(t *testing.T) {

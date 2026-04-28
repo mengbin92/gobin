@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,7 +30,7 @@ func (w *realFSWatcher) Errors() <-chan error          { return w.Watcher.Errors
 type serveWatcher struct {
 	newWatcher    func() (fsWatcher, error)
 	registerPaths func(fsWatcher, *config.Config, serveRuntime) error
-	runLoop       func(context.Context, <-chan fsnotify.Event, <-chan error, serveRuntime, func(func()), func())
+	runLoop       func(context.Context, fsWatcher, <-chan fsnotify.Event, <-chan error, serveRuntime, func(func()), func())
 	afterFunc     debounceAfterFunc
 	rebuild       func(serveRuntime)
 }
@@ -44,7 +45,7 @@ func newServeWatcher(rebuild func(serveRuntime)) serveWatcher {
 			return &realFSWatcher{Watcher: w}, nil
 		},
 		registerPaths: registerWatchPathsForFSWatcher,
-		runLoop:       runWatchLoop,
+		runLoop:       runWatchLoopWithWatcher,
 		afterFunc: func(delay time.Duration, run func()) debounceCancelFunc {
 			timer := time.AfterFunc(delay, run)
 			return timer.Stop
@@ -69,7 +70,7 @@ func (w serveWatcher) run(ctx context.Context, cfg *config.Config, runtime serve
 	fmt.Fprintln(runtime.stdout, "Watching for file changes...")
 
 	scheduleRebuild := newDebounceScheduler(500*time.Millisecond, w.afterFunc)
-	w.runLoop(ctx, watcher.Events(), watcher.Errors(), runtime, scheduleRebuild, func() {
+	w.runLoop(ctx, watcher, watcher.Events(), watcher.Errors(), runtime, scheduleRebuild, func() {
 		if w.rebuild != nil {
 			w.rebuild(runtime)
 		}
@@ -123,6 +124,10 @@ func registerWatchPathsForFSWatcher(watcher fsWatcher, cfg *config.Config, runti
 }
 
 func runWatchLoop(ctx context.Context, events <-chan fsnotify.Event, errors <-chan error, runtime serveRuntime, schedule func(func()), rebuild func()) {
+	runWatchLoopWithWatcher(ctx, nil, events, errors, runtime, schedule, rebuild)
+}
+
+func runWatchLoopWithWatcher(ctx context.Context, watcher fsWatcher, events <-chan fsnotify.Event, errors <-chan error, runtime serveRuntime, schedule func(func()), rebuild func()) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -131,7 +136,7 @@ func runWatchLoop(ctx context.Context, events <-chan fsnotify.Event, errors <-ch
 			if !ok {
 				return
 			}
-			handleWatchEvent(event, runtime, schedule, rebuild)
+			handleWatchEventWithWatcher(event, watcher, runtime, schedule, rebuild)
 		case err, ok := <-errors:
 			if !ok {
 				return
@@ -142,14 +147,37 @@ func runWatchLoop(ctx context.Context, events <-chan fsnotify.Event, errors <-ch
 }
 
 func handleWatchEvent(event fsnotify.Event, runtime serveRuntime, schedule func(func()), rebuild func()) bool {
+	return handleWatchEventWithWatcher(event, nil, runtime, schedule, rebuild)
+}
+
+func handleWatchEventWithWatcher(event fsnotify.Event, watcher fsWatcher, runtime serveRuntime, schedule func(func()), rebuild func()) bool {
 	if !shouldRebuildForEvent(event) {
 		return false
 	}
+	registerCreatedWatchDirectory(event, watcher, runtime)
 	if runtime.verbose {
 		fmt.Fprintf(runtime.stdout, "File changed: %s\n", event.Name)
 	}
 	schedule(rebuild)
 	return true
+}
+
+func registerCreatedWatchDirectory(event fsnotify.Event, watcher fsWatcher, runtime serveRuntime) {
+	if watcher == nil || event.Op&fsnotify.Create != fsnotify.Create {
+		return
+	}
+
+	info, err := os.Stat(event.Name)
+	if err != nil {
+		return
+	}
+	if !info.IsDir() || shouldSkipWatchDir(info.Name()) {
+		return
+	}
+
+	if err := addWatchPathFS(watcher, event.Name); err != nil {
+		fmt.Fprintf(runtime.stderr, "Warning: Could not watch new directory %s: %v\n", event.Name, err)
+	}
 }
 
 func newDebounceScheduler(delay time.Duration, afterFunc debounceAfterFunc) func(func()) {
@@ -201,13 +229,13 @@ func addWatchPath(watcher *fsnotify.Watcher, path string) error {
 }
 
 func addWatchPathFS(watcher fsWatcher, path string) error {
-	return filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
+	return filepath.WalkDir(path, func(p string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if info.IsDir() {
-			name := info.Name()
+		if entry.IsDir() {
+			name := entry.Name()
 			if shouldSkipWatchDir(name) {
 				return filepath.SkipDir
 			}

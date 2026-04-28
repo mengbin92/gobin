@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestMinifyHTMLContent_PreservesWhitespaceSensitiveBlocks(t *testing.T) {
@@ -87,5 +88,30 @@ func TestMinifyOutput_PreservesFileMode(t *testing.T) {
 	}
 	if info.Mode().Perm() != 0600 {
 		t.Fatalf("expected file mode 0600, got %o", info.Mode().Perm())
+	}
+}
+
+func TestMinifyOutput_SkipsUnchangedContent(t *testing.T) {
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "style.css")
+	if err := os.WriteFile(path, []byte("body{color:red}"), 0600); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	oldTime := time.Date(2026, 4, 28, 8, 0, 0, 0, time.UTC)
+	if err := os.Chtimes(path, oldTime, oldTime); err != nil {
+		t.Fatalf("set file time: %v", err)
+	}
+
+	if err := minifyOutput(tmpDir); err != nil {
+		t.Fatalf("minifyOutput failed: %v", err)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat file: %v", err)
+	}
+	if !info.ModTime().Equal(oldTime) {
+		t.Fatalf("expected unchanged file mtime %v, got %v", oldTime, info.ModTime())
 	}
 }

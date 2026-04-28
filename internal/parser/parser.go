@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -230,15 +231,15 @@ func ParsePosts(dir string) ([]*Post, error) {
 func ParsePostsWithOptions(dir string, opts RenderOptions) ([]*Post, error) {
 	var posts []*Post
 
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if info.IsDir() {
+		if entry.IsDir() {
 			return nil
 		}
 
-		ext := strings.ToLower(filepath.Ext(info.Name()))
+		ext := strings.ToLower(filepath.Ext(entry.Name()))
 		if ext != ".md" && ext != ".markdown" {
 			return nil
 		}
@@ -274,15 +275,15 @@ func ParsePagesWithOptions(dir string, opts RenderOptions) ([]*Page, error) {
 	}
 
 	var pages []*Page
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if info.IsDir() {
+		if entry.IsDir() {
 			return nil
 		}
 
-		ext := strings.ToLower(filepath.Ext(info.Name()))
+		ext := strings.ToLower(filepath.Ext(entry.Name()))
 		if ext != ".md" && ext != ".markdown" {
 			return nil
 		}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -219,11 +220,11 @@ func collectStaticAssetFiles(cfg *config.Config) ([]staticAssetFile, error) {
 	order := make([]string, 0)
 
 	for _, source := range sources {
-		err := filepath.Walk(source.rootDir, func(path string, info os.FileInfo, err error) error {
+		err := filepath.WalkDir(source.rootDir, func(path string, entry fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
-			if info.IsDir() {
+			if entry.IsDir() {
 				return nil
 			}
 
@@ -258,11 +259,11 @@ func collectStaticAssetFiles(cfg *config.Config) ([]staticAssetFile, error) {
 }
 
 func minifyOutput(outputDir string) error {
-	return filepath.Walk(outputDir, func(path string, info os.FileInfo, err error) error {
+	return filepath.WalkDir(outputDir, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if info.IsDir() {
+		if entry.IsDir() {
 			return nil
 		}
 
@@ -276,7 +277,17 @@ func minifyOutput(outputDir string) error {
 			return err
 		}
 
-		return os.WriteFile(path, []byte(minifyContent(string(content), ext)), info.Mode())
+		minified := []byte(minifyContent(string(content), ext))
+		if bytes.Equal(content, minified) {
+			return nil
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+
+		return os.WriteFile(path, minified, info.Mode())
 	})
 }
 
