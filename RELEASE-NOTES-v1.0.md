@@ -87,10 +87,7 @@ go install github.com/mengbin92/gobin/cmd/gobin@latest
 | `gobin init [name]` | 初始化新站点 |
 | `gobin build` | 构建静态站点 |
 | `gobin serve` | 启动开发服务器 |
-| `gobin new post [title]` | 创建新文章 |
-| `gobin new page [title]` | 创建新页面（可用）|
 | `gobin version` | 显示版本信息 |
-| `gobin check` | 检查配置和文章（可用）|
 
 ---
 

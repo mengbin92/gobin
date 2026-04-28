@@ -25,6 +25,7 @@ type GenerationResult struct {
 type AssetCopyStats struct {
 	Copied  int
 	Skipped int
+	Deleted int
 }
 
 // Generate generates the static site.

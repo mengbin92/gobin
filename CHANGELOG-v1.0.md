@@ -156,7 +156,7 @@ mkdir my-blog && cd my-blog
 gobin init
 
 # 创建文章
-gobin new post "我的文章标题"
+$EDITOR _posts/2026-01-04-my-first-post.md
 
 # 构建
 gobin build

@@ -1814,6 +1814,7 @@ func TestGenerate_DefaultSiteGolden(t *testing.T) {
 	}
 
 	expectedFiles := []string{
+		".gobin-assets.json",
 		"2026/03/18/beta-post/index.html",
 		"2026/03/20/alpha-post/index.html",
 		"404.html",
@@ -2082,6 +2083,7 @@ func TestGenerate_OfficialWebsiteTheme(t *testing.T) {
 	}
 
 	expectedFiles := []string{
+		".gobin-assets.json",
 		"404.html",
 		"categories/index.html",
 		"categories/release-notes/index.html",

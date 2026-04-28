@@ -45,7 +45,7 @@
    - 说明：`make benchmark` 运行 Go benchmark 并输出 `benchmark-results.txt`；CI 在 push / PR 中运行并上传结果。后续可在结果稳定后增加趋势对比或阈值门禁。
 2. 资源管线升级为增量复制、指纹和按类型处理
    - 状态：部分完成
-   - 说明：已完成未变化静态资源跳过复制；指纹、manifest、stale asset 清理仍待实现。
+   - 说明：已完成未变化静态资源跳过复制、manifest 记录和基于 manifest 的 stale asset 清理；指纹仍待实现。
 3. 增补 `serve` 生命周期端到端测试
    - 状态：已完成基础覆盖
 
@@ -131,6 +131,15 @@
 - 静态资源复制新增可测试 copy plan，为后续指纹和完整增量构建打底
 - `make benchmark` 现在会运行 Go benchmark，输出 `benchmark-results.txt`，CI 会上传该文件作为性能基线产物
 
+### 2026-04-28
+
+- 已完成发布文档命令清单收口，移除未实现的 `new` / `check` 命令引用
+- `make test` 已对齐 CI 的 `go test ./...` 范围
+- 已完成 P2 部分优化：资源管线 manifest 与 stale asset 清理
+- 静态资源复制会写入 `.gobin-assets.json`
+- 非 clean 重建会移除上次记录过、但本次已不存在的静态资源文件
+- 未被资源管线托管的输出文件会保留
+
 ## 5. 验收记录
 
 - 2026-04-23
@@ -166,7 +175,15 @@
   - 静态资源复制现在先生成 copy/skip plan
   - 目标文件已是最新时会跳过复制，避免非 clean rebuild 重写未变化资源
   - 资源变化检测覆盖目标缺失、大小变化、权限变化和源文件更新时间更新
-  - `--clean=false` 仍不删除 stale 输出文件，旧文件清理由 clean build 负责
+  - 当时的 `--clean=false` 资源管线 v1 仍不删除 stale 输出文件，旧文件清理由 clean build 负责
+
+- 2026-04-28
+- 验证命令：`go test ./internal/generator -run 'TestCopyStaticAssetsWithResult_(RemovesPreviouslyManagedStaleAssets|DoesNotRemoveUnmanagedOutputFiles)'`
+- 验证结果：通过
+- 验收结论：
+  - 静态资源复制会写入 manifest
+  - 非 clean 重建会删除上一次记录过、本次不再存在的静态资源
+  - 未被 manifest 管理的输出文件会保留
 
 - 2026-04-27
 - 验证命令：`make benchmark BENCH_TIME=1x`
@@ -183,3 +200,4 @@
 - 待补充 P1 统一提交哈希
 - 待补充 P2 Markdown safety / serve lifecycle 提交哈希
 - 待补充 P2 asset pipeline incremental copy 提交哈希
+- 待补充 P2 asset pipeline manifest / stale cleanup 提交哈希

@@ -61,7 +61,7 @@ func printStaticAssetStats(stdout io.Writer, result *generator.GenerationResult)
 	if result == nil {
 		return
 	}
-	fmt.Fprintf(stdout, "Static assets: copied %d, skipped %d\n", result.StaticAssets.Copied, result.StaticAssets.Skipped)
+	fmt.Fprintf(stdout, "Static assets: copied %d, skipped %d, deleted %d\n", result.StaticAssets.Copied, result.StaticAssets.Skipped, result.StaticAssets.Deleted)
 }
 
 func RunDefaultBuild(stdout io.Writer) error {

@@ -257,7 +257,7 @@ func TestRunServeWithOps_PrintsStaticAssetStats(t *testing.T) {
 		},
 		generateSiteWithResult: func(*siteBuildInput, string, bool, bool, bool) (*generator.GenerationResult, error) {
 			return &generator.GenerationResult{
-				StaticAssets: generator.AssetCopyStats{Copied: 2, Skipped: 3},
+				StaticAssets: generator.AssetCopyStats{Copied: 2, Skipped: 3, Deleted: 1},
 			}, nil
 		},
 		watchFiles: func(context.Context, *config.Config, serveRuntime) {
@@ -271,7 +271,7 @@ func TestRunServeWithOps_PrintsStaticAssetStats(t *testing.T) {
 		t.Fatalf("runServeWithOps failed: %v", err)
 	}
 
-	if !strings.Contains(stdout.String(), "Static assets: copied 2, skipped 3") {
+	if !strings.Contains(stdout.String(), "Static assets: copied 2, skipped 3, deleted 1") {
 		t.Fatalf("expected static asset stats in serve output, got %q", stdout.String())
 	}
 }
@@ -826,11 +826,11 @@ func TestRebuildSiteAndReport_PrintsStaticAssetStats(t *testing.T) {
 		cleanOutput: false,
 	}, func(serveRuntime) (*generator.GenerationResult, error) {
 		return &generator.GenerationResult{
-			StaticAssets: generator.AssetCopyStats{Copied: 1, Skipped: 4},
+			StaticAssets: generator.AssetCopyStats{Copied: 1, Skipped: 4, Deleted: 2},
 		}, nil
 	})
 
-	if !strings.Contains(stdout.String(), "Static assets: copied 1, skipped 4") {
+	if !strings.Contains(stdout.String(), "Static assets: copied 1, skipped 4, deleted 2") {
 		t.Fatalf("Expected rebuild output to contain asset stats, got %q", stdout.String())
 	}
 	if stderr.Len() != 0 {

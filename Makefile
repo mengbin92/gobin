@@ -52,7 +52,7 @@ build-all:
 # 运行测试
 test:
 	@echo "🧪 Running tests..."
-	$(GOTEST) -v ./internal/parser/... ./internal/config/... ./internal/generator/...
+	$(GOTEST) -v ./...
 
 # 运行测试并显示覆盖率
 test-coverage:

@@ -2,6 +2,7 @@ package generator
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -36,12 +37,14 @@ type staticAssetCopyPlan struct {
 type staticAssetCopyResult struct {
 	Copied  int
 	Skipped int
+	Deleted int
 }
 
 func (r staticAssetCopyResult) stats() AssetCopyStats {
 	return AssetCopyStats{
 		Copied:  r.Copied,
 		Skipped: r.Skipped,
+		Deleted: r.Deleted,
 	}
 }
 
@@ -56,7 +59,22 @@ func copyStaticAssetsWithResult(cfg *config.Config, outputDir string) (staticAss
 		return staticAssetCopyResult{}, err
 	}
 
-	return executeStaticAssetCopyPlan(plans)
+	result, err := executeStaticAssetCopyPlan(plans)
+	if err != nil {
+		return result, err
+	}
+
+	deleted, err := removeStaleManagedStaticAssets(outputDir, plans)
+	if err != nil {
+		return result, err
+	}
+	result.Deleted = deleted
+
+	if err := writeStaticAssetManifest(outputDir, plans); err != nil {
+		return result, err
+	}
+
+	return result, nil
 }
 
 func planStaticAssetCopies(cfg *config.Config, outputDir string) ([]staticAssetCopyPlan, error) {
@@ -101,6 +119,110 @@ func executeStaticAssetCopyPlan(plans []staticAssetCopyPlan) (staticAssetCopyRes
 	}
 
 	return result, nil
+}
+
+const staticAssetManifestName = ".gobin-assets.json"
+
+type staticAssetManifest struct {
+	Assets []string `json:"assets"`
+}
+
+func removeStaleManagedStaticAssets(outputDir string, plans []staticAssetCopyPlan) (int, error) {
+	previous, err := readStaticAssetManifest(outputDir)
+	if err != nil {
+		return 0, err
+	}
+	if len(previous) == 0 {
+		return 0, nil
+	}
+
+	current := make(map[string]struct{}, len(plans))
+	for _, plan := range plans {
+		current[manifestAssetPath(plan.Asset.OutputPath)] = struct{}{}
+	}
+
+	deleted := 0
+	for assetPath := range previous {
+		if _, ok := current[assetPath]; ok {
+			continue
+		}
+
+		cleanPath, ok := cleanManifestAssetPath(assetPath)
+		if !ok {
+			continue
+		}
+		targetPath := filepath.Join(outputDir, cleanPath)
+		info, err := os.Stat(targetPath)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return deleted, err
+		}
+		if info.IsDir() {
+			continue
+		}
+		if err := os.Remove(targetPath); err != nil {
+			return deleted, err
+		}
+		deleted++
+	}
+
+	return deleted, nil
+}
+
+func readStaticAssetManifest(outputDir string) (map[string]struct{}, error) {
+	content, err := os.ReadFile(filepath.Join(outputDir, staticAssetManifestName))
+	if os.IsNotExist(err) {
+		return map[string]struct{}{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var manifest staticAssetManifest
+	if err := json.Unmarshal(content, &manifest); err != nil {
+		return nil, fmt.Errorf("read static asset manifest: %w", err)
+	}
+
+	assets := make(map[string]struct{}, len(manifest.Assets))
+	for _, assetPath := range manifest.Assets {
+		if cleanPath, ok := cleanManifestAssetPath(assetPath); ok {
+			assets[manifestAssetPath(cleanPath)] = struct{}{}
+		}
+	}
+	return assets, nil
+}
+
+func writeStaticAssetManifest(outputDir string, plans []staticAssetCopyPlan) error {
+	assets := make([]string, 0, len(plans))
+	for _, plan := range plans {
+		assets = append(assets, manifestAssetPath(plan.Asset.OutputPath))
+	}
+	sort.Strings(assets)
+
+	content, err := json.MarshalIndent(staticAssetManifest{Assets: assets}, "", "  ")
+	if err != nil {
+		return err
+	}
+	content = append(content, '\n')
+
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(outputDir, staticAssetManifestName), content, 0644)
+}
+
+func manifestAssetPath(path string) string {
+	return filepath.ToSlash(filepath.Clean(path))
+}
+
+func cleanManifestAssetPath(path string) (string, bool) {
+	cleanPath := filepath.Clean(filepath.FromSlash(path))
+	if cleanPath == "." || cleanPath == staticAssetManifestName || filepath.IsAbs(cleanPath) || cleanPath == ".." || strings.HasPrefix(cleanPath, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+	return cleanPath, true
 }
 
 func decideStaticAssetCopy(sourcePath, destPath string) (staticAssetCopyAction, string, error) {

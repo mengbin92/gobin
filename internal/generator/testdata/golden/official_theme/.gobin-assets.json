@@ -1,0 +1,8 @@
+{
+  "assets": [
+    "css/syntax.css",
+    "css/theme.css",
+    "images/favicon.svg",
+    "js/theme.js"
+  ]
+}
