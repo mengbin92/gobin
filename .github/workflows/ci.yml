@@ -30,5 +30,11 @@ jobs:
       - name: Vet
         run: go vet ./...
 
-      - name: Benchmark smoke
-        run: go test -run '^$' -bench=. -benchtime=1x ./...
+      - name: Benchmark baseline
+        run: make benchmark BENCH_TIME=1x
+
+      - name: Upload benchmark baseline
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmark-results.txt

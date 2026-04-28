@@ -1,4 +1,4 @@
-.PHONY: help build build-all test test-coverage clean install release-local
+.PHONY: help build build-all test test-coverage benchmark clean install release-local
 
 # 版本信息
 VERSION ?= $(shell git describe --tags --exact-match 2>/dev/null || echo "dev")
@@ -11,6 +11,8 @@ GOBUILD = $(GOCMD) build
 GOTEST = $(GOCMD) test
 GOCLEAN = $(GOCMD) clean
 GOINSTALL = $(GOCMD) install
+BENCH_TIME ?= 100ms
+BENCH_OUTPUT ?= benchmark-results.txt
 LDFLAGS = -ldflags "-s -w -X 'github.com/mengbin92/gobin/cmd/gobin/commands.Version=${VERSION}' -X 'github.com/mengbin92/gobin/cmd/gobin/commands.Commit=${COMMIT}' -X 'github.com/mengbin92/gobin/cmd/gobin/commands.BuildDate=${BUILD_DATE}'"
 
 # 帮助信息
@@ -23,14 +25,16 @@ help:
 	@echo "  build-all     - 构建所有支持平台的二进制文件"
 	@echo "  test          - 运行所有测试"
 	@echo "  test-coverage - 运行测试并生成覆盖率报告"
+	@echo "  benchmark     - 运行性能基准并写入 benchmark-results.txt"
 	@echo "  clean         - 清理构建产物"
-	@echo "  install       - 安装到 $GOPATH/bin"
+	@echo "  install       - 安装到 $$GOPATH/bin"
 	@echo "  release-local - 本地构建所有平台并打包"
 	@echo "  help          - 显示帮助信息"
 	@echo ""
 	@echo "示例:"
 	@echo "  make build VERSION=v1.0.0"
 	@echo "  make test"
+	@echo "  make benchmark"
 	@echo "  make build-all"
 
 # 构建当前平台
@@ -58,12 +62,20 @@ test-coverage:
 	@echo "📊 Coverage summary:"
 	$(GOTEST) -cover ./internal/parser/... ./internal/config/... ./internal/generator/... | grep coverage
 
+# 运行性能基准并保存结果
+benchmark:
+	@echo "📈 Running benchmark baseline..."
+	$(GOTEST) -run '^$$' -bench=. -benchmem -benchtime=$(BENCH_TIME) -count=1 ./... > $(BENCH_OUTPUT)
+	@cat $(BENCH_OUTPUT)
+	@echo "📄 Benchmark results written to $(BENCH_OUTPUT)"
+
 # 清理
 clean:
 	@echo "🧹 Cleaning..."
 	$(GOCLEAN)
 	@rm -rf dist/
 	@rm -f gobin
+	@rm -f benchmark-results.txt
 	@echo "✅ Clean complete"
 
 # 安装到 GOPATH/bin

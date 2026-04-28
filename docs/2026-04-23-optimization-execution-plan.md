@@ -41,8 +41,13 @@
 ### P2：中期投入
 
 1. 建立 benchmark 和 CI 性能基线
+   - 状态：已完成基础入口
+   - 说明：`make benchmark` 运行 Go benchmark 并输出 `benchmark-results.txt`；CI 在 push / PR 中运行并上传结果。后续可在结果稳定后增加趋势对比或阈值门禁。
 2. 资源管线升级为增量复制、指纹和按类型处理
+   - 状态：部分完成
+   - 说明：已完成未变化静态资源跳过复制；指纹、manifest、stale asset 清理仍待实现。
 3. 增补 `serve` 生命周期端到端测试
+   - 状态：已完成基础覆盖
 
 ### P3：延后到内核稳定后
 
@@ -120,9 +125,11 @@
 - 已完成 P2 部分优化：Markdown raw HTML 渲染安全开关
 - 已完成 P2 部分优化：`serve` 生命周期与重建失败恢复测试补强
 - 已完成 P2 部分优化：资源管线 v1，未变化静态资源跳过复制
+- 已完成 P2 部分优化：benchmark 统一入口和 CI 基线产物上传
 - `markup.allowUnsafeHTML` 默认保持兼容，显式设为 `false` 时禁用原始 HTML 输出
 - 站点构建和 `serve` 的解析入口现在会使用配置派生的 Markdown 渲染选项
 - 静态资源复制新增可测试 copy plan，为后续指纹和完整增量构建打底
+- `make benchmark` 现在会运行 Go benchmark，输出 `benchmark-results.txt`，CI 会上传该文件作为性能基线产物
 
 ## 5. 验收记录
 
@@ -160,6 +167,14 @@
   - 目标文件已是最新时会跳过复制，避免非 clean rebuild 重写未变化资源
   - 资源变化检测覆盖目标缺失、大小变化、权限变化和源文件更新时间更新
   - `--clean=false` 仍不删除 stale 输出文件，旧文件清理由 clean build 负责
+
+- 2026-04-27
+- 验证命令：`make benchmark BENCH_TIME=1x`
+- 验证结果：通过
+- 验收结论：
+  - 本地和 CI 共用 `make benchmark` 入口
+  - benchmark 结果写入 `benchmark-results.txt`
+  - CI 会上传 benchmark 结果作为性能基线产物
 
 ## 6. 提交记录
 
