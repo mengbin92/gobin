@@ -16,18 +16,35 @@ type Pagination struct {
 	IsLastPage  bool
 }
 
+// GenerationResult summarizes observable work performed during generation.
+type GenerationResult struct {
+	StaticAssets AssetCopyStats
+}
+
+// AssetCopyStats summarizes static asset copy decisions.
+type AssetCopyStats struct {
+	Copied  int
+	Skipped int
+}
+
 // Generate generates the static site.
 func Generate(posts []*parser.Post, cfg *config.Config, outputDir string, minify bool, buildDrafts bool, cleanOutput bool) error {
 	return GenerateWithPages(posts, nil, cfg, outputDir, minify, buildDrafts, cleanOutput)
 }
 
 func GenerateWithPages(posts []*parser.Post, standalonePages []*parser.Page, cfg *config.Config, outputDir string, minify bool, buildDrafts bool, cleanOutput bool) error {
+	_, err := GenerateWithPagesResult(posts, standalonePages, cfg, outputDir, minify, buildDrafts, cleanOutput)
+	return err
+}
+
+func GenerateWithPagesResult(posts []*parser.Post, standalonePages []*parser.Page, cfg *config.Config, outputDir string, minify bool, buildDrafts bool, cleanOutput bool) (*GenerationResult, error) {
 	plan, err := prepareGenerationPlan(posts, standalonePages, cfg, outputDir, minify, buildDrafts)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return plan.Execute(cleanOutput)
+	return plan.ExecuteResult(cleanOutput)
 }
+
 func paginate(posts []*parser.Post, perPage int) [][]*parser.Post {
 	if perPage <= 0 {
 		perPage = 10

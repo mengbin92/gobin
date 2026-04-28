@@ -93,6 +93,16 @@ func (p *generationPlan) Execute(cleanOutput bool) error {
 	})
 }
 
+func (p *generationPlan) ExecuteResult(cleanOutput bool) (*GenerationResult, error) {
+	if err := prepareOutputDir(p.outputDir, cleanOutput); err != nil {
+		return nil, err
+	}
+	if err := p.pagePlan.Execute(); err != nil {
+		return nil, err
+	}
+	return p.artifacts.ExecuteResult()
+}
+
 func (p *generationPlan) executeWith(cleanOutput bool, prepare func(string, bool) error, renderPages func() error, runArtifacts func() error) error {
 	if prepare == nil {
 		return nil

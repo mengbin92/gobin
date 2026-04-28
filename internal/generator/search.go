@@ -9,6 +9,7 @@ import (
 
 	"github.com/mengbin92/gobin/internal/config"
 	"github.com/mengbin92/gobin/internal/parser"
+	"github.com/mengbin92/gobin/internal/textutil"
 )
 
 // SearchIndex represents a search index for Lunr.js or Fuse.js
@@ -52,11 +53,7 @@ func buildSearchDocument(post *parser.Post, cfg *config.Config, includeContent b
 	}
 	if includeContent {
 		const maxContentLength = 2000
-		if len(post.Content) > maxContentLength {
-			doc.Content = post.Content[:maxContentLength] + "..."
-		} else {
-			doc.Content = post.Content
-		}
+		doc.Content = textutil.TruncateRunes(post.Content, maxContentLength, "...")
 		doc.Content = strings.Join(strings.Fields(doc.Content), " ")
 	}
 	return doc

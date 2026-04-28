@@ -8,9 +8,10 @@ import (
 )
 
 type ArtifactSpec struct {
-	Name    string
-	Enabled bool
-	Run     func() error
+	Name          string
+	Enabled       bool
+	Run           func() error
+	RunWithResult func(*GenerationResult) error
 }
 
 type artifactPipeline struct {
@@ -59,8 +60,12 @@ func buildArtifactSpecs(posts []*parser.Post, cfg *config.Config, outputDir stri
 		{
 			Name:    "assets",
 			Enabled: true,
-			Run: func() error {
-				return copyStaticAssets(cfg, outputDir)
+			RunWithResult: func(result *GenerationResult) error {
+				stats, err := copyStaticAssetsWithResult(cfg, outputDir)
+				if result != nil {
+					result.StaticAssets = stats.stats()
+				}
+				return err
 			},
 		},
 		{
@@ -78,19 +83,34 @@ func executeArtifactSpecs(specs []ArtifactSpec) error {
 }
 
 func (p artifactPipeline) Execute() error {
+	_, err := p.ExecuteResult()
+	return err
+}
+
+func (p artifactPipeline) ExecuteResult() (*GenerationResult, error) {
+	result := &GenerationResult{}
 	for _, spec := range p.specs {
 		if !spec.Enabled {
 			continue
 		}
-		if err := spec.Run(); err != nil {
-			if spec.Name == "" {
-				return err
+		run := spec.RunWithResult
+		if run == nil && spec.Run != nil {
+			run = func(*GenerationResult) error {
+				return spec.Run()
 			}
-			return fmt.Errorf("%s artifact: %w", spec.Name, err)
+		}
+		if run == nil {
+			continue
+		}
+		if err := run(result); err != nil {
+			if spec.Name == "" {
+				return nil, err
+			}
+			return nil, fmt.Errorf("%s artifact: %w", spec.Name, err)
 		}
 	}
 
-	return nil
+	return result, nil
 }
 
 func withMinifyArtifactEnabled(specs []ArtifactSpec, enabled bool) []ArtifactSpec {

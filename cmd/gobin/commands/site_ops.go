@@ -49,11 +49,17 @@ func renderOptionsFromConfig(cfg *config.Config) parser.RenderOptions {
 }
 
 func generateSite(input *siteBuildInput, outputDir string, minify bool, buildDrafts bool, cleanOutput bool) error {
+	_, err := generateSiteWithResult(input, outputDir, minify, buildDrafts, cleanOutput)
+	return err
+}
+
+func generateSiteWithResult(input *siteBuildInput, outputDir string, minify bool, buildDrafts bool, cleanOutput bool) (*generator.GenerationResult, error) {
 	if input == nil {
-		return fmt.Errorf("site build input is nil")
+		return nil, fmt.Errorf("site build input is nil")
 	}
-	if err := generator.GenerateWithPages(input.posts, input.pages, input.cfg, outputDir, minify, buildDrafts, cleanOutput); err != nil {
-		return fmt.Errorf("generate site: %w", err)
+	result, err := generator.GenerateWithPagesResult(input.posts, input.pages, input.cfg, outputDir, minify, buildDrafts, cleanOutput)
+	if err != nil {
+		return nil, fmt.Errorf("generate site: %w", err)
 	}
-	return nil
+	return result, nil
 }

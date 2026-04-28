@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -133,26 +134,50 @@ func getTemplatePaths(cfg *config.Config) []string {
 	}
 
 	defaultDir := "templates"
-	for _, tmplFile := range tmplFiles {
-		defaultTmplPath := filepath.Join(defaultDir, tmplFile)
-		if _, err := os.Stat(defaultTmplPath); err == nil {
-			paths = append(paths, defaultTmplPath)
-		}
-	}
+	paths = append(paths, collectTemplatePaths(defaultDir, tmplFiles)...)
 
 	if cfg.Theme != "" {
 		themeDir := filepath.Join(cfg.ThemesDir, cfg.Theme, "layouts")
 		if _, err := os.Stat(themeDir); err == nil {
-			for _, tmplFile := range tmplFiles {
-				themeTmplPath := filepath.Join(themeDir, tmplFile)
-				if _, err := os.Stat(themeTmplPath); err == nil {
-					paths = append(paths, themeTmplPath)
-				}
-			}
+			paths = append(paths, collectTemplatePaths(themeDir, tmplFiles)...)
 		}
 	}
 
 	return paths
+}
+
+func collectTemplatePaths(root string, knownFiles []string) []string {
+	known := make(map[string]struct{}, len(knownFiles))
+	paths := make([]string, 0, len(knownFiles))
+
+	for _, tmplFile := range knownFiles {
+		cleanRel := filepath.Clean(tmplFile)
+		known[cleanRel] = struct{}{}
+		tmplPath := filepath.Join(root, cleanRel)
+		if _, err := os.Stat(tmplPath); err == nil {
+			paths = append(paths, tmplPath)
+		}
+	}
+
+	var discovered []string
+	_ = filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil || entry.IsDir() || strings.ToLower(filepath.Ext(path)) != ".html" {
+			return nil
+		}
+
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return nil
+		}
+		if _, ok := known[filepath.Clean(rel)]; ok {
+			return nil
+		}
+		discovered = append(discovered, path)
+		return nil
+	})
+	sort.Strings(discovered)
+
+	return append(paths, discovered...)
 }
 
 func renderTemplate(tmpl renderer, name, path string, data interface{}) error {

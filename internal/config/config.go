@@ -242,8 +242,21 @@ func validatePostsPermalink(permalinks map[string]string) error {
 	if !strings.HasPrefix(pattern, "/") || !strings.HasSuffix(pattern, "/") {
 		return fmt.Errorf("invalid permalinks.posts %q: must start and end with '/'", pattern)
 	}
+	if containsPathTraversal(pattern) {
+		return fmt.Errorf("invalid permalinks.posts %q: must not contain path traversal segments", pattern)
+	}
 
 	return nil
+}
+
+func containsPathTraversal(path string) bool {
+	path = strings.ReplaceAll(path, "\\", "/")
+	for _, segment := range strings.Split(path, "/") {
+		if segment == ".." {
+			return true
+		}
+	}
+	return false
 }
 
 func validateThemeDir(theme string, themesDir string, baseDir string) error {

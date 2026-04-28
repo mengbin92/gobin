@@ -56,7 +56,8 @@ func resolveAliasOutput(alias, outputDir string) (string, string, error) {
 	}
 
 	if strings.HasSuffix(trimmed, ".html") {
-		return aliasPath, filepath.Join(outputDir, filepath.FromSlash(trimmed)), nil
+		outputPath, err := safeOutputPath(outputDir, trimmed)
+		return aliasPath, outputPath, err
 	}
 
 	trimmed = strings.TrimSuffix(trimmed, "/")
@@ -64,7 +65,8 @@ func resolveAliasOutput(alias, outputDir string) (string, string, error) {
 		return "", "", fmt.Errorf("empty alias path")
 	}
 
-	return ensureTrailingSlash(aliasPath), filepath.Join(outputDir, filepath.FromSlash(trimmed), "index.html"), nil
+	outputPath, err := safeOutputPath(outputDir, filepath.ToSlash(filepath.Join(trimmed, "index.html")))
+	return ensureTrailingSlash(aliasPath), outputPath, err
 }
 
 func normalizeAliasPath(alias string) string {

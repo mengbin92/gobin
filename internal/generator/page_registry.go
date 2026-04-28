@@ -27,7 +27,10 @@ func renderPageSpecs(tmpl renderer, outputDir string, pages []PageSpec) error {
 			return err
 		}
 
-		outputPath := filepath.Join(outputDir, filepath.FromSlash(strings.TrimPrefix(page.OutputPath, "/")))
+		outputPath, err := safeOutputPath(outputDir, page.OutputPath)
+		if err != nil {
+			return err
+		}
 		if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
 			return err
 		}

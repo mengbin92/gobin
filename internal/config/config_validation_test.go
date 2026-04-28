@@ -35,6 +35,20 @@ func TestLoadConfig_RejectsInvalidPostsPermalink(t *testing.T) {
 	}
 }
 
+func TestLoadConfig_RejectsPostsPermalinkTraversal(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	mustWriteConfigFile(t, configPath, "title: Test\nbaseURL: \"https://example.com\"\npermalinks:\n  posts: \"/../:slug/\"\n")
+
+	_, err := Load(configPath)
+	if err == nil {
+		t.Fatal("Expected path traversal posts permalink to fail validation")
+	}
+	if !strings.Contains(err.Error(), "permalinks.posts") {
+		t.Fatalf("Expected permalink validation error, got: %v", err)
+	}
+}
+
 func TestLoadConfig_RejectsMissingThemeDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.yaml")

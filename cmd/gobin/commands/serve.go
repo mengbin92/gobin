@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/mengbin92/gobin/internal/config"
+	"github.com/mengbin92/gobin/internal/generator"
 	"github.com/spf13/cobra"
 )
 
@@ -17,10 +18,11 @@ type devServer interface {
 }
 
 type serveOps struct {
-	loadSiteInput func() (*siteBuildInput, error)
-	generateSite  func(*siteBuildInput, string, bool, bool, bool) error
-	startServer   func(io.Writer, *config.Config) error
-	watchFiles    func(context.Context, *config.Config, serveRuntime)
+	loadSiteInput          func() (*siteBuildInput, error)
+	generateSite           func(*siteBuildInput, string, bool, bool, bool) error
+	generateSiteWithResult func(*siteBuildInput, string, bool, bool, bool) (*generator.GenerationResult, error)
+	startServer            func(io.Writer, *config.Config) error
+	watchFiles             func(context.Context, *config.Config, serveRuntime)
 }
 
 type serveRuntime struct {
@@ -68,17 +70,18 @@ func init() {
 
 func runServe(stdout io.Writer, buildDrafts bool, watch bool) error {
 	return runServeWithOps(stdout, buildDrafts, watch, serveOps{
-		loadSiteInput: loadSiteBuildInput,
-		generateSite:  generateSite,
-		startServer:   startServer,
-		watchFiles:    watchFilesWithRuntime,
+		loadSiteInput:          loadSiteBuildInput,
+		generateSite:           generateSite,
+		generateSiteWithResult: generateSiteWithResult,
+		startServer:            startServer,
+		watchFiles:             watchFilesWithRuntime,
 	})
 }
 
 func runServeWithOps(stdout io.Writer, buildDrafts bool, watch bool, ops serveOps) error {
-	builder := newServeBuilder(ops.loadSiteInput, ops.generateSite)
+	builder := newServeBuilder(ops.loadSiteInput, ops.generateSite, ops.generateSiteWithResult)
 	fmt.Fprintln(stdout, "Building site...")
-	input, err := builder.initialBuild(buildDrafts, serveClean)
+	input, result, err := builder.initialBuildResult(buildDrafts, serveClean)
 	if err != nil {
 		return fmt.Errorf("build site: %w", err)
 	}
@@ -86,6 +89,7 @@ func runServeWithOps(stdout io.Writer, buildDrafts bool, watch bool, ops serveOp
 	watchCtx, cancelWatch := context.WithCancel(context.Background())
 	defer cancelWatch()
 
+	printStaticAssetStats(stdout, result)
 	fmt.Fprintln(stdout, "Site built successfully!")
 
 	if watch {
@@ -113,7 +117,14 @@ func buildSiteWithOptions(buildDrafts bool, cleanOutput bool) error {
 }
 
 func buildSiteWithDeps(loadInput func() (*siteBuildInput, error), generate func(*siteBuildInput, string, bool, bool, bool) error, buildDrafts bool, cleanOutput bool) error {
-	return newServeBuilder(loadInput, generate).rebuild(serveRuntime{
+	return newServeBuilder(loadInput, generate, nil).rebuild(serveRuntime{
+		buildDrafts: buildDrafts,
+		cleanOutput: cleanOutput,
+	})
+}
+
+func buildSiteWithResultWithDeps(loadInput func() (*siteBuildInput, error), generate func(*siteBuildInput, string, bool, bool, bool) (*generator.GenerationResult, error), buildDrafts bool, cleanOutput bool) (*generator.GenerationResult, error) {
+	return newServeBuilder(loadInput, nil, generate).rebuildResult(serveRuntime{
 		buildDrafts: buildDrafts,
 		cleanOutput: cleanOutput,
 	})
@@ -124,12 +135,22 @@ func buildSiteWithRuntime(runtime serveRuntime) error {
 }
 
 func rebuildSiteAndReport(runtime serveRuntime) {
-	rebuildSiteAndReportWithDeps(runtime, func(runtime serveRuntime) error {
-		return buildSiteWithRuntime(runtime)
+	rebuildSiteAndReportWithResultDeps(runtime, func(runtime serveRuntime) (*generator.GenerationResult, error) {
+		return buildSiteWithResultWithDeps(loadSiteBuildInput, generateSiteWithResult, runtime.buildDrafts, runtime.cleanOutput)
 	})
 }
 
 func rebuildSiteAndReportWithDeps(runtime serveRuntime, rebuild func(serveRuntime) error) {
+	if rebuild == nil {
+		rebuildSiteAndReportWithResultDeps(runtime, nil)
+		return
+	}
+	rebuildSiteAndReportWithResultDeps(runtime, func(runtime serveRuntime) (*generator.GenerationResult, error) {
+		return nil, rebuild(runtime)
+	})
+}
+
+func rebuildSiteAndReportWithResultDeps(runtime serveRuntime, rebuild func(serveRuntime) (*generator.GenerationResult, error)) {
 	if rebuild == nil {
 		fmt.Fprintln(runtime.stderr, "Error rebuilding site: rebuild function is nil")
 		return
@@ -137,11 +158,13 @@ func rebuildSiteAndReportWithDeps(runtime serveRuntime, rebuild func(serveRuntim
 	fmt.Fprintln(runtime.stdout, "\nRebuilding site...")
 	start := time.Now()
 
-	if err := rebuild(runtime); err != nil {
+	result, err := rebuild(runtime)
+	if err != nil {
 		fmt.Fprintf(runtime.stderr, "Error rebuilding site: %v\n", err)
 		return
 	}
 
 	elapsed := time.Since(start)
+	printStaticAssetStats(runtime.stdout, result)
 	fmt.Fprintf(runtime.stdout, "Site rebuilt successfully in %v\n", elapsed)
 }

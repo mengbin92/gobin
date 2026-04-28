@@ -38,14 +38,25 @@ type staticAssetCopyResult struct {
 	Skipped int
 }
 
+func (r staticAssetCopyResult) stats() AssetCopyStats {
+	return AssetCopyStats{
+		Copied:  r.Copied,
+		Skipped: r.Skipped,
+	}
+}
+
 func copyStaticAssets(cfg *config.Config, outputDir string) error {
+	_, err := copyStaticAssetsWithResult(cfg, outputDir)
+	return err
+}
+
+func copyStaticAssetsWithResult(cfg *config.Config, outputDir string) (staticAssetCopyResult, error) {
 	plans, err := planStaticAssetCopies(cfg, outputDir)
 	if err != nil {
-		return err
+		return staticAssetCopyResult{}, err
 	}
 
-	_, err = executeStaticAssetCopyPlan(plans)
-	return err
+	return executeStaticAssetCopyPlan(plans)
 }
 
 func planStaticAssetCopies(cfg *config.Config, outputDir string) ([]staticAssetCopyPlan, error) {

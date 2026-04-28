@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/mengbin92/gobin/internal/generator"
 	"github.com/spf13/cobra"
 )
 
@@ -41,9 +42,11 @@ func runBuild(stdout io.Writer, minify bool, buildDrafts bool, cleanOutput bool)
 
 	fmt.Fprintf(stdout, "Found %d posts\n", len(input.posts))
 
-	if err := generateSite(input, input.cfg.PublishDir, minify, buildDrafts, cleanOutput); err != nil {
+	result, err := generateSiteWithResult(input, input.cfg.PublishDir, minify, buildDrafts, cleanOutput)
+	if err != nil {
 		return err
 	}
+	printStaticAssetStats(stdout, result)
 
 	if minify {
 		fmt.Fprintf(stdout, "Site generated and minified successfully in '%s' directory\n", input.cfg.PublishDir)
@@ -52,6 +55,13 @@ func runBuild(stdout io.Writer, minify bool, buildDrafts bool, cleanOutput bool)
 	}
 
 	return nil
+}
+
+func printStaticAssetStats(stdout io.Writer, result *generator.GenerationResult) {
+	if result == nil {
+		return
+	}
+	fmt.Fprintf(stdout, "Static assets: copied %d, skipped %d\n", result.StaticAssets.Copied, result.StaticAssets.Skipped)
 }
 
 func RunDefaultBuild(stdout io.Writer) error {

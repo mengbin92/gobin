@@ -15,6 +15,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/mengbin92/gobin/internal/config"
+	"github.com/mengbin92/gobin/internal/generator"
 )
 
 type fakeDevServer struct {
@@ -244,6 +245,34 @@ func TestRunServeWithOps_StartsWatcherAndServer(t *testing.T) {
 	output := stdout.String()
 	if !strings.Contains(output, "Building site...") || !strings.Contains(output, "Site built successfully!") {
 		t.Fatalf("Unexpected serve output: %q", output)
+	}
+}
+
+func TestRunServeWithOps_PrintsStaticAssetStats(t *testing.T) {
+	var stdout bytes.Buffer
+
+	err := runServeWithOps(&stdout, false, false, serveOps{
+		loadSiteInput: func() (*siteBuildInput, error) {
+			return &siteBuildInput{cfg: &config.Config{PublishDir: "public"}}, nil
+		},
+		generateSiteWithResult: func(*siteBuildInput, string, bool, bool, bool) (*generator.GenerationResult, error) {
+			return &generator.GenerationResult{
+				StaticAssets: generator.AssetCopyStats{Copied: 2, Skipped: 3},
+			}, nil
+		},
+		watchFiles: func(context.Context, *config.Config, serveRuntime) {
+			t.Fatal("watchFiles should not run when watch is disabled")
+		},
+		startServer: func(io.Writer, *config.Config) error {
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("runServeWithOps failed: %v", err)
+	}
+
+	if !strings.Contains(stdout.String(), "Static assets: copied 2, skipped 3") {
+		t.Fatalf("expected static asset stats in serve output, got %q", stdout.String())
 	}
 }
 
@@ -781,6 +810,28 @@ func TestRebuildSiteAndReport_Success(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "Site rebuilt successfully in") {
 		t.Fatalf("Expected rebuild success output, got %q", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("Expected no stderr output on rebuild success, got %q", stderr.String())
+	}
+}
+
+func TestRebuildSiteAndReport_PrintsStaticAssetStats(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	rebuildSiteAndReportWithResultDeps(serveRuntime{
+		stdout:      &stdout,
+		stderr:      &stderr,
+		buildDrafts: true,
+		cleanOutput: false,
+	}, func(serveRuntime) (*generator.GenerationResult, error) {
+		return &generator.GenerationResult{
+			StaticAssets: generator.AssetCopyStats{Copied: 1, Skipped: 4},
+		}, nil
+	})
+
+	if !strings.Contains(stdout.String(), "Static assets: copied 1, skipped 4") {
+		t.Fatalf("Expected rebuild output to contain asset stats, got %q", stdout.String())
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("Expected no stderr output on rebuild success, got %q", stderr.String())

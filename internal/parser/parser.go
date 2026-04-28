@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mengbin92/gobin/internal/textutil"
 	"github.com/yuin/goldmark"
 	goldmarkhtml "github.com/yuin/goldmark/renderer/html"
 	"gopkg.in/yaml.v3"
@@ -471,10 +472,7 @@ func generateSummary(content string) string {
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line != "" {
-			if len(line) > 200 {
-				return line[:200] + "..."
-			}
-			return line
+			return textutil.TruncateRunes(line, 200, "...")
 		}
 	}
 	return ""
@@ -496,8 +494,5 @@ func generateSummaryHTML(htmlContent string) string {
 	}
 
 	// If no paragraph tag, truncate at reasonable length
-	if len(text) > 200 {
-		return text[:200] + "..."
-	}
-	return text
+	return textutil.TruncateRunes(text, 200, "...")
 }
