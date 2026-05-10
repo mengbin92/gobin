@@ -214,6 +214,50 @@ func TestNewDevServerHandler_ServesFilesWithoutLiveReloadEndpoint(t *testing.T) 
 	}
 }
 
+func TestNewDevServerHandler_InjectsLiveReloadIntoHTML(t *testing.T) {
+	tmpDir := t.TempDir()
+	mustWriteFile(t, filepath.Join(tmpDir, "index.html"), "<html><body>ok</body></html>")
+
+	handler := newDevServerHandler(tmpDir, newLiveReloadBroker())
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	if !strings.Contains(body, liveReloadEndpoint) || !strings.Contains(body, "</script>\n</body>") {
+		t.Fatalf("Expected LiveReload script before body close, got %q", body)
+	}
+}
+
+func TestLiveReloadBroker_SendsReloadEvent(t *testing.T) {
+	broker := newLiveReloadBroker()
+	req := httptest.NewRequest(http.MethodGet, liveReloadEndpoint, nil)
+	ctx, cancel := context.WithCancel(req.Context())
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	done := make(chan struct{})
+	go func() {
+		broker.serveEvents(rec, req)
+		close(done)
+	}()
+
+	waitForCondition(t, time.Second, func() bool {
+		return strings.Contains(rec.Body.String(), ": connected")
+	})
+	broker.notify()
+	waitForCondition(t, time.Second, func() bool {
+		return strings.Contains(rec.Body.String(), "event: reload")
+	})
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Expected LiveReload stream to close after request cancellation")
+	}
+}
+
 func TestRunServeWithOps_StartsWatcherAndServer(t *testing.T) {
 	watchedCh := make(chan struct{}, 1)
 	var started bool
@@ -246,6 +290,9 @@ func TestRunServeWithOps_StartsWatcherAndServer(t *testing.T) {
 			}
 			if !runtime.buildDrafts {
 				t.Fatal("Expected watcher runtime to forward buildDrafts")
+			}
+			if runtime.liveReload == nil {
+				t.Fatal("Expected watcher runtime to include LiveReload broker")
 			}
 			watchedCh <- struct{}{}
 		},
@@ -435,7 +482,7 @@ func TestServeWatcher_RunDelegatesToWatchLoop(t *testing.T) {
 func TestServeServer_RunDelegatesToLifecycle(t *testing.T) {
 	server := serveServer{
 		addr: ":9000",
-		newServer: func(addr string, cfg *config.Config) devServer {
+		newServer: func(addr string, cfg *config.Config, runtime serveRuntime) devServer {
 			return &fakeDevServer{listenErr: http.ErrServerClosed}
 		},
 		signals: make(chan os.Signal),
@@ -900,6 +947,28 @@ func TestRebuildSiteAndReport_Success(t *testing.T) {
 	}
 }
 
+func TestRebuildSiteAndReport_NotifiesLiveReloadOnSuccess(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	broker := newLiveReloadBroker()
+	events, unsubscribe := broker.subscribe()
+	defer unsubscribe()
+
+	rebuildSiteAndReportWithDeps(serveRuntime{
+		stdout:     &stdout,
+		stderr:     &stderr,
+		liveReload: broker,
+	}, func(serveRuntime) error {
+		return nil
+	})
+
+	select {
+	case <-events:
+	case <-time.After(time.Second):
+		t.Fatal("Expected rebuild success to notify LiveReload clients")
+	}
+}
+
 func TestRebuildSiteAndReport_PrintsStaticAssetStats(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -943,6 +1012,28 @@ func TestRebuildSiteAndReport_Failure(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "Error rebuilding site: boom") {
 		t.Fatalf("Expected rebuild failure output, got %q", stderr.String())
+	}
+}
+
+func TestRebuildSiteAndReport_DoesNotNotifyLiveReloadOnFailure(t *testing.T) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	broker := newLiveReloadBroker()
+	events, unsubscribe := broker.subscribe()
+	defer unsubscribe()
+
+	rebuildSiteAndReportWithDeps(serveRuntime{
+		stdout:     &stdout,
+		stderr:     &stderr,
+		liveReload: broker,
+	}, func(serveRuntime) error {
+		return errors.New("boom")
+	})
+
+	select {
+	case <-events:
+		t.Fatal("Expected failed rebuild not to notify LiveReload clients")
+	case <-time.After(20 * time.Millisecond):
 	}
 }
 
@@ -1027,4 +1118,16 @@ func assertFileContains(t *testing.T, path string, expected string) {
 	if !strings.Contains(string(content), expected) {
 		t.Fatalf("Expected %s to contain %q, got %s", path, expected, string(content))
 	}
+}
+
+func waitForCondition(t *testing.T, timeout time.Duration, condition func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if condition() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("Timed out waiting for condition")
 }

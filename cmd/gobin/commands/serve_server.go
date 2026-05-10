@@ -16,16 +16,18 @@ import (
 
 type serveServer struct {
 	addr         string
-	newServer    func(string, *config.Config) devServer
+	newServer    func(string, *config.Config, serveRuntime) devServer
 	signals      chan os.Signal
 	runLifecycle func(io.Writer, devServer, string, <-chan os.Signal) error
 }
 
 func newServeServer(port int) serveServer {
 	return serveServer{
-		addr:      fmt.Sprintf(":%d", port),
-		newServer: func(addr string, cfg *config.Config) devServer { return newDevServer(addr, cfg.PublishDir) },
-		signals:   make(chan os.Signal, 1),
+		addr: fmt.Sprintf(":%d", port),
+		newServer: func(addr string, cfg *config.Config, runtime serveRuntime) devServer {
+			return newDevServer(addr, cfg.PublishDir, runtime.liveReload)
+		},
+		signals: make(chan os.Signal, 1),
 		runLifecycle: func(stdout io.Writer, server devServer, addr string, signals <-chan os.Signal) error {
 			return runServerLifecycle(stdout, server, addr, signals)
 		},
@@ -33,7 +35,11 @@ func newServeServer(port int) serveServer {
 }
 
 func (s serveServer) run(stdout io.Writer, cfg *config.Config) error {
-	server := s.newServer(s.addr, cfg)
+	return s.runWithRuntime(stdout, cfg, serveRuntime{})
+}
+
+func (s serveServer) runWithRuntime(stdout io.Writer, cfg *config.Config, runtime serveRuntime) error {
+	server := s.newServer(s.addr, cfg, runtime)
 	signal.Notify(s.signals, os.Interrupt, syscall.SIGTERM)
 	defer signal.Stop(s.signals)
 	return s.runLifecycle(stdout, server, s.addr, s.signals)
@@ -41,6 +47,10 @@ func (s serveServer) run(stdout io.Writer, cfg *config.Config) error {
 
 func startServer(stdout io.Writer, cfg *config.Config) error {
 	return newServeServer(servePort).run(stdout, cfg)
+}
+
+func startServerWithRuntime(stdout io.Writer, cfg *config.Config, runtime serveRuntime) error {
+	return newServeServer(servePort).runWithRuntime(stdout, cfg, runtime)
 }
 
 func runServerLifecycle(stdout io.Writer, server devServer, addr string, signals <-chan os.Signal) error {
@@ -65,18 +75,26 @@ func runServerLifecycle(stdout io.Writer, server devServer, addr string, signals
 	return nil
 }
 
-func newDevServer(addr, outputDir string) devServer {
+func newDevServer(addr, outputDir string, liveReload *liveReloadBroker) devServer {
 	return &http.Server{
 		Addr:         addr,
-		Handler:      newDevServerHandler(outputDir),
+		Handler:      newDevServerHandler(outputDir, liveReload),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 }
 
-func newDevServerHandler(outputDir string) http.Handler {
+func newDevServerHandler(outputDir string, liveReload ...*liveReloadBroker) http.Handler {
+	var broker *liveReloadBroker
+	if len(liveReload) > 0 {
+		broker = liveReload[0]
+	}
+
 	mux := http.NewServeMux()
-	mux.Handle("/", http.FileServer(http.Dir(outputDir)))
+	if broker != nil {
+		mux.HandleFunc(liveReloadEndpoint, broker.serveEvents)
+	}
+	mux.Handle("/", newLiveReloadFileHandler(outputDir, broker))
 	return mux
 }

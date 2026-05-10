@@ -22,6 +22,7 @@ type serveOps struct {
 	generateSite           func(*siteBuildInput, string, bool, bool, bool) error
 	generateSiteWithResult func(*siteBuildInput, string, bool, bool, bool) (*generator.GenerationResult, error)
 	startServer            func(io.Writer, *config.Config) error
+	startServerWithRuntime func(io.Writer, *config.Config, serveRuntime) error
 	watchFiles             func(context.Context, *config.Config, serveRuntime)
 }
 
@@ -31,6 +32,7 @@ type serveRuntime struct {
 	buildDrafts bool
 	cleanOutput bool
 	verbose     bool
+	liveReload  *liveReloadBroker
 }
 
 type debounceCancelFunc func() bool
@@ -42,6 +44,7 @@ var (
 	serveVerbose bool
 	serveDrafts  bool
 	serveClean   bool
+	serveReload  bool
 )
 
 // ServeCmd is the serve command
@@ -50,11 +53,8 @@ var ServeCmd = &cobra.Command{
 	Short: "Start the development server",
 	Long: `Start a local development server with optional file watching and automatic rebuild.
 
-The server watches for changes in your content and templates and automatically
-rebuilds the site when files change.
-
-The current serve workflow does not inject a LiveReload script into pages.
-After a rebuild, refresh the browser manually to see the latest output.`,
+The server watches for changes in your content and templates, automatically
+rebuilds the site when files change, and can refresh open pages with LiveReload.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runServe(cmd.OutOrStdout(), serveDrafts, serveWatch)
 	},
@@ -66,6 +66,7 @@ func init() {
 	ServeCmd.Flags().BoolVarP(&serveVerbose, "verbose", "v", false, "Verbose output")
 	ServeCmd.Flags().BoolVar(&serveDrafts, "drafts", false, "Include draft posts in the output")
 	ServeCmd.Flags().BoolVar(&serveClean, "clean", true, "Clean the output directory before rebuilding")
+	ServeCmd.Flags().BoolVar(&serveReload, "live-reload", true, "Inject a development-only LiveReload client while watching")
 }
 
 func runServe(stdout io.Writer, buildDrafts bool, watch bool) error {
@@ -74,6 +75,7 @@ func runServe(stdout io.Writer, buildDrafts bool, watch bool) error {
 		generateSite:           generateSite,
 		generateSiteWithResult: generateSiteWithResult,
 		startServer:            startServer,
+		startServerWithRuntime: startServerWithRuntime,
 		watchFiles:             watchFilesWithRuntime,
 	})
 }
@@ -92,17 +94,35 @@ func runServeWithOps(stdout io.Writer, buildDrafts bool, watch bool, ops serveOp
 	printStaticAssetStats(stdout, result)
 	fmt.Fprintln(stdout, "Site built successfully!")
 
+	var liveReload *liveReloadBroker
+	if watch && serveReload {
+		liveReload = newLiveReloadBroker()
+	}
+	runtime := serveRuntime{
+		stdout:     stdout,
+		stderr:     os.Stderr,
+		liveReload: liveReload,
+	}
+
 	if watch {
+		runtime.buildDrafts = buildDrafts
+		runtime.cleanOutput = serveClean
+		runtime.verbose = serveVerbose
 		go ops.watchFiles(watchCtx, cfg, serveRuntime{
-			stdout:      stdout,
-			stderr:      os.Stderr,
-			buildDrafts: buildDrafts,
-			cleanOutput: serveClean,
-			verbose:     serveVerbose,
+			stdout:      runtime.stdout,
+			stderr:      runtime.stderr,
+			buildDrafts: runtime.buildDrafts,
+			cleanOutput: runtime.cleanOutput,
+			verbose:     runtime.verbose,
+			liveReload:  runtime.liveReload,
 		})
 	}
 
-	err = ops.startServer(stdout, cfg)
+	if ops.startServerWithRuntime != nil {
+		err = ops.startServerWithRuntime(stdout, cfg, runtime)
+	} else {
+		err = ops.startServer(stdout, cfg)
+	}
 	cancelWatch()
 	return err
 }
@@ -167,4 +187,7 @@ func rebuildSiteAndReportWithResultDeps(runtime serveRuntime, rebuild func(serve
 	elapsed := time.Since(start)
 	printStaticAssetStats(runtime.stdout, result)
 	fmt.Fprintf(runtime.stdout, "Site rebuilt successfully in %v\n", elapsed)
+	if runtime.liveReload != nil {
+		runtime.liveReload.notify()
+	}
 }
