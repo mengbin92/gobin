@@ -75,6 +75,9 @@ func TestRunBuild_GeneratesSite(t *testing.T) {
 	if !strings.Contains(output, "Static assets:") {
 		t.Fatalf("Expected build output to include static asset stats, got %q", output)
 	}
+	if !strings.Contains(output, "Pages: rendered") {
+		t.Fatalf("Expected build output to include page render stats, got %q", output)
+	}
 	if !strings.Contains(output, "Site generated successfully in 'public' directory") {
 		t.Fatalf("Expected build output to confirm publish dir, got %q", output)
 	}

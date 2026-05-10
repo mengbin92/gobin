@@ -52,13 +52,25 @@ func (p *generationPlan) Execute(cleanOutput bool) error {
 }
 
 func (p *generationPlan) ExecuteResult(cleanOutput bool) (*GenerationResult, error) {
+	result := &GenerationResult{}
 	if err := prepareOutputDir(p.outputDir, cleanOutput); err != nil {
 		return nil, err
 	}
-	if err := p.pagePlan.Execute(); err != nil {
+	pageStats, err := p.pagePlan.ExecuteResult()
+	if err != nil {
 		return nil, err
 	}
-	return p.artifacts.ExecuteResult()
+	result.Pages = pageStats
+
+	artifactResult, err := p.artifacts.ExecuteResult()
+	if err != nil {
+		return nil, err
+	}
+	if artifactResult != nil {
+		result.StaticAssets = artifactResult.StaticAssets
+	}
+
+	return result, nil
 }
 
 func (p *generationPlan) executeWith(cleanOutput bool, prepare func(string, bool) error, renderPages func() error, runArtifacts func() error) error {
@@ -87,5 +99,13 @@ type pageRenderPlan struct {
 }
 
 func (p pageRenderPlan) Execute() error {
-	return renderPageSpecs(p.templates, p.outputDir, p.pages)
+	_, err := p.ExecuteResult()
+	return err
+}
+
+func (p pageRenderPlan) ExecuteResult() (PageRenderStats, error) {
+	if err := renderPageSpecs(p.templates, p.outputDir, p.pages); err != nil {
+		return PageRenderStats{}, err
+	}
+	return PageRenderStats{Rendered: len(p.pages)}, nil
 }

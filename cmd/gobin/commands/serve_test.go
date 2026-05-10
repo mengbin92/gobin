@@ -281,6 +281,7 @@ func TestRunServeWithOps_PrintsStaticAssetStats(t *testing.T) {
 		},
 		generateSiteWithResult: func(*siteBuildInput, string, bool, bool, bool) (*generator.GenerationResult, error) {
 			return &generator.GenerationResult{
+				Pages:        generator.PageRenderStats{Rendered: 7},
 				StaticAssets: generator.AssetCopyStats{Copied: 2, Skipped: 3, Deleted: 1},
 			}, nil
 		},
@@ -297,6 +298,9 @@ func TestRunServeWithOps_PrintsStaticAssetStats(t *testing.T) {
 
 	if !strings.Contains(stdout.String(), "Static assets: copied 2, skipped 3, deleted 1") {
 		t.Fatalf("expected static asset stats in serve output, got %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Pages: rendered 7") {
+		t.Fatalf("expected page render stats in serve output, got %q", stdout.String())
 	}
 }
 
@@ -906,12 +910,16 @@ func TestRebuildSiteAndReport_PrintsStaticAssetStats(t *testing.T) {
 		cleanOutput: false,
 	}, func(serveRuntime) (*generator.GenerationResult, error) {
 		return &generator.GenerationResult{
+			Pages:        generator.PageRenderStats{Rendered: 5},
 			StaticAssets: generator.AssetCopyStats{Copied: 1, Skipped: 4, Deleted: 2},
 		}, nil
 	})
 
 	if !strings.Contains(stdout.String(), "Static assets: copied 1, skipped 4, deleted 2") {
 		t.Fatalf("Expected rebuild output to contain asset stats, got %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Pages: rendered 5") {
+		t.Fatalf("Expected rebuild output to contain page render stats, got %q", stdout.String())
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("Expected no stderr output on rebuild success, got %q", stderr.String())

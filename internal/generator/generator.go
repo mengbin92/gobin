@@ -18,7 +18,13 @@ type Pagination struct {
 
 // GenerationResult summarizes observable work performed during generation.
 type GenerationResult struct {
+	Pages        PageRenderStats
 	StaticAssets AssetCopyStats
+}
+
+// PageRenderStats summarizes rendered page work.
+type PageRenderStats struct {
+	Rendered int
 }
 
 // AssetCopyStats summarizes static asset copy decisions.
