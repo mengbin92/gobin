@@ -40,11 +40,11 @@
     {{ end }}{{ end }}
 
     <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="/images/favicon.svg">
+    <link rel="icon" type="image/svg+xml" href="{{ assetURL "/images/favicon.svg" }}">
 
     <!-- Styles -->
-    <link rel="stylesheet" href="/css/theme.css">
-    <link rel="stylesheet" href="/css/syntax.css">
+    <link rel="stylesheet" href="{{ assetURL "/css/theme.css" }}">
+    <link rel="stylesheet" href="{{ assetURL "/css/syntax.css" }}">
 
     <!-- Font: JetBrains Mono for that hacker feel -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -71,5 +71,5 @@
 {{ define "headExtra" }}{{ end }}
 
 {{ define "scripts" }}
-<script src="/js/theme.js"></script>
+<script src="{{ assetURL "/js/theme.js" }}"></script>
 {{ end }}

@@ -19,6 +19,10 @@ func loadTemplates(cfg *config.Config) (*template.Template, error) {
 	cfg = config.Normalize(cfg)
 
 	var tmpl *template.Template
+	assetURLs, err := newAssetURLResolver(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("resolve static assets: %w", err)
+	}
 
 	funcMap := template.FuncMap{
 		"safeHTML": func(s string) template.HTML {
@@ -34,6 +38,7 @@ func loadTemplates(cfg *config.Config) (*template.Template, error) {
 		"absURL": func(path string) string {
 			return joinURL(cfg.BaseURL, path)
 		},
+		"assetURL": assetURLs.URL,
 		"stylesheetPath": func() string {
 			return detectStylesheetPath(cfg)
 		},
@@ -107,7 +112,7 @@ func loadTemplates(cfg *config.Config) (*template.Template, error) {
 		return nil, fmt.Errorf("no templates found")
 	}
 
-	tmpl, err := tmpl.ParseFiles(templateFiles...)
+	tmpl, err = tmpl.ParseFiles(templateFiles...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse templates: %w", err)
 	}

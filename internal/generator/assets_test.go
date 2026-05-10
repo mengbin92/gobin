@@ -1,6 +1,8 @@
 package generator
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"strings"
@@ -82,4 +84,86 @@ func TestPlanStaticAssetCopies_RejectsOutputPathTraversal(t *testing.T) {
 	if !strings.Contains(err.Error(), "escapes output directory") {
 		t.Fatalf("expected output directory escape error, got %v", err)
 	}
+}
+
+func TestAssetURLResolver_AppendsContentVersion(t *testing.T) {
+	tmpDir := t.TempDir()
+	staticDir := filepath.Join(tmpDir, "assets")
+	mustWriteFile(t, filepath.Join(staticDir, "css", "main.css"), "body {}")
+
+	resolver, err := newAssetURLResolver(&config.Config{StaticDir: staticDir})
+	if err != nil {
+		t.Fatalf("newAssetURLResolver failed: %v", err)
+	}
+
+	got, err := resolver.URL("/css/main.css?theme=light#top")
+	if err != nil {
+		t.Fatalf("asset URL failed: %v", err)
+	}
+	wantHash := shortSHA256("body {}")
+	if got != "/css/main.css?theme=light&v="+wantHash+"#top" {
+		t.Fatalf("expected versioned asset URL, got %q", got)
+	}
+}
+
+func TestAssetURLResolver_LeavesExternalAndUnknownURLsUnchanged(t *testing.T) {
+	tmpDir := t.TempDir()
+	staticDir := filepath.Join(tmpDir, "assets")
+	mustWriteFile(t, filepath.Join(staticDir, "css", "main.css"), "body {}")
+
+	resolver, err := newAssetURLResolver(&config.Config{StaticDir: staticDir})
+	if err != nil {
+		t.Fatalf("newAssetURLResolver failed: %v", err)
+	}
+
+	for _, raw := range []string{"https://cdn.example.com/app.css", "//cdn.example.com/app.css", "/css/missing.css"} {
+		got, err := resolver.URL(raw)
+		if err != nil {
+			t.Fatalf("asset URL %q failed: %v", raw, err)
+		}
+		if got != raw {
+			t.Fatalf("expected %q to remain unchanged, got %q", raw, got)
+		}
+	}
+}
+
+func TestAssetURLResolver_UsesOverlayWinner(t *testing.T) {
+	tmpDir := t.TempDir()
+	mustWriteFile(t, filepath.Join(tmpDir, "themes", "demo", "assets", "css", "theme.css"), "theme")
+	mustWriteFile(t, filepath.Join(tmpDir, "assets", "css", "theme.css"), "site")
+
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get wd: %v", err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(oldWd); err != nil {
+			t.Fatalf("restore wd: %v", err)
+		}
+	})
+
+	resolver, err := newAssetURLResolver(&config.Config{
+		StaticDir: "assets",
+		ThemesDir: "themes",
+		Theme:     "demo",
+	})
+	if err != nil {
+		t.Fatalf("newAssetURLResolver failed: %v", err)
+	}
+
+	got, err := resolver.URL("/css/theme.css")
+	if err != nil {
+		t.Fatalf("asset URL failed: %v", err)
+	}
+	if got != "/css/theme.css?v="+shortSHA256("site") {
+		t.Fatalf("expected site asset version to win, got %q", got)
+	}
+}
+
+func shortSHA256(content string) string {
+	sum := sha256.Sum256([]byte(content))
+	return hex.EncodeToString(sum[:])[:12]
 }

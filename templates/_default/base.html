@@ -18,7 +18,7 @@
     <meta name="twitter:description" content="{{ if .Description }}{{ .Description }}{{ else }}{{ .Site.Description }}{{ end }}">
     {{ if .Site.SEO }}{{ if .Site.SEO.Image }}<meta name="twitter:image" content="{{ .Site.SEO.Image }}">{{ end }}{{ end }}
     <link rel="alternate" type="application/rss+xml" title="{{ .Site.Title }}" href="{{ absURL "index.xml" }}">
-    {{ if stylesheetPath }}<link rel="stylesheet" href="{{ stylesheetPath }}">{{ end }}
+    {{ if stylesheetPath }}<link rel="stylesheet" href="{{ assetURL stylesheetPath }}">{{ end }}
 </head>
 <body>
     {{ render .HeaderTemplate . }}
