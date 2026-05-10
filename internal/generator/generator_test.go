@@ -1494,6 +1494,47 @@ func TestRenderPageSpecs_UsesFirstAvailableTemplate(t *testing.T) {
 	}
 }
 
+func TestRenderPageSpecs_AddsPageContextToTemplateErrors(t *testing.T) {
+	tmpDir := t.TempDir()
+	tpl := mustParseTemplate(t, `{{ define "page" }}{{ .Missing.Field }}{{ end }}`)
+
+	err := renderPageSpecs(tpl, tmpDir, []PageSpec{{
+		TemplateCandidates: []string{"page"},
+		OutputPath:         "broken/index.html",
+		Title:              "Broken Page",
+		Data:               map[string]interface{}{"Missing": "not an object"},
+	}})
+	if err == nil {
+		t.Fatal("Expected renderPageSpecs to fail")
+	}
+	message := err.Error()
+	for _, want := range []string{`output="broken/index.html"`, `title="Broken Page"`, `template="page"`} {
+		if !strings.Contains(message, want) {
+			t.Fatalf("Expected error to contain %s, got %v", want, err)
+		}
+	}
+}
+
+func TestRenderPageSpecs_AddsPageContextToMissingTemplateErrors(t *testing.T) {
+	tmpDir := t.TempDir()
+	tpl := mustParseTemplate(t, `{{ define "other" }}ok{{ end }}`)
+
+	err := renderPageSpecs(tpl, tmpDir, []PageSpec{{
+		TemplateCandidates: []string{"missing", "fallback"},
+		OutputPath:         "missing/index.html",
+		Title:              "Missing Template Page",
+	}})
+	if err == nil {
+		t.Fatal("Expected renderPageSpecs to fail")
+	}
+	message := err.Error()
+	for _, want := range []string{`output="missing/index.html"`, `title="Missing Template Page"`, `templates="missing,fallback"`} {
+		if !strings.Contains(message, want) {
+			t.Fatalf("Expected error to contain %s, got %v", want, err)
+		}
+	}
+}
+
 func TestBuildPageSpecs(t *testing.T) {
 	post := &parser.Post{
 		Title:       "Spec Post",

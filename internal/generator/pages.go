@@ -30,6 +30,7 @@ func buildStandalonePageSpecs(standalonePages []*parser.Page, cfg *config.Config
 		pages = append(pages, PageSpec{
 			TemplateCandidates: []string{"pagePage", "singlePage"},
 			OutputPath:         outputPath,
+			Title:              page.Title,
 			Data: StandalonePageData{
 				BasePageData: BasePageData{
 					Site:           cfg,
@@ -80,6 +81,7 @@ func buildIndexPageSpecs(posts []*parser.Post, cfg *config.Config) []PageSpec {
 		pages = append(pages, PageSpec{
 			TemplateCandidates: []string{"listPage"},
 			OutputPath:         outputPath,
+			Title:              cfg.Title,
 			Data: ListPageData{
 				BasePageData: BasePageData{
 					Site:           cfg,
@@ -102,6 +104,7 @@ func buildIndexPageSpecs(posts []*parser.Post, cfg *config.Config) []PageSpec {
 		pages = append(pages, PageSpec{
 			TemplateCandidates: []string{"listPage"},
 			OutputPath:         "index.html",
+			Title:              cfg.Title,
 			Data: ListPageData{
 				BasePageData: BasePageData{
 					Site:           cfg,
@@ -148,6 +151,7 @@ func buildPostPageSpecs(posts []*parser.Post, cfg *config.Config) []PageSpec {
 		pages = append(pages, PageSpec{
 			TemplateCandidates: []string{"singlePage"},
 			OutputPath:         postPath,
+			Title:              post.Title,
 			Data: SinglePageData{
 				BasePageData: BasePageData{
 					Site:           cfg,
@@ -173,6 +177,7 @@ func buildNotFoundPageSpec(cfg *config.Config) PageSpec {
 	return PageSpec{
 		TemplateCandidates: []string{"notFoundPage", "404Page"},
 		OutputPath:         "404.html",
+		Title:              "404 Not Found",
 		Data: NotFoundPageData{
 			BasePageData: BasePageData{
 				Site:           cfg,

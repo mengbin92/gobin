@@ -108,6 +108,7 @@ func buildTaxonomyTermsPageSpec(kind string, items map[string][]*parser.Post, cf
 	return PageSpec{
 		TemplateCandidates: []string{"taxonomyTermsPage"},
 		OutputPath:         filepath.Join(kind, "index.html"),
+		Title:              data.Title,
 		Data:               data,
 	}
 }
@@ -141,6 +142,7 @@ func buildTaxonomyEntryPageSpecs(kind string, items map[string][]*parser.Post, c
 		pages = append(pages, PageSpec{
 			TemplateCandidates: []string{"taxonomyPage"},
 			OutputPath:         filepath.Join(kind, urlize(key), "index.html"),
+			Title:              data.Title,
 			Data:               data,
 		})
 	}
