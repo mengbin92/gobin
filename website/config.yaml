@@ -2,7 +2,7 @@
 
 # Website Information
 title: "Gobin"
-description: "高性能静态博客生成器 - 基于 Go 语言开发，完全兼容 Jekyll"
+description: "高性能静态博客生成器 - 基于 Go 语言开发，兼容常见 Jekyll 内容结构"
 author: "Gobin Team"
 languageCode: "zh-CN"
 timezone: "Asia/Shanghai"
@@ -70,7 +70,7 @@ analytics:
 params:
   # Version Info
   version: "1.0.0"
-  goVersion: "1.21+"
+  goVersion: "1.25"
 
   # Download Links
   download:

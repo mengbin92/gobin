@@ -51,7 +51,7 @@
   <g transform="translate(800, 350)">
     <rect width="300" height="60" rx="8" fill="#1f2937" stroke="#00ff9d" stroke-width="2"/>
     <text x="150" y="40" font-family="'Inter', sans-serif" font-size="24" text-anchor="middle" fill="#00ff9d">
-      ✅ 完全兼容 Jekyll
+      ✅ 迁移友好
     </text>
   </g>
 

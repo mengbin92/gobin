@@ -122,7 +122,7 @@ gh auth login
 # 创建 Release
 gh release create v1.0.0 \
   --title "Gobin v1.0.0" \
-  --notes-file RELEASE-NOTES-v1.0.md \
+  --notes-file RELEASE-NOTES-v1.0.0.md \
   dist/*.tar.gz dist/*.zip dist/SHA256SUMS
 ```
 
@@ -137,7 +137,7 @@ gh release create v1.0.0 \
 1. 访问 https://github.com/mengbin92/gobin/releases
 2. 点击 "Draft a new release"
 3. 选择或创建一个 tag（如 v1.0.0）
-4. 填写标题和描述（可以复制 RELEASE-NOTES-v1.0.md 的内容）
+4. 填写标题和描述（可以复制对应版本发布说明的内容）
 5. 将构建好的二进制文件拖到上传区域
 6. 点击 "Publish release"
 
@@ -220,7 +220,7 @@ gh release upload v1.0.0 dist/*.tar.gz dist/*.zip dist/SHA256SUMS
 ### 发布时检查
 
 - [ ] 所有平台的二进制文件已成功构建
-- [ ] 二进制文件已上传到 GitHub Release
+- [ ] 压缩包和 `SHA256SUMS` 已上传到 GitHub Release
 - [ ] Release 包含完整的说明文档
 - [ ] 示例站点可用且更新到最新版本
 
@@ -321,7 +321,7 @@ sha256sum gobin-* > checksums.txt
 - `.github/workflows/release.yml` - GitHub Actions 工作流
 - `scripts/build-all.sh` - 本地构建脚本
 - `scripts/upload-release.sh` - 上传脚本
-- `RELEASE-NOTES-v1.0.md` - 发布说明模板
+- `RELEASE-NOTES-vX.Y.Z.md` - 发布说明模板
 
 ---
 
