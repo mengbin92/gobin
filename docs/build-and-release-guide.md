@@ -126,6 +126,12 @@ gh release create v1.0.0 \
   dist/*
 ```
 
+发布说明文件建议按 tag 命名，例如 `RELEASE-NOTES-v1.1.0.md`。自动发布工作流会按顺序查找：
+
+- `RELEASE-NOTES-v1.1.0.md`
+- `RELEASE-NOTES-1.1.0.md`
+- `RELEASE-NOTES.md`
+
 ##### 选项 B：通过 GitHub Web 界面
 
 1. 访问 https://github.com/mengbin92/gobin/releases
@@ -208,7 +214,7 @@ gh release upload v1.0.0 dist/*
 - [ ] 所有测试通过: `go test ./...`
 - [ ] 代码已提交并推送到远程
 - [ ] 创建了版本标签: `git tag v1.0.0`
-- [ ] 编写了发布说明（RELEASE-NOTES-v1.0.md）
+- [ ] 编写了发布说明（例如 `RELEASE-NOTES-v1.0.0.md`）
 - [ ] 更新了 CHANGELOG
 
 ### 发布时检查

@@ -91,6 +91,30 @@ jobs:
       - name: List artifacts
         run: ls -lh dist/
 
+      - name: Select release notes
+        id: notes
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          CANDIDATES=(
+            "RELEASE-NOTES-v${VERSION}.md"
+            "RELEASE-NOTES-${VERSION}.md"
+            "RELEASE-NOTES.md"
+          )
+
+          for file in "${CANDIDATES[@]}"; do
+            if [ -f "$file" ]; then
+              echo "path=$file" >> "$GITHUB_OUTPUT"
+              echo "Using release notes: $file"
+              exit 0
+            fi
+          done
+
+          echo "No release notes file found for ${TAG}" >&2
+          echo "Expected one of:"
+          printf '  %s\n' "${CANDIDATES[@]}"
+          exit 1
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -99,7 +123,7 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: false
-          body_path: RELEASE-NOTES-v1.0.md
+          body_path: ${{ steps.notes.outputs.path }}
           files: |
             dist/**/*
         env:

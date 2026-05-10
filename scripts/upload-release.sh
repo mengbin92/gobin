@@ -15,7 +15,16 @@ if [ $# -ne 1 ]; then
 fi
 
 TAG=$1
+VERSION=${TAG#v}
+RELEASE_NOTES=""
 echo "🚀 Uploading binaries for release ${TAG}..."
+
+for file in "RELEASE-NOTES-v${VERSION}.md" "RELEASE-NOTES-${VERSION}.md" "RELEASE-NOTES.md"; do
+    if [ -f "$file" ]; then
+        RELEASE_NOTES=$file
+        break
+    fi
+done
 
 # Check if dist directory exists
 if [ ! -d "dist" ]; then
@@ -27,7 +36,11 @@ fi
 echo "📋 Checking if release ${TAG} exists..."
 if ! gh release view "${TAG}" > /dev/null 2>&1; then
     echo "❌ Release ${TAG} does not exist. Create it first:"
-    echo "   gh release create ${TAG} -t \"${TAG}\" -F RELEASE-NOTES-v1.0.md"
+    if [ -n "$RELEASE_NOTES" ]; then
+        echo "   gh release create ${TAG} -t \"${TAG}\" -F ${RELEASE_NOTES}"
+    else
+        echo "   gh release create ${TAG} -t \"${TAG}\" --generate-notes"
+    fi
     exit 1
 fi
 
