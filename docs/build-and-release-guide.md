@@ -31,8 +31,8 @@ ls .github/workflows/release.yml
 #### 2. 推送版本标签
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.1.0
+git push origin v1.1.0
 ```
 
 #### 3. 等待构建完成
@@ -91,9 +91,9 @@ ls -lh dist/
 
 输出示例：
 ```
--rwxr-xr-x 1 user user 8.5M Jan 7 10:30 gobin-v1.0.0-linux-amd64
--rw-r--r-- 1 user user 3.2M Jan 7 10:30 gobin-v1.0.0-linux-amd64.tar.gz
--rw-r--r-- 1 user user 3.1M Jan 7 10:30 gobin-v1.0.0-windows-amd64.zip
+-rwxr-xr-x 1 user user 8.5M Jan 7 10:30 gobin-v1.1.0-linux-amd64
+-rw-r--r-- 1 user user 3.2M Jan 7 10:30 gobin-v1.1.0-linux-amd64.tar.gz
+-rw-r--r-- 1 user user 3.1M Jan 7 10:30 gobin-v1.1.0-windows-amd64.zip
 -rw-r--r-- 1 user user  512 Jan 7 10:30 SHA256SUMS
 ```
 
@@ -120,9 +120,9 @@ gh auth login
 
 ```bash
 # 创建 Release
-gh release create v1.0.0 \
-  --title "Gobin v1.0.0" \
-  --notes-file RELEASE-NOTES-v1.0.0.md \
+gh release create v1.1.0 \
+  --title "Gobin v1.1.0" \
+  --notes-file RELEASE-NOTES-v1.1.0.md \
   dist/*.tar.gz dist/*.zip dist/SHA256SUMS
 ```
 
@@ -136,7 +136,7 @@ gh release create v1.0.0 \
 
 1. 访问 https://github.com/mengbin92/gobin/releases
 2. 点击 "Draft a new release"
-3. 选择或创建一个 tag（如 v1.0.0）
+3. 选择或创建一个 tag（如 v1.1.0）
 4. 填写标题和描述（可以复制对应版本发布说明的内容）
 5. 将构建好的二进制文件拖到上传区域
 6. 点击 "Publish release"
@@ -166,17 +166,17 @@ gh auth login
 ./scripts/build-all.sh
 
 # 运行上传脚本
-./scripts/upload-release.sh v1.0.0
+./scripts/upload-release.sh v1.1.0
 ```
 
 #### 3. 或手动上传
 
 ```bash
 # 上传单个文件
-gh release upload v1.0.0 dist/gobin-v1.0.0-linux-amd64.tar.gz
+gh release upload v1.1.0 dist/gobin-v1.1.0-linux-amd64.tar.gz
 
 # 上传所有文件
-gh release upload v1.0.0 dist/*.tar.gz dist/*.zip dist/SHA256SUMS
+gh release upload v1.1.0 dist/*.tar.gz dist/*.zip dist/SHA256SUMS
 ```
 
 ---
@@ -213,8 +213,8 @@ gh release upload v1.0.0 dist/*.tar.gz dist/*.zip dist/SHA256SUMS
 
 - [ ] 所有测试通过: `go test ./...`
 - [ ] 代码已提交并推送到远程
-- [ ] 创建了版本标签: `git tag v1.0.0`
-- [ ] 编写了发布说明（例如 `RELEASE-NOTES-v1.0.0.md`）
+- [ ] 创建了版本标签: `git tag v1.1.0`
+- [ ] 编写了发布说明（例如 `RELEASE-NOTES-v1.1.0.md`）
 - [ ] 更新了 CHANGELOG
 
 ### 发布时检查
@@ -256,8 +256,8 @@ go version
 
 **解决**: 文件已存在，删除后重试：
 ```bash
-gh release delete-asset v1.0.0 filename
-gh release upload v1.0.0 filename
+gh release delete-asset v1.1.0 filename
+gh release upload v1.1.0 filename
 ```
 
 ### Windows 构建无扩展名
@@ -274,7 +274,7 @@ gh release upload v1.0.0 filename
 
 遵循 [Semantic Versioning](https://semver.org/) 规范：
 
-- `v1.0.0` - 主要版本
+- `v2.0.0` - 主要版本
 - `v1.1.0` - 次要版本（新功能，向后兼容）
 - `v1.1.1` - 补丁版本（bug 修复）
 
@@ -295,7 +295,7 @@ go build \
 
 ```bash
 # 使用 upx 压缩（可选）
-upx --best dist/gobin-v1.0.0-linux-amd64
+upx --best dist/gobin-v1.1.0-linux-amd64
 ```
 
 ### 4. 提供 checksums
@@ -333,5 +333,5 @@ sha256sum gobin-* > checksums.txt
 
 ---
 
-*文档版本: v1.0.0*
-*更新日期: 2026-01-07*
+*文档版本: v1.1.0*
+*更新日期: 2026-05-10*
