@@ -1,8 +1,6 @@
 package generator
 
 import (
-	"sort"
-
 	"github.com/mengbin92/gobin/internal/config"
 	"github.com/mengbin92/gobin/internal/parser"
 )
@@ -13,76 +11,36 @@ type generationPlan struct {
 	artifacts artifactPipeline
 }
 
-type pageBuildResult struct {
-	pageSpecs  []PageSpec
-	tags       []string
-	categories []string
-}
-
-type renderableContent struct {
-	posts           []*parser.Post
-	standalonePages []*parser.Page
-	pageResult      pageBuildResult
-}
-
 func prepareGenerationPlan(posts []*parser.Post, standalonePages []*parser.Page, cfg *config.Config, outputDir string, minify bool, buildDrafts bool) (*generationPlan, error) {
 	cfg = config.Normalize(cfg)
 	if outputDir == "" {
 		outputDir = cfg.PublishDir
 	}
 
-	content := prepareRenderableContent(posts, standalonePages, cfg, buildDrafts)
+	content := prepareContentPlan(posts, standalonePages, cfg, buildDrafts)
+	pagePlan := buildSitePagePlan(content.posts, content.standalonePages, cfg)
 
 	tmpl, err := loadTemplates(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	artifactSpecs := buildArtifactSpecs(content.posts, cfg, outputDir, content.pageResult.tags, content.pageResult.categories)
-	return assembleGenerationPlan(outputDir, tmpl, content.pageResult, artifactSpecs, minify), nil
+	artifactSpecs := buildArtifactSpecs(content.posts, cfg, outputDir, pagePlan.tags, pagePlan.categories)
+	return assembleGenerationPlan(outputDir, tmpl, pagePlan, artifactSpecs, minify), nil
 }
 
-func prepareRenderableContent(posts []*parser.Post, standalonePages []*parser.Page, cfg *config.Config, buildDrafts bool) renderableContent {
-	visiblePosts := preparePosts(posts, cfg, buildDrafts)
-	sortPostsByDateDesc(visiblePosts)
-	pageResult := buildSitePageSpecs(visiblePosts, standalonePages, cfg)
-
-	return renderableContent{
-		posts:           visiblePosts,
-		standalonePages: standalonePages,
-		pageResult:      pageResult,
-	}
-}
-
-func assembleGenerationPlan(outputDir string, tmpl renderer, pageResult pageBuildResult, artifactSpecs []ArtifactSpec, minify bool) *generationPlan {
+func assembleGenerationPlan(outputDir string, tmpl renderer, pagePlan sitePagePlan, artifactSpecs []ArtifactSpec, minify bool) *generationPlan {
 	return &generationPlan{
 		outputDir: outputDir,
 		pagePlan: pageRenderPlan{
 			outputDir: outputDir,
 			templates: tmpl,
-			pages:     pageResult.pageSpecs,
+			pages:     pagePlan.pages,
 		},
 		artifacts: artifactPipeline{
 			specs: withMinifyArtifactEnabled(artifactSpecs, minify),
 		},
 	}
-}
-
-func buildSitePageSpecs(posts []*parser.Post, standalonePages []*parser.Page, cfg *config.Config) pageBuildResult {
-	pageSpecs, tags, categories := buildPageSpecs(posts, cfg)
-	pageSpecs = append(pageSpecs, buildStandalonePageSpecs(standalonePages, cfg)...)
-
-	return pageBuildResult{
-		pageSpecs:  pageSpecs,
-		tags:       tags,
-		categories: categories,
-	}
-}
-
-func sortPostsByDateDesc(posts []*parser.Post) {
-	sort.Slice(posts, func(i, j int) bool {
-		return posts[i].Date.After(posts[j].Date)
-	})
 }
 
 func (p *generationPlan) Execute(cleanOutput bool) error {

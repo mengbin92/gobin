@@ -138,20 +138,43 @@ func TestPreparePostsVisibility(t *testing.T) {
 	}
 }
 
-func TestPrepareRenderableContent_FiltersAndSortsPosts(t *testing.T) {
+func TestPrepareContentPlan_FiltersAndSortsPosts(t *testing.T) {
 	posts := []*parser.Post{
 		{Title: "draft", Slug: "draft", Date: time.Date(2026, 4, 2, 0, 0, 0, 0, time.UTC), Draft: true},
 		{Title: "older", Slug: "older", Date: time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC)},
 		{Title: "newer", Slug: "newer", Date: time.Date(2026, 4, 3, 0, 0, 0, 0, time.UTC)},
 	}
 
-	state := prepareRenderableContent(posts, nil, &config.Config{}, false)
+	state := prepareContentPlan(posts, nil, &config.Config{}, false)
 	if len(state.posts) != 2 {
 		t.Fatalf("Expected 2 visible posts, got %d", len(state.posts))
 	}
 	if state.posts[0].Slug != "newer" || state.posts[1].Slug != "older" {
 		t.Fatalf("Expected visible posts to be sorted desc, got %#v", []string{state.posts[0].Slug, state.posts[1].Slug})
 	}
+}
+
+func TestBuildSitePagePlan_IncludesPagesAndTaxonomyTerms(t *testing.T) {
+	posts := []*parser.Post{
+		{
+			Title:      "Planned Post",
+			Slug:       "planned-post",
+			URL:        "/planned-post/",
+			Date:       time.Date(2026, 4, 4, 0, 0, 0, 0, time.UTC),
+			Tags:       []string{"Go"},
+			Categories: []string{"Tech"},
+		},
+	}
+	standalonePages := []*parser.Page{
+		{Title: "About", URL: "/about/"},
+	}
+
+	plan := buildSitePagePlan(posts, standalonePages, &config.Config{})
+	if len(plan.pages) == 0 {
+		t.Fatal("Expected page plan to include renderable pages")
+	}
+	assertStringSliceEqual(t, plan.tags, []string{"go"})
+	assertStringSliceEqual(t, plan.categories, []string{"tech"})
 }
 
 func TestAssembleGenerationPlan_UsesProvidedPlans(t *testing.T) {
@@ -167,7 +190,7 @@ func TestAssembleGenerationPlan_UsesProvidedPlans(t *testing.T) {
 		Run:     func() error { return nil },
 	}}
 
-	plan := assembleGenerationPlan("public", tmpl, pageBuildResult{pageSpecs: pageSpecs}, artifacts, true)
+	plan := assembleGenerationPlan("public", tmpl, sitePagePlan{pages: pageSpecs}, artifacts, true)
 	if plan.outputDir != "public" {
 		t.Fatalf("Expected outputDir public, got %q", plan.outputDir)
 	}
@@ -3955,6 +3978,18 @@ func mustWriteFile(t *testing.T, path, content string) {
 	}
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatalf("Failed to write %s: %v", path, err)
+	}
+}
+
+func assertStringSliceEqual(t *testing.T, got []string, want []string) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("Expected %#v, got %#v", want, got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("Expected %#v, got %#v", want, got)
+		}
 	}
 }
 
