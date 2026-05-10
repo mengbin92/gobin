@@ -82,6 +82,10 @@ enableEmoji: true
 enableGitInfo: true
 enableRobotsTXT: true
 
+# Markdown 渲染
+markup:
+  allowUnsafeHTML: false
+
 # 产物开关（可选）
 outputs:
   feed: true

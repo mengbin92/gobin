@@ -74,6 +74,10 @@ func TestWatchPaths_DefaultAndTheme(t *testing.T) {
 
 	got := watchPaths(cfg)
 	want := []string{
+		"config.yaml",
+		"config.yml",
+		"_config.yml",
+		"_config.yaml",
 		"content",
 		"pages",
 		"assets",
@@ -101,7 +105,7 @@ func TestShouldRebuildForEvent(t *testing.T) {
 		{name: "write", event: fsnotify.Event{Op: fsnotify.Write}, want: true},
 		{name: "create", event: fsnotify.Event{Op: fsnotify.Create}, want: true},
 		{name: "rename", event: fsnotify.Event{Op: fsnotify.Rename}, want: true},
-		{name: "remove", event: fsnotify.Event{Op: fsnotify.Remove}, want: false},
+		{name: "remove", event: fsnotify.Event{Op: fsnotify.Remove}, want: true},
 		{name: "chmod", event: fsnotify.Event{Op: fsnotify.Chmod}, want: false},
 	}
 
@@ -158,6 +162,26 @@ func TestAddWatchPath_SkipsIgnoredDirectories(t *testing.T) {
 	assertNotContainsPath(t, watched, filepath.Join(tmpDir, "content", ".git"))
 	assertNotContainsPath(t, watched, filepath.Join(tmpDir, "content", "node_modules"))
 	assertNotContainsPath(t, watched, filepath.Join(tmpDir, "content", "public"))
+}
+
+func TestAddWatchPath_AddsFilesDirectly(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	if err := os.WriteFile(configPath, []byte("title: Test\n"), 0644); err != nil {
+		t.Fatalf("Failed to write config file: %v", err)
+	}
+
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		t.Fatalf("Failed to create watcher: %v", err)
+	}
+	defer watcher.Close()
+
+	if err := addWatchPath(watcher, configPath); err != nil {
+		t.Fatalf("addWatchPath failed: %v", err)
+	}
+
+	assertContainsPath(t, watcher.WatchList(), configPath)
 }
 
 func TestNewDevServerHandler_ServesFilesWithoutLiveReloadEndpoint(t *testing.T) {
@@ -751,7 +775,7 @@ func TestHandleWatchEvent_IgnoresUnsupportedEvents(t *testing.T) {
 	var scheduled bool
 	triggered := handleWatchEvent(fsnotify.Event{
 		Name: "content/post.md",
-		Op:   fsnotify.Remove,
+		Op:   fsnotify.Chmod,
 	}, serveRuntime{
 		stdout:  io.Discard,
 		stderr:  io.Discard,
@@ -761,7 +785,7 @@ func TestHandleWatchEvent_IgnoresUnsupportedEvents(t *testing.T) {
 	}, func() {})
 
 	if triggered {
-		t.Fatal("Expected remove event to be ignored")
+		t.Fatal("Expected chmod event to be ignored")
 	}
 	if scheduled {
 		t.Fatal("Expected ignored event not to schedule rebuild")

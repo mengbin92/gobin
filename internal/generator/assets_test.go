@@ -3,6 +3,7 @@ package generator
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/mengbin92/gobin/internal/config"
@@ -61,5 +62,24 @@ func TestCopyStaticAssetsWithResult_DoesNotRemoveUnmanagedOutputFiles(t *testing
 
 	if content, err := os.ReadFile(unmanagedPath); err != nil || string(content) != "keep" {
 		t.Fatalf("expected unmanaged output file to remain, content=%q err=%v", string(content), err)
+	}
+}
+
+func TestPlanStaticAssetCopies_RejectsOutputPathTraversal(t *testing.T) {
+	tmpDir := t.TempDir()
+	sourcePath := filepath.Join(tmpDir, "assets", "main.css")
+	mustWriteFile(t, sourcePath, "body {}")
+
+	_, err := planStaticAssetCopiesForFiles([]staticAssetFile{
+		{
+			SourcePath: sourcePath,
+			OutputPath: filepath.Join("..", "escaped.css"),
+		},
+	}, filepath.Join(tmpDir, "public"))
+	if err == nil {
+		t.Fatal("expected asset output path traversal to fail")
+	}
+	if !strings.Contains(err.Error(), "escapes output directory") {
+		t.Fatalf("expected output directory escape error, got %v", err)
 	}
 }

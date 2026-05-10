@@ -80,6 +80,33 @@ func TestLoadConfig_RejectsPublishDirOverlappingContentDir(t *testing.T) {
 	}
 }
 
+func TestLoadConfig_RejectsPublishDirOutsideSiteRoot(t *testing.T) {
+	tests := []struct {
+		name       string
+		publishDir string
+	}{
+		{name: "parent traversal", publishDir: "../public"},
+		{name: "current directory", publishDir: "."},
+		{name: "absolute path", publishDir: filepath.Join(t.TempDir(), "public")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			configPath := filepath.Join(tmpDir, "config.yaml")
+			mustWriteConfigFile(t, configPath, "title: Test\nbaseURL: \"https://example.com\"\npublishDir: \""+filepath.ToSlash(tt.publishDir)+"\"\n")
+
+			_, err := Load(configPath)
+			if err == nil {
+				t.Fatal("Expected unsafe publishDir to fail validation")
+			}
+			if !strings.Contains(err.Error(), "publishDir") {
+				t.Fatalf("Expected publishDir validation error, got: %v", err)
+			}
+		})
+	}
+}
+
 func mustWriteConfigFile(t *testing.T, path string, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {

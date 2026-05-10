@@ -193,7 +193,16 @@ func newDebounceScheduler(delay time.Duration, afterFunc debounceAfterFunc) func
 func watchPaths(cfg *config.Config) []string {
 	cfg = config.Normalize(cfg)
 
-	paths := []string{cfg.ContentDir, cfg.PageDir, cfg.StaticDir, "templates"}
+	paths := []string{
+		"config.yaml",
+		"config.yml",
+		"_config.yml",
+		"_config.yaml",
+		cfg.ContentDir,
+		cfg.PageDir,
+		cfg.StaticDir,
+		"templates",
+	}
 
 	if cfg.Theme != "" {
 		paths = append(paths,
@@ -221,7 +230,8 @@ func watchPaths(cfg *config.Config) []string {
 func shouldRebuildForEvent(event fsnotify.Event) bool {
 	return event.Op&fsnotify.Write == fsnotify.Write ||
 		event.Op&fsnotify.Create == fsnotify.Create ||
-		event.Op&fsnotify.Rename == fsnotify.Rename
+		event.Op&fsnotify.Rename == fsnotify.Rename ||
+		event.Op&fsnotify.Remove == fsnotify.Remove
 }
 
 func addWatchPath(watcher *fsnotify.Watcher, path string) error {
@@ -229,6 +239,14 @@ func addWatchPath(watcher *fsnotify.Watcher, path string) error {
 }
 
 func addWatchPathFS(watcher fsWatcher, path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return watcher.Add(path)
+	}
+
 	return filepath.WalkDir(path, func(p string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err

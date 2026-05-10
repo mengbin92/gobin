@@ -51,6 +51,10 @@ enableEmoji: true
 enableGitInfo: true
 enableRobotsTXT: true
 
+# Markdown Rendering
+markup:
+  allowUnsafeHTML: true
+
 # SEO Configuration
 seo:
   enabled: true

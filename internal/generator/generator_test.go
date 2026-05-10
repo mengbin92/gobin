@@ -3897,6 +3897,8 @@ author: Test
 baseURL: https://example.com
 contentDir: _posts
 publishDir: public
+markup:
+  allowUnsafeHTML: true
 `)
 	mustWriteFile(t, filepath.Join(siteDir, "_posts", "2024-01-01-test.md"), `---
 title: "Replace Vars"
@@ -3924,7 +3926,7 @@ date: 2024-01-01T00:00:00Z
 	if err != nil {
 		t.Fatalf("load config failed: %v", err)
 	}
-	posts, err := parser.ParsePosts("_posts")
+	posts, err := parser.ParsePostsWithOptions("_posts", parser.RenderOptions{AllowUnsafeHTML: true})
 	if err != nil {
 		t.Fatalf("parse posts failed: %v", err)
 	}

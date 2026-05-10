@@ -198,15 +198,15 @@ comments:
 
 # Markdown 渲染和代码高亮
 markup:
-  # 默认保持兼容，允许 Markdown 中的原始 HTML。
-  # 如果内容来源不完全可信，建议设为 false。
-  allowUnsafeHTML: true
+  # 默认关闭 Markdown 中的原始 HTML。
+  # 迁移可信旧内容且需要 HTML 片段时，可显式设为 true。
+  allowUnsafeHTML: false
   highlight:
     style: github
     lineNos: true
 ```
 
-`markup.allowUnsafeHTML` 默认为兼容模式。显式设置为 `false` 时，Markdown 中的原始 HTML 不会作为活动 HTML 输出，适合内容来源不完全可信的站点。
+`markup.allowUnsafeHTML` 默认关闭。显式设置为 `true` 时，Markdown 中的原始 HTML 会作为活动 HTML 输出，适合迁移完全可信的旧内容；内容来源不完全可信时应保持默认值。
 
 ## 项目结构
 

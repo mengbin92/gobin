@@ -83,9 +83,16 @@ func planStaticAssetCopies(cfg *config.Config, outputDir string) ([]staticAssetC
 		return nil, err
 	}
 
+	return planStaticAssetCopiesForFiles(assets, outputDir)
+}
+
+func planStaticAssetCopiesForFiles(assets []staticAssetFile, outputDir string) ([]staticAssetCopyPlan, error) {
 	plans := make([]staticAssetCopyPlan, 0, len(assets))
 	for _, asset := range assets {
-		destPath := filepath.Join(outputDir, asset.OutputPath)
+		destPath, err := safeOutputPath(outputDir, filepath.ToSlash(asset.OutputPath))
+		if err != nil {
+			return nil, err
+		}
 		action, reason, err := decideStaticAssetCopy(asset.SourcePath, destPath)
 		if err != nil {
 			return nil, err
@@ -151,7 +158,10 @@ func removeStaleManagedStaticAssets(outputDir string, plans []staticAssetCopyPla
 		if !ok {
 			continue
 		}
-		targetPath := filepath.Join(outputDir, cleanPath)
+		targetPath, err := safeOutputPath(outputDir, filepath.ToSlash(cleanPath))
+		if err != nil {
+			return deleted, err
+		}
 		info, err := os.Stat(targetPath)
 		if os.IsNotExist(err) {
 			continue

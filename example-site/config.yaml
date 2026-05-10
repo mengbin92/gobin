@@ -45,6 +45,10 @@ enableEmoji: true
 enableGitInfo: true
 enableRobotsTXT: true
 
+# Markdown 渲染
+markup:
+  allowUnsafeHTML: true
+
 # SEO 配置
 seo:
   enabled: true

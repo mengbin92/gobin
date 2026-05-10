@@ -64,9 +64,10 @@ type RenderOptions struct {
 	AllowUnsafeHTML bool
 }
 
-// DefaultRenderOptions returns parser settings that preserve current behavior.
+// DefaultRenderOptions returns parser settings that avoid rendering raw HTML
+// unless the site configuration explicitly opts in.
 func DefaultRenderOptions() RenderOptions {
-	return RenderOptions{AllowUnsafeHTML: true}
+	return RenderOptions{AllowUnsafeHTML: false}
 }
 
 type postFrontMatter struct {

@@ -414,7 +414,7 @@ description: "Nested description"
 		t.Fatalf("Failed to create page two: %v", err)
 	}
 
-	pages, err := ParsePages(tmpDir)
+	pages, err := ParsePagesWithOptions(tmpDir, RenderOptions{AllowUnsafeHTML: true})
 	if err != nil {
 		t.Fatalf("ParsePages failed: %v", err)
 	}
@@ -472,7 +472,7 @@ title: "Unsafe"
 	}
 }
 
-func TestParsePage_DefaultPreservesUnsafeHTML(t *testing.T) {
+func TestParsePage_DefaultDisablesUnsafeHTML(t *testing.T) {
 	tmpDir := t.TempDir()
 	pagePath := filepath.Join(tmpDir, "unsafe.md")
 	content := `---
@@ -488,8 +488,8 @@ title: "Unsafe"
 	if err != nil {
 		t.Fatalf("ParsePage failed: %v", err)
 	}
-	if !strings.Contains(page.ContentHTML, `<div class="hero">hello</div>`) {
-		t.Fatalf("Expected default parser to preserve raw HTML, got %s", page.ContentHTML)
+	if strings.Contains(page.ContentHTML, `<div class="hero">hello</div>`) {
+		t.Fatalf("Expected default parser to disable raw HTML, got %s", page.ContentHTML)
 	}
 }
 

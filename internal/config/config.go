@@ -200,6 +200,9 @@ func ValidateInDir(cfg *Config, baseDir string) error {
 	if err := validatePostsPermalink(cfg.Permalinks); err != nil {
 		return err
 	}
+	if err := validatePublishDirScope(cfg.PublishDir); err != nil {
+		return err
+	}
 	if err := validateThemeDir(cfg.Theme, cfg.ThemesDir, baseDir); err != nil {
 		return err
 	}
@@ -271,6 +274,23 @@ func validateThemeDir(theme string, themesDir string, baseDir string) error {
 			return fmt.Errorf("invalid theme %q: theme directory %q does not exist", theme, themePath)
 		}
 		return fmt.Errorf("invalid theme %q: stat %q: %w", theme, themePath, err)
+	}
+
+	return nil
+}
+
+func validatePublishDirScope(path string) error {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return nil
+	}
+	if filepath.IsAbs(trimmed) {
+		return fmt.Errorf("invalid publishDir %q: must be a relative path inside the site root", path)
+	}
+
+	cleaned := normalizeConfigPath(trimmed)
+	if cleaned == "." || containsPathTraversal(cleaned) {
+		return fmt.Errorf("invalid publishDir %q: must be a relative path inside the site root", path)
 	}
 
 	return nil
