@@ -15,6 +15,7 @@ import (
 type assetURLResolver struct {
 	sourceByOutput  map[string]string
 	versionByOutput map[string]string
+	basePath        string
 }
 
 func newAssetURLResolver(cfg *config.Config) (*assetURLResolver, error) {
@@ -31,6 +32,7 @@ func newAssetURLResolver(cfg *config.Config) (*assetURLResolver, error) {
 	return &assetURLResolver{
 		sourceByOutput:  sourceByOutput,
 		versionByOutput: make(map[string]string, len(assets)),
+		basePath:        assetURLBasePath(cfg.BaseURL),
 	}, nil
 }
 
@@ -69,8 +71,32 @@ func (r *assetURLResolver) URL(raw string) (string, error) {
 
 	query := parsed.Query()
 	query.Set("v", version)
+	parsed.Path = joinURLPath(r.basePath, parsed.Path)
 	parsed.RawQuery = query.Encode()
 	return parsed.String(), nil
+}
+
+func assetURLBasePath(baseURL string) string {
+	trimmed := strings.TrimSpace(baseURL)
+	if trimmed == "" {
+		return ""
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return ""
+	}
+	if parsed.Path == "" || parsed.Path == "/" {
+		return ""
+	}
+	return "/" + strings.Trim(parsed.Path, "/")
+}
+
+func joinURLPath(basePath, assetPath string) string {
+	assetPath = "/" + strings.TrimLeft(assetPath, "/")
+	if basePath == "" {
+		return assetPath
+	}
+	return strings.TrimRight(basePath, "/") + assetPath
 }
 
 func (r *assetURLResolver) version(outputPath string) (string, bool, error) {

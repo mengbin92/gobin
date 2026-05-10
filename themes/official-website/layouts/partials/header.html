@@ -2,7 +2,7 @@
 <header class="site-header">
     <nav class="nav-container">
         <div class="nav-brand">
-            <a href="/">
+            <a href="{{ url "/" }}">
                 <span class="logo-text">gobin</span>
                 <span class="logo-prompt">_</span>
             </a>
@@ -12,7 +12,7 @@
             {{ if .Site.NavbarLinks }}
             <ul class="nav-links">
                 {{ range .Site.NavbarLinks }}
-                <li><a href="{{ .URL }}">{{ .Name }}</a></li>
+                <li><a href="{{ url .URL }}">{{ .Name }}</a></li>
                 {{ end }}
             </ul>
             {{ end }}

@@ -38,6 +38,9 @@ func loadTemplates(cfg *config.Config) (*template.Template, error) {
 		"absURL": func(path string) string {
 			return joinURL(cfg.BaseURL, path)
 		},
+		"url": func(path string) string {
+			return siteURLPath(cfg.BaseURL, path)
+		},
 		"assetURL": assetURLs.URL,
 		"stylesheetPath": func() string {
 			return detectStylesheetPath(cfg)

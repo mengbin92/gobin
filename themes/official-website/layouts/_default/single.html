@@ -3,11 +3,11 @@
     <div class="container">
         <div class="page-header">
             <nav class="breadcrumb">
-                <a href="/">Home</a>
+                <a href="{{ url "/" }}">Home</a>
                 <span class="separator">/</span>
                 {{ if .Post.Categories }}
                 {{ range first 1 .Post.Categories }}
-                <a href="/categories/{{ . | urlize }}/">{{ . }}</a>
+                <a href="{{ url (printf "/categories/%s/" (. | urlize)) }}">{{ . }}</a>
                 <span class="separator">/</span>
                 {{ end }}
                 {{ end }}
@@ -47,7 +47,7 @@
                 <h4>Tags</h4>
                 <div class="tags-list">
                     {{ range .Post.Tags }}
-                    <a href="/tags/{{ . | urlize }}/" class="tag-link">#{{ . }}</a>
+                    <a href="{{ url (printf "/tags/%s/" (. | urlize)) }}" class="tag-link">#{{ . }}</a>
                     {{ end }}
                 </div>
             </div>

@@ -256,7 +256,7 @@ cd my-blog</code></pre>
             <p>立即开始使用 Gobin，体验极速构建</p>
             <div class="cta-actions">
                 <a href="#quickstart" class="btn btn-primary">Get Started</a>
-                <a href="/docs/" class="btn btn-secondary">Read Docs</a>
+                <a href="{{ url "/docs/" }}" class="btn btn-secondary">Read Docs</a>
             </div>
         </div>
     </div>
@@ -272,14 +272,14 @@ cd my-blog</code></pre>
             <div class="pagination-links">
                 {{ if and (gt .Pagination.PrevPage 0) (not .Pagination.IsFirstPage) }}
                     {{ if eq .Pagination.PrevPage 1 }}
-                    <a href="/" class="pagination-prev">← Newer</a>
+                    <a href="{{ url "/" }}" class="pagination-prev">← Newer</a>
                     {{ else }}
-                    <a href="/{{ $.Site.PaginatePath }}/{{ .Pagination.PrevPage }}/" class="pagination-prev">← Newer</a>
+                    <a href="{{ url (printf "/%s/%d/" $.Site.PaginatePath .Pagination.PrevPage) }}" class="pagination-prev">← Newer</a>
                     {{ end }}
                 {{ end }}
 
                 {{ if and (gt .Pagination.NextPage 0) (not .Pagination.IsLastPage) }}
-                <a href="/{{ $.Site.PaginatePath }}/{{ .Pagination.NextPage }}/" class="pagination-next">Older →</a>
+                <a href="{{ url (printf "/%s/%d/" $.Site.PaginatePath .Pagination.NextPage) }}" class="pagination-next">Older →</a>
                 {{ end }}
             </div>
         </nav>

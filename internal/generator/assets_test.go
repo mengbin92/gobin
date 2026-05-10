@@ -106,6 +106,29 @@ func TestAssetURLResolver_AppendsContentVersion(t *testing.T) {
 	}
 }
 
+func TestAssetURLResolver_PrefixesBaseURLPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	staticDir := filepath.Join(tmpDir, "assets")
+	mustWriteFile(t, filepath.Join(staticDir, "css", "main.css"), "body {}")
+
+	resolver, err := newAssetURLResolver(&config.Config{
+		BaseURL:   "https://example.com/blog/",
+		StaticDir: staticDir,
+	})
+	if err != nil {
+		t.Fatalf("newAssetURLResolver failed: %v", err)
+	}
+
+	got, err := resolver.URL("/css/main.css")
+	if err != nil {
+		t.Fatalf("asset URL failed: %v", err)
+	}
+	want := "/blog/css/main.css?v=" + shortSHA256("body {}")
+	if got != want {
+		t.Fatalf("expected base path prefixed asset URL %q, got %q", want, got)
+	}
+}
+
 func TestAssetURLResolver_LeavesExternalAndUnknownURLsUnchanged(t *testing.T) {
 	tmpDir := t.TempDir()
 	staticDir := filepath.Join(tmpDir, "assets")
@@ -160,6 +183,28 @@ func TestAssetURLResolver_UsesOverlayWinner(t *testing.T) {
 	}
 	if got != "/css/theme.css?v="+shortSHA256("site") {
 		t.Fatalf("expected site asset version to win, got %q", got)
+	}
+}
+
+func TestSiteURLPath_PrefixesBaseURLPath(t *testing.T) {
+	tests := []struct {
+		name    string
+		baseURL string
+		path    string
+		want    string
+	}{
+		{name: "root base", baseURL: "https://example.com", path: "/docs/", want: "/docs/"},
+		{name: "path base", baseURL: "https://example.com/gobin/", path: "/docs/", want: "/gobin/docs/"},
+		{name: "fragment", baseURL: "https://example.com/gobin/", path: "#quickstart", want: "#quickstart"},
+		{name: "external", baseURL: "https://example.com/gobin/", path: "https://github.com/mengbin92/gobin", want: "https://github.com/mengbin92/gobin"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := siteURLPath(tt.baseURL, tt.path); got != tt.want {
+				t.Fatalf("expected %q, got %q", tt.want, got)
+			}
+		})
 	}
 }
 
