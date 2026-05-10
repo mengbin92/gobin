@@ -104,8 +104,9 @@ func (p pageRenderPlan) Execute() error {
 }
 
 func (p pageRenderPlan) ExecuteResult() (PageRenderStats, error) {
-	if err := renderPageSpecs(p.templates, p.outputDir, p.pages); err != nil {
+	stats, err := renderPageSpecsWithResult(p.templates, p.outputDir, p.pages)
+	if err != nil {
 		return PageRenderStats{}, err
 	}
-	return PageRenderStats{Rendered: len(p.pages)}, nil
+	return stats, nil
 }

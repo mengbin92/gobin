@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"bytes"
 	"fmt"
 	"html/template"
 	"io"
@@ -22,25 +23,61 @@ type PageSpec struct {
 }
 
 func renderPageSpecs(tmpl renderer, outputDir string, pages []PageSpec) error {
+	_, err := renderPageSpecsWithResult(tmpl, outputDir, pages)
+	return err
+}
+
+func renderPageSpecsWithResult(tmpl renderer, outputDir string, pages []PageSpec) (PageRenderStats, error) {
+	var stats PageRenderStats
 	for _, page := range pages {
 		templateName, err := resolveTemplateName(tmpl, page.TemplateCandidates)
 		if err != nil {
-			return pageRenderError(page, "", err)
+			return stats, pageRenderError(page, "", err)
 		}
 
 		outputPath, err := safeOutputPath(outputDir, page.OutputPath)
 		if err != nil {
-			return pageRenderError(page, templateName, err)
+			return stats, pageRenderError(page, templateName, err)
 		}
 		if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
-			return pageRenderError(page, templateName, err)
+			return stats, pageRenderError(page, templateName, err)
 		}
-		if err := renderTemplate(tmpl, templateName, outputPath, page.Data); err != nil {
-			return pageRenderError(page, templateName, err)
+		rendered, err := renderTemplateContent(tmpl, templateName, page.Data)
+		if err != nil {
+			return stats, pageRenderError(page, templateName, err)
 		}
+		if same, err := fileHasContent(outputPath, rendered); err != nil {
+			return stats, pageRenderError(page, templateName, err)
+		} else if same {
+			stats.Skipped++
+			continue
+		}
+		if err := os.WriteFile(outputPath, rendered, 0644); err != nil {
+			return stats, pageRenderError(page, templateName, err)
+		}
+		stats.Rendered++
 	}
 
-	return nil
+	return stats, nil
+}
+
+func renderTemplateContent(tmpl renderer, name string, data interface{}) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := tmpl.ExecuteTemplate(&buf, name, data); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func fileHasContent(path string, content []byte) (bool, error) {
+	existing, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return bytes.Equal(existing, content), nil
 }
 
 func resolveTemplateName(tmpl renderer, candidates []string) (string, error) {

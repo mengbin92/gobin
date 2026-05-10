@@ -1494,6 +1494,49 @@ func TestRenderPageSpecs_UsesFirstAvailableTemplate(t *testing.T) {
 	}
 }
 
+func TestRenderPageSpecsWithResult_SkipsUnchangedOutput(t *testing.T) {
+	tmpDir := t.TempDir()
+	tpl, err := template.New("pages").Parse(`{{ define "page" }}{{ . }}{{ end }}`)
+	if err != nil {
+		t.Fatalf("Failed to parse template: %v", err)
+	}
+
+	page := PageSpec{
+		TemplateCandidates: []string{"page"},
+		OutputPath:         "index.html",
+		Data:               "ok",
+	}
+	first, err := renderPageSpecsWithResult(tpl, tmpDir, []PageSpec{page})
+	if err != nil {
+		t.Fatalf("first render failed: %v", err)
+	}
+	if first.Rendered != 1 || first.Skipped != 0 {
+		t.Fatalf("expected first render to write page, got %#v", first)
+	}
+
+	outputPath := filepath.Join(tmpDir, "index.html")
+	before, err := os.Stat(outputPath)
+	if err != nil {
+		t.Fatalf("stat rendered page: %v", err)
+	}
+
+	second, err := renderPageSpecsWithResult(tpl, tmpDir, []PageSpec{page})
+	if err != nil {
+		t.Fatalf("second render failed: %v", err)
+	}
+	after, err := os.Stat(outputPath)
+	if err != nil {
+		t.Fatalf("stat rendered page after second render: %v", err)
+	}
+
+	if second.Rendered != 0 || second.Skipped != 1 {
+		t.Fatalf("expected second render to skip unchanged page, got %#v", second)
+	}
+	if !after.ModTime().Equal(before.ModTime()) {
+		t.Fatalf("expected skipped page not to be rewritten; before=%v after=%v", before.ModTime(), after.ModTime())
+	}
+}
+
 func TestRenderPageSpecs_AddsPageContextToTemplateErrors(t *testing.T) {
 	tmpDir := t.TempDir()
 	tpl := mustParseTemplate(t, `{{ define "page" }}{{ .Missing.Field }}{{ end }}`)

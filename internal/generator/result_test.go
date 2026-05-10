@@ -50,6 +50,9 @@ func TestGenerateWithPagesResultReportsStaticAssetStats(t *testing.T) {
 	if first.Pages.Rendered != 4 {
 		t.Fatalf("expected first build to render 4 pages, got %#v", first.Pages)
 	}
+	if first.Pages.Skipped != 0 {
+		t.Fatalf("expected first build not to skip pages, got %#v", first.Pages)
+	}
 
 	second, err := GenerateWithPagesResult(nil, nil, cfg, cfg.PublishDir, false, false, false)
 	if err != nil {
@@ -58,7 +61,10 @@ func TestGenerateWithPagesResultReportsStaticAssetStats(t *testing.T) {
 	if second.StaticAssets.Copied != 0 || second.StaticAssets.Skipped != 1 {
 		t.Fatalf("expected second build to skip one current asset, got %#v", second.StaticAssets)
 	}
-	if second.Pages.Rendered != 4 {
-		t.Fatalf("expected second build to render 4 pages, got %#v", second.Pages)
+	if second.Pages.Rendered != 0 {
+		t.Fatalf("expected second build to render no unchanged pages, got %#v", second.Pages)
+	}
+	if second.Pages.Skipped != 4 {
+		t.Fatalf("expected second build to skip 4 unchanged pages, got %#v", second.Pages)
 	}
 }

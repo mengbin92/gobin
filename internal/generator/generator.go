@@ -25,6 +25,7 @@ type GenerationResult struct {
 // PageRenderStats summarizes rendered page work.
 type PageRenderStats struct {
 	Rendered int
+	Skipped  int
 }
 
 // AssetCopyStats summarizes static asset copy decisions.
