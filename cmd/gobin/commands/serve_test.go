@@ -636,6 +636,62 @@ func TestServeWatchLoop_RebuildFailureDoesNotStopLaterRebuild(t *testing.T) {
 	}
 }
 
+func TestServeRebuildLifecycle_UsesLatestFilesAndRecoversAfterFailure(t *testing.T) {
+	siteDir := t.TempDir()
+	writeServeFixtureSite(t, siteDir)
+
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get cwd: %v", err)
+	}
+	defer os.Chdir(oldWd)
+	if err := os.Chdir(siteDir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	runtime := serveRuntime{
+		stdout:      &stdout,
+		stderr:      &stderr,
+		buildDrafts: false,
+		cleanOutput: true,
+	}
+
+	if _, err := buildSiteWithResultWithDeps(loadSiteBuildInput, generateSiteWithResult, false, true); err != nil {
+		t.Fatalf("initial build failed: %v", err)
+	}
+	assertFileContains(t, filepath.Join(siteDir, "public", "index.html"), "Initial Title")
+
+	mustWriteFile(t, filepath.Join(siteDir, "_posts", "2026-05-01-initial.md"), `---
+title: "Broken Title"
+date: 2026-05-01T10:00:00+08:00
+---
+
+Broken content`)
+	mustWriteFile(t, filepath.Join(siteDir, "templates", "_default", "single.html"), `{{ define "singleMain" }}{{ .Missing.Field }}{{ end }}{{ define "singlePage" }}{{ template "base" . }}{{ end }}`)
+
+	rebuildSiteAndReport(runtime)
+	if !strings.Contains(stderr.String(), "Error rebuilding site:") {
+		t.Fatalf("Expected failed rebuild to be reported, got %q", stderr.String())
+	}
+
+	mustWriteFile(t, filepath.Join(siteDir, "_posts", "2026-05-01-initial.md"), `---
+title: "Recovered Title"
+date: 2026-05-01T10:00:00+08:00
+---
+
+Recovered content`)
+	mustWriteFile(t, filepath.Join(siteDir, "templates", "_default", "single.html"), serveFixtureSingleTemplate())
+
+	rebuildSiteAndReport(runtime)
+	assertFileContains(t, filepath.Join(siteDir, "public", "index.html"), "Recovered Title")
+	assertFileContains(t, filepath.Join(siteDir, "public", "initial", "index.html"), "Recovered content")
+	if !strings.Contains(stdout.String(), "Site rebuilt successfully in") {
+		t.Fatalf("Expected successful rebuild output, got %q", stdout.String())
+	}
+}
+
 func TestRunWatchLoop_WritesWatcherErrors(t *testing.T) {
 	events := make(chan fsnotify.Event)
 	errorsCh := make(chan error, 1)
@@ -889,6 +945,16 @@ func mustMkdirAll(t *testing.T, path string) {
 	}
 }
 
+func mustWriteFile(t *testing.T, path string, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatalf("Failed to create directory for %s: %v", path, err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("Failed to write %s: %v", path, err)
+	}
+}
+
 func assertContainsPath(t *testing.T, paths []string, target string) {
 	t.Helper()
 	for _, path := range paths {
@@ -905,5 +971,52 @@ func assertNotContainsPath(t *testing.T, paths []string, target string) {
 		if path == target {
 			t.Fatalf("Expected watch list to exclude %s, got %#v", target, paths)
 		}
+	}
+}
+
+func writeServeFixtureSite(t *testing.T, siteDir string) {
+	t.Helper()
+	mustWriteFile(t, filepath.Join(siteDir, "config.yaml"), `title: Test Site
+description: Test Description
+baseURL: https://example.com
+contentDir: _posts
+pageDir: pages
+staticDir: assets
+publishDir: public
+outputs:
+  feed: false
+  sitemap: false
+  search: false
+  robots: false
+`)
+	mustWriteFile(t, filepath.Join(siteDir, "_posts", "2026-05-01-initial.md"), `---
+title: "Initial Title"
+date: 2026-05-01T10:00:00+08:00
+---
+
+Initial content`)
+	mustWriteFile(t, filepath.Join(siteDir, "templates", "_default", "base.html"), `{{ define "base" }}{{ render .MainTemplate . }}{{ end }}`)
+	mustWriteFile(t, filepath.Join(siteDir, "templates", "_default", "list.html"), `{{ define "listMain" }}{{ range .Posts }}{{ .Title }}{{ end }}{{ end }}{{ define "listPage" }}{{ template "base" . }}{{ end }}`)
+	mustWriteFile(t, filepath.Join(siteDir, "templates", "_default", "single.html"), serveFixtureSingleTemplate())
+	mustWriteFile(t, filepath.Join(siteDir, "templates", "_default", "taxonomy.html"), `{{ define "taxonomyTermsMain" }}{{ end }}{{ define "taxonomyMain" }}{{ end }}{{ define "taxonomyTermsPage" }}{{ template "base" . }}{{ end }}{{ define "taxonomyPage" }}{{ template "base" . }}{{ end }}`)
+	mustWriteFile(t, filepath.Join(siteDir, "templates", "_default", "404.html"), `{{ define "notFoundMain" }}404{{ end }}{{ define "notFoundPage" }}{{ template "base" . }}{{ end }}`)
+	mustWriteFile(t, filepath.Join(siteDir, "templates", "partials", "header.html"), `{{ define "header" }}{{ end }}{{ define "headerNested" }}{{ end }}`)
+	mustWriteFile(t, filepath.Join(siteDir, "templates", "partials", "footer.html"), `{{ define "footer" }}{{ end }}{{ define "footerNested" }}{{ end }}`)
+	mustWriteFile(t, filepath.Join(siteDir, "templates", "partials", "comments.html"), `{{ define "comments" }}{{ end }}`)
+	mustWriteFile(t, filepath.Join(siteDir, "templates", "partials", "analytics.html"), `{{ define "analytics" }}{{ end }}`)
+}
+
+func serveFixtureSingleTemplate() string {
+	return `{{ define "singleMain" }}{{ .Post.Title }} {{ safeHTML .Post.ContentHTML }}{{ end }}{{ define "singlePage" }}{{ template "base" . }}{{ end }}`
+}
+
+func assertFileContains(t *testing.T, path string, expected string) {
+	t.Helper()
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("Failed to read %s: %v", path, err)
+	}
+	if !strings.Contains(string(content), expected) {
+		t.Fatalf("Expected %s to contain %q, got %s", path, expected, string(content))
 	}
 }

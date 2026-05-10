@@ -1,4 +1,4 @@
-.PHONY: help build build-all test test-coverage benchmark clean install release-local
+.PHONY: help build build-all test test-coverage benchmark benchmark-check clean install release-local
 
 # 版本信息
 VERSION ?= $(shell git describe --tags --exact-match 2>/dev/null || echo "dev")
@@ -26,6 +26,7 @@ help:
 	@echo "  test          - 运行所有测试"
 	@echo "  test-coverage - 运行测试并生成覆盖率报告"
 	@echo "  benchmark     - 运行性能基准并写入 benchmark-results.txt"
+	@echo "  benchmark-check - 校验 benchmark-results.txt 的性能阈值"
 	@echo "  clean         - 清理构建产物"
 	@echo "  install       - 安装到 $$GOPATH/bin"
 	@echo "  release-local - 本地构建所有平台并打包"
@@ -68,6 +69,10 @@ benchmark:
 	$(GOTEST) -run '^$$' -bench=. -benchmem -benchtime=$(BENCH_TIME) -count=1 ./... > $(BENCH_OUTPUT)
 	@cat $(BENCH_OUTPUT)
 	@echo "[file] Benchmark results written to $(BENCH_OUTPUT)"
+
+benchmark-check:
+	@echo "[bench] Checking benchmark thresholds..."
+	@./scripts/check-benchmark.sh $(BENCH_OUTPUT)
 
 # 清理
 clean:
