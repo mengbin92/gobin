@@ -231,6 +231,13 @@ func ParsePosts(dir string) ([]*Post, error) {
 
 // ParsePostsWithOptions parses all markdown posts from a directory using render options.
 func ParsePostsWithOptions(dir string, opts RenderOptions) ([]*Post, error) {
+	if dir == "" {
+		return nil, nil
+	}
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return nil, nil
+	}
+
 	var posts []*Post
 
 	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {

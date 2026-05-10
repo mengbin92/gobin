@@ -387,6 +387,16 @@ Draft content.`
 	}
 }
 
+func TestParsePosts_MissingDirectoryReturnsEmpty(t *testing.T) {
+	posts, err := ParsePosts(filepath.Join(t.TempDir(), "missing"))
+	if err != nil {
+		t.Fatalf("ParsePosts should ignore missing directories, got %v", err)
+	}
+	if len(posts) != 0 {
+		t.Fatalf("Expected no posts for missing directory, got %d", len(posts))
+	}
+}
+
 func TestParsePages(t *testing.T) {
 	tmpDir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(tmpDir, "docs"), 0755); err != nil {
