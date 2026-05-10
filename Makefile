@@ -1,4 +1,4 @@
-.PHONY: help build build-all test test-coverage benchmark benchmark-check clean install release-local
+.PHONY: help build build-all test lint test-coverage benchmark benchmark-check clean install release-local
 
 # 版本信息
 VERSION ?= $(shell git describe --tags --exact-match 2>/dev/null || echo "dev")
@@ -24,6 +24,7 @@ help:
 	@echo "  build         - 构建当前平台的二进制文件"
 	@echo "  build-all     - 构建所有支持平台的二进制文件"
 	@echo "  test          - 运行所有测试"
+	@echo "  lint          - 运行格式和静态检查"
 	@echo "  test-coverage - 运行测试并生成覆盖率报告"
 	@echo "  benchmark     - 运行性能基准并写入 benchmark-results.txt"
 	@echo "  benchmark-check - 校验 benchmark-results.txt 的性能阈值"
@@ -54,6 +55,12 @@ build-all:
 test:
 	@echo "[test] Running tests..."
 	$(GOTEST) -v ./...
+
+lint:
+	@echo "[lint] Checking gofmt..."
+	@test -z "$$(gofmt -l $$(find . -name '*.go' -not -path './dist/*'))"
+	@echo "[lint] Running go vet..."
+	go vet ./...
 
 # 运行测试并显示覆盖率
 test-coverage:
