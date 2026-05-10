@@ -92,12 +92,12 @@ ls -lh dist/
 输出示例：
 ```
 -rwxr-xr-x 1 user user 8.5M Jan 7 10:30 gobin-v1.0.0-linux-amd64
--rwxr-xr-x 1 user user 8.3M Jan 7 10:30 gobin-v1.0.0-linux-arm64
--rwxr-xr-x 1 user user 8.1M Jan 7 10:30 gobin-v1.0.0-darwin-amd64
--rwxr-xr-x 1 user user 8.2M Jan 7 10:30 gobin-v1.0.0-darwin-arm64
--rwxr-xr-x 1 user user 8.4M Jan 7 10:30 gobin-v1.0.0-windows-amd64.exe
--rwxr-xr-x 1 user user 8.6M Jan 7 10:30 gobin-v1.0.0-freebsd-amd64
+-rw-r--r-- 1 user user 3.2M Jan 7 10:30 gobin-v1.0.0-linux-amd64.tar.gz
+-rw-r--r-- 1 user user 3.1M Jan 7 10:30 gobin-v1.0.0-windows-amd64.zip
+-rw-r--r-- 1 user user  512 Jan 7 10:30 SHA256SUMS
 ```
+
+Release 上传物应使用压缩包和 `SHA256SUMS`。裸二进制会保留在 `dist/` 中便于本地快速验证，但自动发布工作流只上传 `.tar.gz`、`.zip` 和 `SHA256SUMS`。
 
 #### 3. 上传到 GitHub Release
 
@@ -123,7 +123,7 @@ gh auth login
 gh release create v1.0.0 \
   --title "Gobin v1.0.0" \
   --notes-file RELEASE-NOTES-v1.0.md \
-  dist/*
+  dist/*.tar.gz dist/*.zip dist/SHA256SUMS
 ```
 
 发布说明文件建议按 tag 命名，例如 `RELEASE-NOTES-v1.1.0.md`。自动发布工作流会按顺序查找：
@@ -173,10 +173,10 @@ gh auth login
 
 ```bash
 # 上传单个文件
-gh release upload v1.0.0 dist/gobin-v1.0.0-linux-amd64
+gh release upload v1.0.0 dist/gobin-v1.0.0-linux-amd64.tar.gz
 
 # 上传所有文件
-gh release upload v1.0.0 dist/*
+gh release upload v1.0.0 dist/*.tar.gz dist/*.zip dist/SHA256SUMS
 ```
 
 ---

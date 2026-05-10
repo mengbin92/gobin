@@ -45,8 +45,8 @@ if ! gh release view "${TAG}" > /dev/null 2>&1; then
 fi
 
 # Find all binary files
-echo "[find] Found the following binaries:"
-find dist/ -type f -name "gobin-*" | sort
+echo "[find] Found the following release artifacts:"
+find dist/ -type f \( -name "*.tar.gz" -o -name "*.zip" -o -name "SHA256SUMS" \) | sort
 
 echo ""
 read -p "Do you want to upload these files? (y/n) " -r
@@ -57,7 +57,7 @@ fi
 
 # Upload files
 echo "[upload] Uploading files to release ${TAG}..."
-for file in dist/*; do
+for file in dist/*.tar.gz dist/*.zip dist/SHA256SUMS; do
     if [ -f "$file" ]; then
         filename=$(basename "$file")
         echo "  [upload] Uploading ${filename}..."

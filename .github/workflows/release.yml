@@ -91,6 +91,23 @@ jobs:
       - name: List artifacts
         run: ls -lh dist/
 
+      - name: Package release artifacts
+        run: |
+          mkdir -p release
+          find dist -maxdepth 2 -type f -name 'gobin-*' | sort | while read -r file; do
+            name="$(basename "$file")"
+            if [[ "$name" == *.exe ]]; then
+              archive="${name%.exe}.zip"
+              (cd "$(dirname "$file")" && zip -q "${GITHUB_WORKSPACE}/release/${archive}" "$name")
+            else
+              archive="${name}.tar.gz"
+              tar czf "release/${archive}" -C "$(dirname "$file")" "$name"
+            fi
+            echo "Created release/${archive}"
+          done
+          (cd release && shasum -a 256 *.tar.gz *.zip > SHA256SUMS)
+          ls -lh release/
+
       - name: Select release notes
         id: notes
         run: |
@@ -125,6 +142,8 @@ jobs:
           generate_release_notes: false
           body_path: ${{ steps.notes.outputs.path }}
           files: |
-            dist/**/*
+            release/*.tar.gz
+            release/*.zip
+            release/SHA256SUMS
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

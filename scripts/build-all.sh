@@ -45,6 +45,34 @@ build_binary() {
     echo ""
 }
 
+package_release_artifacts() {
+    echo "[package] Creating release archives..."
+    (
+        cd dist
+        for file in gobin-*; do
+            if [[ "$file" == *.zip || "$file" == *.tar.gz || "$file" == "SHA256SUMS" ]]; then
+                continue
+            fi
+            if [[ "$file" == *.exe ]]; then
+                zip -q "${file%.exe}.zip" "$file"
+                echo "  [archive] Created ${file%.exe}.zip"
+            else
+                tar czf "$file.tar.gz" "$file"
+                echo "  [archive] Created $file.tar.gz"
+            fi
+        done
+    )
+}
+
+write_checksums() {
+    echo "[checksum] Writing SHA256SUMS..."
+    (
+        cd dist
+        rm -f SHA256SUMS
+        shasum -a 256 *.tar.gz *.zip > SHA256SUMS
+    )
+}
+
 # Linux
 build_binary "linux" "amd64" "gobin-v${VERSION}-linux-amd64"
 build_binary "linux" "arm64" "gobin-v${VERSION}-linux-arm64"
@@ -62,6 +90,9 @@ build_binary "freebsd" "amd64" "gobin-v${VERSION}-freebsd-amd64"
 # Optional: Build for more platforms
 # build_binary "openbsd" "amd64" "gobin-${VERSION}-openbsd-amd64"
 # build_binary "netbsd" "amd64" "gobin-${VERSION}-netbsd-amd64"
+
+package_release_artifacts
+write_checksums
 
 echo "[ok] All builds completed successfully!"
 echo ""

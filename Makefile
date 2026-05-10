@@ -89,22 +89,10 @@ install:
 	$(GOINSTALL) ./cmd/gobin
 	@echo "[ok] Installed to: $(shell go env GOPATH)/bin/gobin"
 
-# 本地发布（构建所有平台并创建压缩包）
+# 本地发布（构建所有平台、打包并生成校验和）
 release-local: build-all
-	@echo "[package] Creating release archives..."
-	@cd dist && \
-		for file in gobin-v*; do \
-			if [[ "$$file" == *".exe" ]]; then \
-				zip "$${file%.exe}.zip" "$$file"; \
-				echo "  [archive] Created $${file%.exe}.zip"; \
-			else \
-				tar czf "$$file.tar.gz" "$$file"; \
-				echo "  [archive] Created $$file.tar.gz"; \
-			fi; \
-		done
-	@echo ""
-	@echo "[ok] Release archives created in dist/"
-	@ls -lh dist/*.{zip,tar.gz}
+	@echo "[ok] Release archives and checksums created in dist/"
+	@ls -lh dist/*.zip dist/*.tar.gz dist/SHA256SUMS
 
 # 快速测试（运行示例站点）
 example:
