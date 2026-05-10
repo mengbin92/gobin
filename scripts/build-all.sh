@@ -12,8 +12,8 @@ BUILD_DATE=$(date -u '+%Y-%m-%d_%H:%M:%S')
 mkdir -p dist
 rm -rf dist/*
 
-echo "🔨 Building Gobin ${VERSION} (commit: ${COMMIT})"
-echo "📅 Build date: ${BUILD_DATE}"
+echo "[build] Building Gobin ${VERSION} (commit: ${COMMIT})"
+echo "[date] Build date: ${BUILD_DATE}"
 echo ""
 
 # Build function
@@ -22,7 +22,7 @@ build_binary() {
     local GOARCH=$2
     local OUTPUT_NAME=$3
 
-    echo "📦 Building for ${GOOS}/${GOARCH}..."
+    echo "[package] Building for ${GOOS}/${GOARCH}..."
 
     env GOOS=${GOOS} GOARCH=${GOARCH} \
         go build \
@@ -31,7 +31,7 @@ build_binary() {
         ./cmd/gobin
 
     if [ $? -eq 0 ]; then
-        echo "✅ Success: ${OUTPUT_NAME}"
+        echo "[ok] Success: ${OUTPUT_NAME}"
         # Make executable on Unix-like systems
         if [[ "${GOOS}" != "windows" ]]; then
             chmod +x "dist/${OUTPUT_NAME}"
@@ -39,7 +39,7 @@ build_binary() {
         # Show file info
         ls -lh "dist/${OUTPUT_NAME}"
     else
-        echo "❌ Failed: ${OUTPUT_NAME}"
+        echo "[error] Failed: ${OUTPUT_NAME}"
         exit 1
     fi
     echo ""
@@ -63,7 +63,7 @@ build_binary "freebsd" "amd64" "gobin-v${VERSION}-freebsd-amd64"
 # build_binary "openbsd" "amd64" "gobin-${VERSION}-openbsd-amd64"
 # build_binary "netbsd" "amd64" "gobin-${VERSION}-netbsd-amd64"
 
-echo "🎉 All builds completed successfully!"
+echo "[ok] All builds completed successfully!"
 echo ""
-echo "📂 Artifacts located in: ./dist/"
+echo "[dir] Artifacts located in: ./dist/"
 ls -lh dist/

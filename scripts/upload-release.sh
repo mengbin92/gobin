@@ -17,7 +17,7 @@ fi
 TAG=$1
 VERSION=${TAG#v}
 RELEASE_NOTES=""
-echo "🚀 Uploading binaries for release ${TAG}..."
+echo "[run] Uploading binaries for release ${TAG}..."
 
 for file in "RELEASE-NOTES-v${VERSION}.md" "RELEASE-NOTES-${VERSION}.md" "RELEASE-NOTES.md"; do
     if [ -f "$file" ]; then
@@ -28,14 +28,14 @@ done
 
 # Check if dist directory exists
 if [ ! -d "dist" ]; then
-    echo "❌ dist/ directory not found. Run build-all.sh first."
+    echo "[error] dist/ directory not found. Run build-all.sh first."
     exit 1
 fi
 
 # Check if release exists
-echo "📋 Checking if release ${TAG} exists..."
+echo "[check] Checking if release ${TAG} exists..."
 if ! gh release view "${TAG}" > /dev/null 2>&1; then
-    echo "❌ Release ${TAG} does not exist. Create it first:"
+    echo "[error] Release ${TAG} does not exist. Create it first:"
     if [ -n "$RELEASE_NOTES" ]; then
         echo "   gh release create ${TAG} -t \"${TAG}\" -F ${RELEASE_NOTES}"
     else
@@ -45,32 +45,32 @@ if ! gh release view "${TAG}" > /dev/null 2>&1; then
 fi
 
 # Find all binary files
-echo "🔍 Found the following binaries:"
+echo "[find] Found the following binaries:"
 find dist/ -type f -name "gobin-*" | sort
 
 echo ""
 read -p "Do you want to upload these files? (y/n) " -r
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "❌ Cancelled."
+    echo "[error] Cancelled."
     exit 1
 fi
 
 # Upload files
-echo "⏫ Uploading files to release ${TAG}..."
+echo "[upload] Uploading files to release ${TAG}..."
 for file in dist/*; do
     if [ -f "$file" ]; then
         filename=$(basename "$file")
-        echo "  📤 Uploading ${filename}..."
+        echo "  [upload] Uploading ${filename}..."
         gh release upload "${TAG}" "$file"
         if [ $? -eq 0 ]; then
-            echo "  ✅ Uploaded ${filename}"
+            echo "  [ok] Uploaded ${filename}"
         else
-            echo "  ❌ Failed to upload ${filename}"
+            echo "  [error] Failed to upload ${filename}"
             exit 1
         fi
     fi
 done
 
 echo ""
-echo "🎉 All files uploaded successfully!"
-echo "📦 Release URL: https://github.com/owner/repo/releases/tag/${TAG}"
+echo "[ok] All files uploaded successfully!"
+echo "[package] Release URL: https://github.com/owner/repo/releases/tag/${TAG}"

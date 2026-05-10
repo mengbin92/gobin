@@ -39,69 +39,69 @@ help:
 
 # 构建当前平台
 build:
-	@echo "🔨 Building Gobin $(VERSION)..."
+	@echo "[build] Building Gobin $(VERSION)..."
 	$(GOBUILD) $(LDFLAGS) -o gobin ./cmd/gobin
-	@echo "✅ Build complete: ./gobin"
+	@echo "[ok] Build complete: ./gobin"
 	@ls -lh gobin
 
 # 构建所有平台
 build-all:
-	@echo "📦 Building for all platforms..."
+	@echo "[package] Building for all platforms..."
 	@./scripts/build-all.sh
 
 # 运行测试
 test:
-	@echo "🧪 Running tests..."
+	@echo "[test] Running tests..."
 	$(GOTEST) -v ./...
 
 # 运行测试并显示覆盖率
 test-coverage:
-	@echo "🧪 Running tests with coverage..."
+	@echo "[test] Running tests with coverage..."
 	$(GOTEST) -v -cover ./internal/parser/... ./internal/config/... ./internal/generator/...
 	@echo ""
-	@echo "📊 Coverage summary:"
+	@echo "[coverage] Coverage summary:"
 	$(GOTEST) -cover ./internal/parser/... ./internal/config/... ./internal/generator/... | grep coverage
 
 # 运行性能基准并保存结果
 benchmark:
-	@echo "📈 Running benchmark baseline..."
+	@echo "[bench] Running benchmark baseline..."
 	$(GOTEST) -run '^$$' -bench=. -benchmem -benchtime=$(BENCH_TIME) -count=1 ./... > $(BENCH_OUTPUT)
 	@cat $(BENCH_OUTPUT)
-	@echo "📄 Benchmark results written to $(BENCH_OUTPUT)"
+	@echo "[file] Benchmark results written to $(BENCH_OUTPUT)"
 
 # 清理
 clean:
-	@echo "🧹 Cleaning..."
+	@echo "[clean] Cleaning..."
 	$(GOCLEAN)
 	@rm -rf dist/
 	@rm -f gobin
 	@rm -f benchmark-results.txt
-	@echo "✅ Clean complete"
+	@echo "[ok] Clean complete"
 
 # 安装到 GOPATH/bin
 install:
-	@echo "📦 Installing Gobin..."
+	@echo "[package] Installing Gobin..."
 	$(GOINSTALL) ./cmd/gobin
-	@echo "✅ Installed to: $(shell go env GOPATH)/bin/gobin"
+	@echo "[ok] Installed to: $(shell go env GOPATH)/bin/gobin"
 
 # 本地发布（构建所有平台并创建压缩包）
 release-local: build-all
-	@echo "📦 Creating release archives..."
+	@echo "[package] Creating release archives..."
 	@cd dist && \
 		for file in gobin-v*; do \
 			if [[ "$$file" == *".exe" ]]; then \
 				zip "$${file%.exe}.zip" "$$file"; \
-				echo "  📁 Created $${file%.exe}.zip"; \
+				echo "  [archive] Created $${file%.exe}.zip"; \
 			else \
 				tar czf "$$file.tar.gz" "$$file"; \
-				echo "  📁 Created $$file.tar.gz"; \
+				echo "  [archive] Created $$file.tar.gz"; \
 			fi; \
 		done
 	@echo ""
-	@echo "✅ Release archives created in dist/"
+	@echo "[ok] Release archives created in dist/"
 	@ls -lh dist/*.{zip,tar.gz}
 
 # 快速测试（运行示例站点）
 example:
-	@echo "🚀 Running example site..."
+	@echo "[run] Running example site..."
 	@cd example-site && gobin build && gobin serve
