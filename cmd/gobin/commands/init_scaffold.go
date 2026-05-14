@@ -137,6 +137,27 @@ func scaffoldListTemplate() string {
         </li>
         {{ end }}
     </ul>
+
+    {{ if .Pagination }}
+    <nav class="pagination">
+        <div class="pagination-info">
+            Page {{ .Pagination.Page }} of {{ .Pagination.TotalPages }}
+        </div>
+        <div class="pagination-links">
+            {{ if and (gt .Pagination.PrevPage 0) (not .Pagination.IsFirstPage) }}
+                {{ if eq .Pagination.PrevPage 1 }}
+                <a href="/" class="pagination-prev">← 上一页</a>
+                {{ else }}
+                <a href="/{{ $.Site.PaginatePath }}/{{ .Pagination.PrevPage }}/" class="pagination-prev">← 上一页</a>
+                {{ end }}
+            {{ end }}
+
+            {{ if and (gt .Pagination.NextPage 0) (not .Pagination.IsLastPage) }}
+            <a href="/{{ $.Site.PaginatePath }}/{{ .Pagination.NextPage }}/" class="pagination-next">下一页 →</a>
+            {{ end }}
+        </div>
+    </nav>
+    {{ end }}
 </div>
 {{ end }}
 `
@@ -221,6 +242,7 @@ func scaffoldTaxonomyTemplate() string {
 func scaffoldHeaderTemplate() string {
 	return `{{ define "header" }}
 <header class="site-header">
+<div class="container">
     <nav class="navbar">
         <div class="logo">
             <a href="/">{{ .Site.Title }}</a>
@@ -231,6 +253,7 @@ func scaffoldHeaderTemplate() string {
             {{ end }}
         </ul>
     </nav>
+</div>
 </header>
 {{ end }}
 
@@ -243,8 +266,10 @@ func scaffoldHeaderTemplate() string {
 func scaffoldFooterTemplate() string {
 	return `{{ define "footer" }}
 <footer class="site-footer">
+<div class="container">
     <p>&copy; {{ now.Format "2006" }} {{ .Site.Author }}. All rights reserved.</p>
     <p>Powered by <a href="https://github.com/mengbin92/gobin">Gobin</a></p>
+</div>
 </footer>
 {{ end }}
 
@@ -351,8 +376,11 @@ body {
 .site-header {
     background: #fff;
     border-bottom: 1px solid #eee;
-    padding: 1rem 0;
     margin-bottom: 2rem;
+}
+
+.site-header .container {
+    padding: 1rem 20px;
 }
 
 .navbar {
@@ -495,10 +523,13 @@ body {
 /* Footer */
 .site-footer {
     background: #f9f9f9;
-    padding: 2rem 0;
     margin-top: 4rem;
     text-align: center;
     color: #666;
+}
+
+.site-footer .container {
+    padding: 2rem 20px;
 }
 
 .site-footer p {
