@@ -1,0 +1,11 @@
+services:
+  gobin:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: gobin-dev
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/app
+    command: ["gobin", "serve", "--port", "8080", "--watch=true"]
