@@ -102,7 +102,7 @@ func scaffoldBaseTemplate() string {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ if .Title }}{{ .Title }} | {{ .Site.Title }}{{ else }}{{ .Site.Title }}{{ end }}</title>
+    <title>{{ if and .Title (ne .Title .Site.Title) }}{{ .Title }} | {{ .Site.Title }}{{ else if .Title }}{{ .Title }}{{ else }}{{ .Site.Title }}{{ end }}</title>
     <meta name="description" content="{{ if .Description }}{{ .Description }}{{ else }}{{ .Site.Description }}{{ end }}">
     {{ if .Canonical }}<link rel="canonical" href="{{ .Canonical }}">{{ end }}
     <link rel="stylesheet" href="{{ stylesheetPath }}">
@@ -128,7 +128,9 @@ func scaffoldListTemplate() string {
 
 {{ define "listMain" }}
 <div class="post-list">
+    {{ if and .Title (ne .Title .Site.Title) }}
     <h1>{{ .Title }}</h1>
+    {{ end }}
     <ul>
         {{ range .Posts }}
         <li>
