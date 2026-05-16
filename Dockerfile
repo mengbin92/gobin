@@ -14,11 +14,13 @@ FROM alpine:3.21
 
 RUN apk add --no-cache ca-certificates tzdata
 
-WORKDIR /app
+WORKDIR /site
 
 COPY --from=builder /out/gobin /usr/local/bin/gobin
-COPY --from=builder /src /app
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+
+ENTRYPOINT ["docker-entrypoint.sh"]
 
 EXPOSE 8080
 
-CMD ["gobin", "init"]
+CMD ["gobin", "serve", "--port", "8080", "--watch=true", "--live-reload=false"]

@@ -1,6 +1,5 @@
 {{ define "singleMain" }}
 <article class="post-single">
-    <div class="theme-indicator">🎨 Example Theme Active</div>
     <header class="post-header">
         <h1 class="post-title">{{ .Post.Title }}</h1>
         <div class="post-meta">
@@ -30,7 +29,6 @@
     <title>{{ .Post.Title }} - {{ .Site.Title }}</title>
     <meta name="description" content="{{ .Post.Description }}">
     <link rel="stylesheet" href="{{ stylesheetPath }}">
-    <!-- Example Theme Custom Styles -->
     <style>
         body {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -41,18 +39,6 @@
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
-        }
-        .theme-indicator {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #ff6b6b;
-            color: white;
-            padding: 10px 15px;
-            border-radius: 20px;
-            font-weight: bold;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            z-index: 1000;
         }
     </style>
 </head>

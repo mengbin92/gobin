@@ -1,8 +1,17 @@
 .git
 .github
+.claude
+.cursor
+.idea
+.vscode
 dist
 public
 benchmark-results.txt
 gobin
 *.log
 docs
+bin
+coverage.*
+*.out
+*.test
+test

@@ -1,11 +1,19 @@
 services:
   gobin:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: gobin-dev
+    image: ${GOBIN_IMAGE:-gobin:latest}
+    container_name: gobin
+    working_dir: /site
     ports:
       - "8080:8080"
+    environment:
+      GOBIN_AUTO_INIT: ${GOBIN_AUTO_INIT:-true}
     volumes:
-      - .:/app
-    command: ["gobin", "serve", "--port", "8080", "--watch=true"]
+      - ${GOBIN_SITE_DIR:-./site}:/site
+    command: ["gobin", "serve", "--port", "8080", "--watch=true", "--live-reload=false"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
