@@ -77,7 +77,7 @@ func TestPlanStaticAssetCopies_RejectsOutputPathTraversal(t *testing.T) {
 			SourcePath: sourcePath,
 			OutputPath: filepath.Join("..", "escaped.css"),
 		},
-	}, filepath.Join(tmpDir, "public"))
+	}, filepath.Join(tmpDir, "public"), newAssetFingerprinter(nil))
 	if err == nil {
 		t.Fatal("expected asset output path traversal to fail")
 	}
@@ -211,4 +211,145 @@ func TestSiteURLPath_PrefixesBaseURLPath(t *testing.T) {
 func shortSHA256(content string) string {
 	sum := sha256.Sum256([]byte(content))
 	return hex.EncodeToString(sum[:])[:12]
+}
+
+func filenameFingerprintConfig(staticDir string) *config.Config {
+	return &config.Config{
+		StaticDir: staticDir,
+		Assets: &config.AssetsConfig{
+			Fingerprint: &config.AssetsFingerprintConfig{
+				Strategy:   config.AssetsFingerprintStrategyFilename,
+				Extensions: []string{".css", ".js"},
+			},
+		},
+	}
+}
+
+func TestCopyStaticAssetsWithResult_FilenameFingerprint_WritesHashedName(t *testing.T) {
+	tmpDir := t.TempDir()
+	staticDir := filepath.Join(tmpDir, "assets")
+	outputDir := filepath.Join(tmpDir, "public")
+	mustWriteFile(t, filepath.Join(staticDir, "css", "main.css"), "body {}")
+	mustWriteFile(t, filepath.Join(staticDir, "robots.txt"), "User-agent: *")
+
+	cfg := filenameFingerprintConfig(staticDir)
+
+	result, err := copyStaticAssetsWithResult(cfg, outputDir)
+	if err != nil {
+		t.Fatalf("copyStaticAssetsWithResult failed: %v", err)
+	}
+	if result.Copied != 2 {
+		t.Fatalf("expected 2 copied assets, got %d", result.Copied)
+	}
+
+	wantHash := shortSHA256("body {}")
+	hashedPath := filepath.Join(outputDir, "css", "main."+wantHash+".css")
+	if _, err := os.Stat(hashedPath); err != nil {
+		t.Fatalf("expected fingerprinted asset at %s, got err=%v", hashedPath, err)
+	}
+	originalPath := filepath.Join(outputDir, "css", "main.css")
+	if _, err := os.Stat(originalPath); !os.IsNotExist(err) {
+		t.Fatalf("expected original filename to be absent, got err=%v", err)
+	}
+	if _, err := os.Stat(filepath.Join(outputDir, "robots.txt")); err != nil {
+		t.Fatalf("expected non-fingerprintable asset to land at original path, got err=%v", err)
+	}
+}
+
+func TestCopyStaticAssetsWithResult_FilenameFingerprint_RemovesStaleHashWhenContentChanges(t *testing.T) {
+	tmpDir := t.TempDir()
+	staticDir := filepath.Join(tmpDir, "assets")
+	outputDir := filepath.Join(tmpDir, "public")
+	sourcePath := filepath.Join(staticDir, "css", "main.css")
+	mustWriteFile(t, sourcePath, "body {}")
+
+	cfg := filenameFingerprintConfig(staticDir)
+	if _, err := copyStaticAssetsWithResult(cfg, outputDir); err != nil {
+		t.Fatalf("first copy failed: %v", err)
+	}
+
+	originalHash := shortSHA256("body {}")
+	originalHashedPath := filepath.Join(outputDir, "css", "main."+originalHash+".css")
+	if _, err := os.Stat(originalHashedPath); err != nil {
+		t.Fatalf("expected original hashed asset to exist before update, got err=%v", err)
+	}
+
+	mustWriteFile(t, sourcePath, "body { color: red; }")
+	result, err := copyStaticAssetsWithResult(cfg, outputDir)
+	if err != nil {
+		t.Fatalf("second copy failed: %v", err)
+	}
+	if result.Deleted != 1 {
+		t.Fatalf("expected one stale fingerprinted file to be deleted, got %d", result.Deleted)
+	}
+	if _, err := os.Stat(originalHashedPath); !os.IsNotExist(err) {
+		t.Fatalf("expected stale fingerprinted file to be removed, got err=%v", err)
+	}
+
+	updatedHash := shortSHA256("body { color: red; }")
+	updatedHashedPath := filepath.Join(outputDir, "css", "main."+updatedHash+".css")
+	if _, err := os.Stat(updatedHashedPath); err != nil {
+		t.Fatalf("expected new fingerprinted asset at %s, got err=%v", updatedHashedPath, err)
+	}
+}
+
+func TestAssetURLResolver_FilenameStrategy_ReturnsHashedPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	staticDir := filepath.Join(tmpDir, "assets")
+	mustWriteFile(t, filepath.Join(staticDir, "css", "main.css"), "body {}")
+
+	resolver, err := newAssetURLResolver(filenameFingerprintConfig(staticDir))
+	if err != nil {
+		t.Fatalf("newAssetURLResolver failed: %v", err)
+	}
+
+	got, err := resolver.URL("/css/main.css")
+	if err != nil {
+		t.Fatalf("asset URL failed: %v", err)
+	}
+	want := "/css/main." + shortSHA256("body {}") + ".css"
+	if got != want {
+		t.Fatalf("expected fingerprinted asset URL %q, got %q", want, got)
+	}
+}
+
+func TestAssetURLResolver_FilenameStrategy_NonFingerprintableFallsBackToQuery(t *testing.T) {
+	tmpDir := t.TempDir()
+	staticDir := filepath.Join(tmpDir, "assets")
+	mustWriteFile(t, filepath.Join(staticDir, "robots.txt"), "User-agent: *")
+
+	resolver, err := newAssetURLResolver(filenameFingerprintConfig(staticDir))
+	if err != nil {
+		t.Fatalf("newAssetURLResolver failed: %v", err)
+	}
+
+	got, err := resolver.URL("/robots.txt")
+	if err != nil {
+		t.Fatalf("asset URL failed: %v", err)
+	}
+	if got != "/robots.txt?v="+shortSHA256("User-agent: *") {
+		t.Fatalf("expected non-fingerprintable assets to keep query versioning, got %q", got)
+	}
+}
+
+func TestAssetURLResolver_FilenameStrategy_PrefixesBaseURLPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	staticDir := filepath.Join(tmpDir, "assets")
+	mustWriteFile(t, filepath.Join(staticDir, "css", "main.css"), "body {}")
+
+	cfg := filenameFingerprintConfig(staticDir)
+	cfg.BaseURL = "https://example.com/blog/"
+	resolver, err := newAssetURLResolver(cfg)
+	if err != nil {
+		t.Fatalf("newAssetURLResolver failed: %v", err)
+	}
+
+	got, err := resolver.URL("/css/main.css")
+	if err != nil {
+		t.Fatalf("asset URL failed: %v", err)
+	}
+	want := "/blog/css/main." + shortSHA256("body {}") + ".css"
+	if got != want {
+		t.Fatalf("expected base-path-prefixed fingerprinted URL %q, got %q", want, got)
+	}
 }

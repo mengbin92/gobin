@@ -19,14 +19,14 @@ Gobin 是一个基于 Go 语言开发的静态博客网站生成器，专为追�
 - 列表页、文章页、标签页、分类页生成
 - RSS、Atom、Sitemap、搜索索引生成
 - 基础主题模板与静态资源复制
-- `build`、`serve`、`init`、`version` CLI 命令
+- `build`、`serve`、`init`、`new`、`check`、`version` CLI 命令
 - `permalinks.posts` 文章链接配置
 - `draft` / `published` 内容可见性控制
+- `assets.fingerprint` 静态资源指纹（`query` / `filename` 两种策略）
+- `serve` watch 模式下的 LiveReload 注入
 
 ### 当前限制
-- 暂未实现 `new`、`check` 等命令
 - 暂未实现增量构建和并行构建
-- `serve` 当前提供自动重建，不包含真正的 LiveReload 注入
 - 多语言、短代码、图片优化等能力仍在规划中
 
 ### 规划中

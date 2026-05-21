@@ -54,9 +54,16 @@ func startServerWithRuntime(stdout io.Writer, cfg *config.Config, runtime serveR
 }
 
 func runServerLifecycle(stdout io.Writer, server devServer, addr string, signals <-chan os.Signal) error {
-	go func() {
-		<-signals
+	fmt.Fprintf(stdout, "Development server started at http://localhost%s\n", addr)
+	fmt.Fprintln(stdout, "Press Ctrl+C to stop")
 
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- server.ListenAndServe()
+	}()
+
+	select {
+	case <-signals:
 		fmt.Fprintln(stdout, "\nShutting down server...")
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -64,15 +71,16 @@ func runServerLifecycle(stdout io.Writer, server devServer, addr string, signals
 		if err := server.Shutdown(ctx); err != nil {
 			log.Printf("Server forced to shutdown: %v", err)
 		}
-	}()
-
-	fmt.Fprintf(stdout, "Development server started at http://localhost%s\n", addr)
-	fmt.Fprintln(stdout, "Press Ctrl+C to stop")
-
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		return fmt.Errorf("server error: %w", err)
+		if err := <-errCh; err != nil && err != http.ErrServerClosed {
+			return fmt.Errorf("server error: %w", err)
+		}
+		return nil
+	case err := <-errCh:
+		if err != nil && err != http.ErrServerClosed {
+			return fmt.Errorf("server error: %w", err)
+		}
+		return nil
 	}
-	return nil
 }
 
 func newDevServer(addr, outputDir string, liveReload *liveReloadBroker) devServer {

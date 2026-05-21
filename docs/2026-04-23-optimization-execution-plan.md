@@ -44,8 +44,8 @@
    - 状态：已完成基础入口
    - 说明：`make benchmark` 运行 Go benchmark 并输出 `benchmark-results.txt`；CI 在 push / PR 中运行并上传结果。后续可在结果稳定后增加趋势对比或阈值门禁。
 2. 资源管线升级为增量复制、指纹和按类型处理
-   - 状态：部分完成
-   - 说明：已完成未变化静态资源跳过复制、manifest 记录和基于 manifest 的 stale asset 清理；指纹仍待实现。
+   - 状态：已完成
+   - 说明：已完成未变化静态资源跳过复制、manifest 记录和基于 manifest 的 stale asset 清理。`assets.fingerprint.strategy` 现在支持 `filename` 模式，按内容 hash 改写文件名（`name.<hash>.ext`）；默认仍为 `query` 以保持向后兼容。
 3. 增补 `serve` 生命周期端到端测试
    - 状态：已完成基础覆盖
 
@@ -193,11 +193,46 @@
   - benchmark 结果写入 `benchmark-results.txt`
   - CI 会上传 benchmark 结果作为性能基线产物
 
+- 2026-05-21
+- 验证命令：`go test ./... -race`
+- 验证结果：通过
+- 验收结论：
+  - 新增 `assets.fingerprint` 配置，`strategy: filename` 启用按内容 hash 的文件名级指纹
+  - 默认仍保持 `query` 模式，已有站点行为不变
+  - manifest 现在记录实际落盘路径，stale fingerprint 文件会在内容变化或被删除时清理
+  - assetURL 模板函数在 filename 模式下输出 `name.<hash>.ext` 形式的链接，不在扩展名白名单内的资源会回退到 `?v=<hash>` 查询参数模式
+
 ## 6. 提交记录
+
+### P0
 
 - `7b9f468` `Complete P0 optimization cleanup`
 - `a241ed6` `Update optimization execution record`
-- 待补充 P1 统一提交哈希
-- 待补充 P2 Markdown safety / serve lifecycle 提交哈希
-- 待补充 P2 asset pipeline incremental copy 提交哈希
-- 待补充 P2 asset pipeline manifest / stale cleanup 提交哈希
+
+### P1
+
+- `37b11a1` `Complete P1 refactor pass`
+
+### P2 Markdown safety / serve lifecycle
+
+- `3c5c1f2` `Plan markdown safety and serve lifecycle work`
+- `183287d` `Add markdown safety config`
+- `864791f` `Make markdown rendering options explicit`
+- `0638b3f` `Apply markdown render config during site loading`
+- `f658140` `Cover serve rebuild lifecycle recovery`
+- `e549f4a` `Document markdown unsafe HTML setting`
+
+### P2 asset pipeline incremental copy
+
+- `9a0c5a3` `Plan asset pipeline incremental copy`
+- `adb987e` `Plan static asset copy decisions`
+- `720f27e` `Detect changed static assets`
+- `2207ea2` `Execute static asset copy plans`
+- `f4e155c` `Skip unchanged static assets during copy`
+- `b6743d6` `Document static asset copy optimization`
+- `805b417` `Improve static asset copy freshness checks`
+
+### P2 asset pipeline manifest / stale cleanup
+
+- `a4c0e68` `Optimize watch and asset pipeline`
+- `7a64208` `Optimize asset cleanup and docs`

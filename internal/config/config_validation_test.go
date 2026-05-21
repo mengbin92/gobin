@@ -107,6 +107,40 @@ func TestLoadConfig_RejectsPublishDirOutsideSiteRoot(t *testing.T) {
 	}
 }
 
+func TestLoadConfig_RejectsInvalidAssetsFingerprintStrategy(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	mustWriteConfigFile(t, configPath, "title: Test\nbaseURL: \"https://example.com\"\nassets:\n  fingerprint:\n    strategy: \"bogus\"\n")
+
+	_, err := Load(configPath)
+	if err == nil {
+		t.Fatal("Expected invalid assets.fingerprint.strategy to fail validation")
+	}
+	if !strings.Contains(err.Error(), "assets.fingerprint.strategy") {
+		t.Fatalf("Expected fingerprint strategy validation error, got: %v", err)
+	}
+}
+
+func TestLoadConfig_AcceptsFilenameFingerprintStrategyWithDefaults(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	mustWriteConfigFile(t, configPath, "title: Test\nbaseURL: \"https://example.com\"\nassets:\n  fingerprint:\n    strategy: \"filename\"\n")
+
+	cfg, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if cfg.Assets == nil || cfg.Assets.Fingerprint == nil {
+		t.Fatal("Expected assets.fingerprint config to be populated")
+	}
+	if cfg.Assets.Fingerprint.Strategy != AssetsFingerprintStrategyFilename {
+		t.Fatalf("Expected filename strategy, got %q", cfg.Assets.Fingerprint.Strategy)
+	}
+	if len(cfg.Assets.Fingerprint.Extensions) == 0 {
+		t.Fatal("Expected default extensions to be populated for filename strategy")
+	}
+}
+
 func mustWriteConfigFile(t *testing.T, path string, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
