@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -234,7 +235,7 @@ func TestLiveReloadBroker_SendsReloadEvent(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, liveReloadEndpoint, nil)
 	ctx, cancel := context.WithCancel(req.Context())
 	req = req.WithContext(ctx)
-	rec := httptest.NewRecorder()
+	rec := newSyncedResponseRecorder()
 
 	done := make(chan struct{})
 	go func() {
@@ -243,11 +244,11 @@ func TestLiveReloadBroker_SendsReloadEvent(t *testing.T) {
 	}()
 
 	waitForCondition(t, time.Second, func() bool {
-		return strings.Contains(rec.Body.String(), ": connected")
+		return strings.Contains(rec.BodyString(), ": connected")
 	})
 	broker.notify()
 	waitForCondition(t, time.Second, func() bool {
-		return strings.Contains(rec.Body.String(), "event: reload")
+		return strings.Contains(rec.BodyString(), "event: reload")
 	})
 	cancel()
 
@@ -1130,4 +1131,45 @@ func waitForCondition(t *testing.T, timeout time.Duration, condition func() bool
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal("Timed out waiting for condition")
+}
+
+type syncedResponseRecorder struct {
+	mu      sync.Mutex
+	header  http.Header
+	body    bytes.Buffer
+	status  int
+	flushed int
+}
+
+func newSyncedResponseRecorder() *syncedResponseRecorder {
+	return &syncedResponseRecorder{
+		header: make(http.Header),
+		status: http.StatusOK,
+	}
+}
+
+func (r *syncedResponseRecorder) Header() http.Header { return r.header }
+
+func (r *syncedResponseRecorder) Write(p []byte) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.body.Write(p)
+}
+
+func (r *syncedResponseRecorder) WriteHeader(statusCode int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.status = statusCode
+}
+
+func (r *syncedResponseRecorder) Flush() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.flushed++
+}
+
+func (r *syncedResponseRecorder) BodyString() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.body.String()
 }
