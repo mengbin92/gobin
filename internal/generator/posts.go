@@ -5,6 +5,7 @@ import (
 
 	"github.com/mengbin92/gobin/internal/config"
 	"github.com/mengbin92/gobin/internal/parser"
+	"github.com/mengbin92/gobin/internal/textutil"
 )
 
 func preparePosts(posts []*parser.Post, cfg *config.Config, buildDrafts bool) []*parser.Post {
@@ -95,31 +96,5 @@ func buildPostURL(post *parser.Post, cfg *config.Config) string {
 
 // urlize converts a string to URL-friendly format.
 func urlize(s string) string {
-	s = strings.ToLower(s)
-	s = strings.ReplaceAll(s, " ", "-")
-	s = strings.ReplaceAll(s, "_", "-")
-
-	var result strings.Builder
-	for _, r := range s {
-		if (r >= 'a' && r <= 'z') ||
-			(r >= '0' && r <= '9') ||
-			r == '-' ||
-			(r >= 0x4e00 && r <= 0x9fff) ||
-			(r >= 0x3400 && r <= 0x4dbf) ||
-			(r >= 0x20000 && r <= 0x2a6df) {
-			result.WriteRune(r)
-		}
-	}
-
-	url := result.String()
-	for strings.Contains(url, "--") {
-		url = strings.ReplaceAll(url, "--", "-")
-	}
-
-	url = strings.Trim(url, "-")
-	if url == "" {
-		return "untitled"
-	}
-
-	return url
+	return textutil.Slug(s)
 }
