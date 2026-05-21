@@ -1,11 +1,7 @@
 package generator
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"io"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -69,7 +65,7 @@ func (f *assetFingerprinter) hash(sourcePath string) (string, error) {
 	if cached, ok := f.hashByPath[sourcePath]; ok {
 		return cached, nil
 	}
-	digest, err := hashAssetFile(sourcePath)
+	digest, err := hashFile(sourcePath)
 	if err != nil {
 		return "", err
 	}
@@ -113,18 +109,4 @@ func normalizeExtension(ext string) string {
 		ext = "." + ext
 	}
 	return strings.ToLower(ext)
-}
-
-func hashAssetFile(path string) (string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-
-	hash := sha256.New()
-	if _, err := io.Copy(hash, file); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(hash.Sum(nil))[:12], nil
 }

@@ -54,10 +54,19 @@ func generateSite(input *siteBuildInput, outputDir string, minify bool, buildDra
 }
 
 func generateSiteWithResult(input *siteBuildInput, outputDir string, minify bool, buildDrafts bool, cleanOutput bool) (*generator.GenerationResult, error) {
+	return generateSiteWithOptions(input, generator.GenerationOptions{
+		OutputDir:   outputDir,
+		Minify:      minify,
+		BuildDrafts: buildDrafts,
+		CleanOutput: cleanOutput,
+	})
+}
+
+func generateSiteWithOptions(input *siteBuildInput, opts generator.GenerationOptions) (*generator.GenerationResult, error) {
 	if input == nil {
 		return nil, fmt.Errorf("site build input is nil")
 	}
-	result, err := generator.GenerateWithPagesResult(input.posts, input.pages, input.cfg, outputDir, minify, buildDrafts, cleanOutput)
+	result, err := generator.GenerateWithOptions(input.posts, input.pages, input.cfg, opts)
 	if err != nil {
 		return nil, fmt.Errorf("generate site: %w", err)
 	}

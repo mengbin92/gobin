@@ -24,13 +24,13 @@ Gobin 是一个基于 Go 语言开发的静态博客网站生成器，专为追�
 - `draft` / `published` 内容可见性控制
 - `assets.fingerprint` 静态资源指纹（`query` / `filename` 两种策略）
 - `serve` watch 模式下的 LiveReload 注入
+- `gobin build --incremental` 增量构建：跳过未变化的单文章页与聚合产物
 
 ### 当前限制
-- 暂未实现增量构建和并行构建
+- 暂未实现并行构建
 - 多语言、短代码、图片优化等能力仍在规划中
 
 ### 规划中
-- 增量构建
 - 并行构建
 - 更完整的 Jekyll 迁移兼容层
 - 多语言与短代码支持
