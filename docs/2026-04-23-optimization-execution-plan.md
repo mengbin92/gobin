@@ -52,6 +52,8 @@
 ### P3：延后到内核稳定后
 
 1. 增量构建
+   - 状态：已完成
+   - 说明：`gobin build --incremental` 通过 `<publishDir>/.gobin-build.json` manifest 跟踪 source / build_env 指纹，跳过未变化的单文章页、列表、taxonomy 与 feed/sitemap/search/aliases/robots 聚合产物。详见 `docs/2026-05-21-incremental-build-design.md`。`gobin serve` 自动启用增量留作后续优化。
 2. 并行构建
 3. 多语言
 4. 短代码
@@ -202,6 +204,16 @@
   - manifest 现在记录实际落盘路径，stale fingerprint 文件会在内容变化或被删除时清理
   - assetURL 模板函数在 filename 模式下输出 `name.<hash>.ext` 形式的链接，不在扩展名白名单内的资源会回退到 `?v=<hash>` 查询参数模式
 
+- 2026-05-21
+- 验证命令：`go test ./... -race` 与 `go test ./internal/generator -bench BenchmarkBuild -benchtime=2x`
+- 验证结果：通过
+- 验收结论：
+  - 新增 `gobin build --incremental` 标志（需 `--clean=false`），按 `<publishDir>/.gobin-build.json` 跟踪 source / build_env 指纹
+  - 未变化的单文章页与 standalone page 直接跳过模板渲染
+  - 当 `SiteStateHash` 与上次一致时，列表 / taxonomy / 404 页面和 feed/sitemap/search/aliases/robots 聚合产物全部跳过
+  - 模板 / 主题 / 配置 / render options 变化导致 `build_env_hash` 失配，自动降级为全量构建
+  - benchmark（M5）：100 篇 post 的无变化 incremental build ≈ 2.9 ms，全量 build ≈ 19.3 ms（约 6.7x）
+
 ## 6. 提交记录
 
 ### P0
@@ -236,3 +248,10 @@
 
 - `a4c0e68` `Optimize watch and asset pipeline`
 - `7a64208` `Optimize asset cleanup and docs`
+
+### P3 incremental build
+
+- `ffa45e8` `docs(incremental): add A-phase design document`
+- `d52cbcb` `feat(incremental): persist build manifest as side effect of each build`
+- `78770fc` `feat(incremental): skip unchanged single-content pages on --incremental`
+- `62fca01` `feat(incremental): skip list, taxonomy, and aggregate artifacts when site unchanged`

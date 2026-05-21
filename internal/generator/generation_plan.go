@@ -9,9 +9,10 @@ type generationPlan struct {
 	outputDir string
 	pagePlan  pageRenderPlan
 	artifacts artifactPipeline
+	manifest  *BuildManifest
 }
 
-func prepareGenerationPlan(posts []*parser.Post, standalonePages []*parser.Page, cfg *config.Config, outputDir string, minify bool, buildDrafts bool) (*generationPlan, error) {
+func prepareGenerationPlan(posts []*parser.Post, standalonePages []*parser.Page, cfg *config.Config, outputDir string, minify bool, buildDrafts bool, incremental bool) (*generationPlan, error) {
 	cfg = config.Normalize(cfg)
 	if outputDir == "" {
 		outputDir = cfg.PublishDir
@@ -26,7 +27,19 @@ func prepareGenerationPlan(posts []*parser.Post, standalonePages []*parser.Page,
 	}
 
 	artifactSpecs := buildArtifactSpecs(content.posts, cfg, outputDir, pagePlan.tags, pagePlan.categories)
-	return assembleGenerationPlan(outputDir, tmpl, pagePlan, artifactSpecs, minify), nil
+	plan := assembleGenerationPlan(outputDir, tmpl, pagePlan, artifactSpecs, minify)
+
+	manifest, err := buildManifestForRun(cfg, content.posts, content.standalonePages)
+	if err != nil {
+		return nil, err
+	}
+	plan.manifest = manifest
+
+	if incremental {
+		applyIncrementalSkips(plan, outputDir, manifest)
+	}
+
+	return plan, nil
 }
 
 func assembleGenerationPlan(outputDir string, tmpl renderer, pagePlan sitePagePlan, artifactSpecs []ArtifactSpec, minify bool) *generationPlan {
@@ -68,6 +81,11 @@ func (p *generationPlan) ExecuteResult(cleanOutput bool) (*GenerationResult, err
 	}
 	if artifactResult != nil {
 		result.StaticAssets = artifactResult.StaticAssets
+		result.Artifacts = artifactResult.Artifacts
+	}
+
+	if err := writeBuildManifest(p.outputDir, p.manifest); err != nil {
+		return nil, err
 	}
 
 	return result, nil

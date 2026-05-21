@@ -20,6 +20,12 @@ type PageSpec struct {
 	OutputPath         string
 	Title              string
 	Data               interface{}
+	// SkipReason, when non-empty, marks the page as eligible to be skipped
+	// during rendering — typically because the manifest indicates the source
+	// content has not changed since the previous build. The render pipeline
+	// counts these toward the Skipped stat and does not touch the output
+	// file.
+	SkipReason string
 }
 
 func renderPageSpecs(tmpl renderer, outputDir string, pages []PageSpec) error {
@@ -30,6 +36,10 @@ func renderPageSpecs(tmpl renderer, outputDir string, pages []PageSpec) error {
 func renderPageSpecsWithResult(tmpl renderer, outputDir string, pages []PageSpec) (PageRenderStats, error) {
 	var stats PageRenderStats
 	for _, page := range pages {
+		if page.SkipReason != "" {
+			stats.Skipped++
+			continue
+		}
 		templateName, err := resolveTemplateName(tmpl, page.TemplateCandidates)
 		if err != nil {
 			return stats, pageRenderError(page, "", err)

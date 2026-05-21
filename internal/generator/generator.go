@@ -20,6 +20,7 @@ type Pagination struct {
 type GenerationResult struct {
 	Pages        PageRenderStats
 	StaticAssets AssetCopyStats
+	Artifacts    ArtifactStats
 }
 
 // PageRenderStats summarizes rendered page work.
@@ -35,6 +36,27 @@ type AssetCopyStats struct {
 	Deleted int
 }
 
+// ArtifactStats summarizes aggregate artifact work (feed, sitemap, search,
+// aliases, robots, assets, minify). Skipped counts incremental skips; Ran
+// counts artifacts that actually executed (whether they wrote output or
+// not).
+type ArtifactStats struct {
+	Ran     int
+	Skipped int
+}
+
+// GenerationOptions controls a single Generate invocation. It is the
+// long-form alternative to the Generate / GenerateWithPages / *Result
+// variants for callers that need finer control such as incremental
+// rebuilds.
+type GenerationOptions struct {
+	OutputDir   string
+	Minify      bool
+	BuildDrafts bool
+	CleanOutput bool
+	Incremental bool
+}
+
 // Generate generates the static site.
 func Generate(posts []*parser.Post, cfg *config.Config, outputDir string, minify bool, buildDrafts bool, cleanOutput bool) error {
 	return GenerateWithPages(posts, nil, cfg, outputDir, minify, buildDrafts, cleanOutput)
@@ -46,11 +68,22 @@ func GenerateWithPages(posts []*parser.Post, standalonePages []*parser.Page, cfg
 }
 
 func GenerateWithPagesResult(posts []*parser.Post, standalonePages []*parser.Page, cfg *config.Config, outputDir string, minify bool, buildDrafts bool, cleanOutput bool) (*GenerationResult, error) {
-	plan, err := prepareGenerationPlan(posts, standalonePages, cfg, outputDir, minify, buildDrafts)
+	return GenerateWithOptions(posts, standalonePages, cfg, GenerationOptions{
+		OutputDir:   outputDir,
+		Minify:      minify,
+		BuildDrafts: buildDrafts,
+		CleanOutput: cleanOutput,
+	})
+}
+
+// GenerateWithOptions is the canonical entry point for site generation.
+// Other Generate* signatures forward to it.
+func GenerateWithOptions(posts []*parser.Post, standalonePages []*parser.Page, cfg *config.Config, opts GenerationOptions) (*GenerationResult, error) {
+	plan, err := prepareGenerationPlan(posts, standalonePages, cfg, opts.OutputDir, opts.Minify, opts.BuildDrafts, opts.Incremental)
 	if err != nil {
 		return nil, err
 	}
-	return plan.ExecuteResult(cleanOutput)
+	return plan.ExecuteResult(opts.CleanOutput)
 }
 
 // DryRunReport summarizes a check-only pass over the site inputs. It is
@@ -73,7 +106,7 @@ type DryRunCollision struct {
 // DryRun loads templates, computes the generation plan, and reports any
 // permalink collisions without writing any files.
 func DryRun(posts []*parser.Post, standalonePages []*parser.Page, cfg *config.Config, buildDrafts bool) (*DryRunReport, error) {
-	plan, err := prepareGenerationPlan(posts, standalonePages, cfg, "", false, buildDrafts)
+	plan, err := prepareGenerationPlan(posts, standalonePages, cfg, "", false, buildDrafts, false)
 	if err != nil {
 		return nil, err
 	}
