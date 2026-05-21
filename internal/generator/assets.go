@@ -30,8 +30,13 @@ const (
 type staticAssetCopyPlan struct {
 	Asset    staticAssetFile
 	DestPath string
-	Action   staticAssetCopyAction
-	Reason   string
+	// ManifestPath is the slash-separated path relative to outputDir that
+	// identifies this asset in the static asset manifest. It mirrors what
+	// actually lands on disk, which means it includes the content hash when
+	// filename-level fingerprinting is enabled.
+	ManifestPath string
+	Action       staticAssetCopyAction
+	Reason       string
 }
 
 type staticAssetCopyResult struct {
@@ -83,13 +88,17 @@ func planStaticAssetCopies(cfg *config.Config, outputDir string) ([]staticAssetC
 		return nil, err
 	}
 
-	return planStaticAssetCopiesForFiles(assets, outputDir)
+	return planStaticAssetCopiesForFiles(assets, outputDir, newAssetFingerprinter(cfg))
 }
 
-func planStaticAssetCopiesForFiles(assets []staticAssetFile, outputDir string) ([]staticAssetCopyPlan, error) {
+func planStaticAssetCopiesForFiles(assets []staticAssetFile, outputDir string, fingerprinter *assetFingerprinter) ([]staticAssetCopyPlan, error) {
 	plans := make([]staticAssetCopyPlan, 0, len(assets))
 	for _, asset := range assets {
-		destPath, err := safeOutputPath(outputDir, filepath.ToSlash(asset.OutputPath))
+		rewritten, err := fingerprinter.resolveFingerprintOutput(asset)
+		if err != nil {
+			return nil, err
+		}
+		destPath, err := safeOutputPath(outputDir, filepath.ToSlash(rewritten))
 		if err != nil {
 			return nil, err
 		}
@@ -98,10 +107,11 @@ func planStaticAssetCopiesForFiles(assets []staticAssetFile, outputDir string) (
 			return nil, err
 		}
 		plans = append(plans, staticAssetCopyPlan{
-			Asset:    asset,
-			DestPath: destPath,
-			Action:   action,
-			Reason:   reason,
+			Asset:        asset,
+			DestPath:     destPath,
+			ManifestPath: manifestAssetPath(rewritten),
+			Action:       action,
+			Reason:       reason,
 		})
 	}
 
@@ -145,7 +155,7 @@ func removeStaleManagedStaticAssets(outputDir string, plans []staticAssetCopyPla
 
 	current := make(map[string]struct{}, len(plans))
 	for _, plan := range plans {
-		current[manifestAssetPath(plan.Asset.OutputPath)] = struct{}{}
+		current[plan.ManifestPath] = struct{}{}
 	}
 
 	deleted := 0
@@ -207,7 +217,7 @@ func readStaticAssetManifest(outputDir string) (map[string]struct{}, error) {
 func writeStaticAssetManifest(outputDir string, plans []staticAssetCopyPlan) error {
 	assets := make([]string, 0, len(plans))
 	for _, plan := range plans {
-		assets = append(assets, manifestAssetPath(plan.Asset.OutputPath))
+		assets = append(assets, plan.ManifestPath)
 	}
 	sort.Strings(assets)
 

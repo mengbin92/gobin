@@ -1,21 +1,18 @@
 package generator
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"io"
 	"net/url"
-	"os"
 	"strings"
 
 	"github.com/mengbin92/gobin/internal/config"
 )
 
 type assetURLResolver struct {
-	sourceByOutput  map[string]string
-	versionByOutput map[string]string
-	basePath        string
+	sourceByOutput map[string]string
+	assetByOutput  map[string]staticAssetFile
+	basePath       string
+	fingerprinter  *assetFingerprinter
 }
 
 func newAssetURLResolver(cfg *config.Config) (*assetURLResolver, error) {
@@ -25,14 +22,18 @@ func newAssetURLResolver(cfg *config.Config) (*assetURLResolver, error) {
 	}
 
 	sourceByOutput := make(map[string]string, len(assets))
+	assetByOutput := make(map[string]staticAssetFile, len(assets))
 	for _, asset := range assets {
-		sourceByOutput[manifestAssetPath(asset.OutputPath)] = asset.SourcePath
+		key := manifestAssetPath(asset.OutputPath)
+		sourceByOutput[key] = asset.SourcePath
+		assetByOutput[key] = asset
 	}
 
 	return &assetURLResolver{
-		sourceByOutput:  sourceByOutput,
-		versionByOutput: make(map[string]string, len(assets)),
-		basePath:        assetURLBasePath(cfg.BaseURL),
+		sourceByOutput: sourceByOutput,
+		assetByOutput:  assetByOutput,
+		basePath:       assetURLBasePath(cfg.BaseURL),
+		fingerprinter:  newAssetFingerprinter(cfg),
 	}, nil
 }
 
@@ -61,14 +62,32 @@ func (r *assetURLResolver) URL(raw string) (string, error) {
 	if !ok {
 		return raw, nil
 	}
-	version, ok, err := r.version(cleanPath)
-	if err != nil {
-		return "", err
-	}
+	key := manifestAssetPath(cleanPath)
+	asset, ok := r.assetByOutput[key]
 	if !ok {
 		return raw, nil
 	}
 
+	if r.fingerprinter.shouldFingerprintFilename(asset.OutputPath) {
+		return r.filenameURL(parsed, asset)
+	}
+	return r.queryURL(parsed, asset)
+}
+
+func (r *assetURLResolver) filenameURL(parsed *url.URL, asset staticAssetFile) (string, error) {
+	rewritten, err := r.fingerprinter.resolveFingerprintOutput(asset)
+	if err != nil {
+		return "", fmt.Errorf("fingerprint asset %s: %w", asset.OutputPath, err)
+	}
+	parsed.Path = joinURLPath(r.basePath, "/"+manifestAssetPath(rewritten))
+	return parsed.String(), nil
+}
+
+func (r *assetURLResolver) queryURL(parsed *url.URL, asset staticAssetFile) (string, error) {
+	version, err := r.fingerprinter.hash(asset.SourcePath)
+	if err != nil {
+		return "", fmt.Errorf("hash asset %s: %w", asset.OutputPath, err)
+	}
 	query := parsed.Query()
 	query.Set("v", version)
 	parsed.Path = joinURLPath(r.basePath, parsed.Path)
@@ -97,37 +116,4 @@ func joinURLPath(basePath, assetPath string) string {
 		return assetPath
 	}
 	return strings.TrimRight(basePath, "/") + assetPath
-}
-
-func (r *assetURLResolver) version(outputPath string) (string, bool, error) {
-	key := manifestAssetPath(outputPath)
-	if version, ok := r.versionByOutput[key]; ok {
-		return version, true, nil
-	}
-
-	sourcePath, ok := r.sourceByOutput[key]
-	if !ok {
-		return "", false, nil
-	}
-
-	version, err := hashAssetFile(sourcePath)
-	if err != nil {
-		return "", false, fmt.Errorf("hash asset %s: %w", outputPath, err)
-	}
-	r.versionByOutput[key] = version
-	return version, true, nil
-}
-
-func hashAssetFile(path string) (string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-
-	hash := sha256.New()
-	if _, err := io.Copy(hash, file); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(hash.Sum(nil))[:12], nil
 }

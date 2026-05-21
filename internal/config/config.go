@@ -65,6 +65,9 @@ type Config struct {
 	// Markdown and rendering configuration
 	Markup *MarkupConfig `yaml:"markup"`
 
+	// Static asset pipeline configuration
+	Assets *AssetsConfig `yaml:"assets"`
+
 	// Extended parameters
 	Params map[string]interface{} `yaml:"params"`
 }
@@ -72,6 +75,41 @@ type Config struct {
 // MarkupConfig controls Markdown rendering behavior.
 type MarkupConfig struct {
 	AllowUnsafeHTML *bool `yaml:"allowUnsafeHTML"`
+}
+
+// AssetsConfig controls static asset processing.
+type AssetsConfig struct {
+	Fingerprint *AssetsFingerprintConfig `yaml:"fingerprint"`
+}
+
+// AssetsFingerprintConfig controls how assetURL versions static asset URLs.
+//
+// Strategy selects the cache-busting style:
+//   - "query"    (default, backward-compatible): assetURL appends ?v=<hash>
+//     to the URL; on-disk asset filenames are unchanged.
+//   - "filename": fingerprintable assets are copied as <name>.<hash>.<ext>
+//     and assetURL resolves to that path. Files whose extension is not in
+//     Extensions are still copied under their original name and assetURL
+//     returns the unversioned path (no query string).
+//
+// Extensions lists file extensions (with leading dot) eligible for
+// filename-level fingerprinting. Ignored when Strategy is "query". Defaults
+// to common static-asset extensions when unset.
+type AssetsFingerprintConfig struct {
+	Strategy   string   `yaml:"strategy"`
+	Extensions []string `yaml:"extensions"`
+}
+
+// Fingerprint strategy identifiers.
+const (
+	AssetsFingerprintStrategyQuery    = "query"
+	AssetsFingerprintStrategyFilename = "filename"
+)
+
+// DefaultAssetsFingerprintExtensions returns the default extensions used for
+// filename-level fingerprinting when the user does not configure their own.
+func DefaultAssetsFingerprintExtensions() []string {
+	return []string{".css", ".js", ".svg", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".woff", ".woff2", ".ttf", ".ico"}
 }
 
 // OutputsConfig controls generated site-level artifacts.
@@ -181,6 +219,16 @@ func Normalize(cfg *Config) *Config {
 		cfg.ThemesDir = "themes"
 	}
 
+	if cfg.Assets != nil && cfg.Assets.Fingerprint != nil {
+		fp := cfg.Assets.Fingerprint
+		if strings.TrimSpace(fp.Strategy) == "" {
+			fp.Strategy = AssetsFingerprintStrategyQuery
+		}
+		if fp.Strategy == AssetsFingerprintStrategyFilename && len(fp.Extensions) == 0 {
+			fp.Extensions = DefaultAssetsFingerprintExtensions()
+		}
+	}
+
 	return cfg
 }
 
@@ -209,8 +257,26 @@ func ValidateInDir(cfg *Config, baseDir string) error {
 	if err := validateOutputDirConflicts(cfg); err != nil {
 		return err
 	}
+	if err := validateAssetsFingerprint(cfg.Assets); err != nil {
+		return err
+	}
 
 	return nil
+}
+
+func validateAssetsFingerprint(assets *AssetsConfig) error {
+	if assets == nil || assets.Fingerprint == nil {
+		return nil
+	}
+	switch assets.Fingerprint.Strategy {
+	case AssetsFingerprintStrategyQuery, AssetsFingerprintStrategyFilename:
+		return nil
+	default:
+		return fmt.Errorf("invalid assets.fingerprint.strategy %q: expected %q or %q",
+			assets.Fingerprint.Strategy,
+			AssetsFingerprintStrategyQuery,
+			AssetsFingerprintStrategyFilename)
+	}
 }
 
 func validateBaseURL(raw string) error {
