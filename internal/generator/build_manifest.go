@@ -21,7 +21,11 @@ const buildManifestName = ".gobin-build.json"
 
 // buildManifestVersion is bumped whenever the schema changes incompatibly.
 // Mismatched versions cause the manifest to be ignored (clean fallback).
-const buildManifestVersion = 1
+//
+//	v1 - initial schema (source_hash + single aggregate_hash).
+//	v2 - per-category aggregate hashes (list/feed/search/sitemap) so a
+//	     post body edit no longer invalidates list / sitemap output.
+const buildManifestVersion = 2
 
 // BuildManifest captures the per-source content fingerprints needed to skip
 // unchanged work on subsequent builds.
@@ -33,11 +37,27 @@ type BuildManifest struct {
 }
 
 // BuildManifestPostEntry tracks a single post source / output pair.
+//
+// SourceHash drives single-post-page invalidation: any file-byte difference
+// (front-matter reformatting, body edit, trailing whitespace) flips it.
+//
+// The four category hashes below describe what each aggregate consumes from
+// this post. They derive from the parsed Post (not file bytes), so cosmetic
+// edits that leave the parsed semantics intact do not invalidate aggregates.
+//
+//	ListHash    - title/date/url/summary/description/tags/categories/draft/published
+//	              used by list, taxonomy, and 404 page invalidation.
+//	FeedHash    - ListHash inputs + content (RSS/Atom carry post bodies).
+//	SearchHash  - title/description/tags/categories/summary/content/draft/published
+//	SitemapHash - url/lastmod/date/draft/published
 type BuildManifestPostEntry struct {
-	SourcePath    string `json:"source_path"`
-	SourceHash    string `json:"source_hash"`
-	OutputPath    string `json:"output_path"`
-	AggregateHash string `json:"aggregate_hash"`
+	SourcePath  string `json:"source_path"`
+	SourceHash  string `json:"source_hash"`
+	OutputPath  string `json:"output_path"`
+	ListHash    string `json:"list_hash"`
+	FeedHash    string `json:"feed_hash"`
+	SearchHash  string `json:"search_hash"`
+	SitemapHash string `json:"sitemap_hash"`
 }
 
 // BuildManifestPageEntry tracks a single standalone page source / output pair.
@@ -178,11 +198,15 @@ func buildManifestForRun(cfg *config.Config, posts []*parser.Post, pages []*pars
 		if err != nil {
 			return nil, fmt.Errorf("hash post %s: %w", post.FilePath, err)
 		}
+		category := computePostCategoryHashes(post)
 		manifest.Posts = append(manifest.Posts, BuildManifestPostEntry{
-			SourcePath:    filepath.ToSlash(post.FilePath),
-			SourceHash:    hash,
-			OutputPath:    postOutputPath(post),
-			AggregateHash: hash,
+			SourcePath:  filepath.ToSlash(post.FilePath),
+			SourceHash:  hash,
+			OutputPath:  postOutputPath(post),
+			ListHash:    category.List,
+			FeedHash:    category.Feed,
+			SearchHash:  category.Search,
+			SitemapHash: category.Sitemap,
 		})
 	}
 
@@ -223,20 +247,115 @@ func renderOptionsForCfg(cfg *config.Config) parser.RenderOptions {
 	return opts
 }
 
-// SiteStateHash returns a digest of the post + page set that participates in
-// aggregate artifacts. When this hash matches between two builds no list,
-// taxonomy, feed, sitemap, or search work needs to be redone.
+// postCategoryHashes folds a parsed Post's per-aggregate inputs into one
+// short digest per category. The values are intentionally derived from the
+// parsed Post struct (not from raw file bytes) so cosmetic edits — front
+// matter reformatting, trailing whitespace, YAML key reorder — do not
+// invalidate any aggregate, while changes that alter the rendered semantics
+// do.
+type postCategoryHashes struct {
+	List    string
+	Feed    string
+	Search  string
+	Sitemap string
+}
+
+func computePostCategoryHashes(post *parser.Post) postCategoryHashes {
+	if post == nil {
+		return postCategoryHashes{}
+	}
+	listKey := joinHashParts(
+		post.Title,
+		post.Date.UTC().Format("2006-01-02T15:04:05Z"),
+		post.LastMod.UTC().Format("2006-01-02T15:04:05Z"),
+		post.URL,
+		post.Summary,
+		post.Description,
+		strings.Join(post.Tags, ","),
+		strings.Join(post.Categories, ","),
+		boolStr(post.Draft),
+		publishedStr(post.Published),
+		strings.Join(post.Aliases, ","),
+	)
+	listHash := hashBytes([]byte(listKey))
+
+	feedHash := hashBytes([]byte(joinHashParts(listKey, post.ContentHTML)))
+	searchHash := hashBytes([]byte(joinHashParts(
+		post.Title,
+		post.Description,
+		strings.Join(post.Tags, ","),
+		strings.Join(post.Categories, ","),
+		post.Summary,
+		post.Content,
+		boolStr(post.Draft),
+		publishedStr(post.Published),
+	)))
+	sitemapHash := hashBytes([]byte(joinHashParts(
+		post.URL,
+		post.LastMod.UTC().Format("2006-01-02T15:04:05Z"),
+		post.Date.UTC().Format("2006-01-02T15:04:05Z"),
+		boolStr(post.Draft),
+		publishedStr(post.Published),
+	)))
+
+	return postCategoryHashes{
+		List:    listHash,
+		Feed:    feedHash,
+		Search:  searchHash,
+		Sitemap: sitemapHash,
+	}
+}
+
+func joinHashParts(parts ...string) string {
+	return strings.Join(parts, "\x1f")
+}
+
+func boolStr(b bool) string {
+	if b {
+		return "1"
+	}
+	return "0"
+}
+
+func publishedStr(p *bool) string {
+	if p == nil {
+		return "unset"
+	}
+	return boolStr(*p)
+}
+
+// ListStateHash, FeedStateHash, SearchStateHash, and SitemapStateHash each
+// return a digest of the contribution every post + page makes to the
+// corresponding aggregate output. Two builds with matching category state
+// hashes can skip the artifacts that consume that category.
 //
-// In this phase aggregate_hash is identical to source_hash, so changing any
-// post's bytes invalidates the entire aggregate state. A finer-grained split
-// (per-artifact hashes) is left for a future iteration.
-func (m *BuildManifest) SiteStateHash() string {
+// Standalone pages contribute their source hash to every category (they
+// rarely participate in feeds/sitemaps directly, but a page being added
+// or removed should at minimum re-render list pages, and we keep the rule
+// uniform across categories for simplicity).
+func (m *BuildManifest) ListStateHash() string    { return m.categoryStateHash("list") }
+func (m *BuildManifest) FeedStateHash() string    { return m.categoryStateHash("feed") }
+func (m *BuildManifest) SearchStateHash() string  { return m.categoryStateHash("search") }
+func (m *BuildManifest) SitemapStateHash() string { return m.categoryStateHash("sitemap") }
+
+func (m *BuildManifest) categoryStateHash(category string) string {
 	if m == nil {
 		return ""
 	}
 	parts := make([]string, 0, len(m.Posts)+len(m.Pages))
 	for _, entry := range m.Posts {
-		parts = append(parts, "post:"+entry.OutputPath+":"+entry.AggregateHash)
+		var h string
+		switch category {
+		case "list":
+			h = entry.ListHash
+		case "feed":
+			h = entry.FeedHash
+		case "search":
+			h = entry.SearchHash
+		case "sitemap":
+			h = entry.SitemapHash
+		}
+		parts = append(parts, "post:"+entry.OutputPath+":"+h)
 	}
 	for _, entry := range m.Pages {
 		parts = append(parts, "page:"+entry.OutputPath+":"+entry.SourceHash)
@@ -254,9 +373,12 @@ func (m *BuildManifest) SiteStateHash() string {
 //     the current build. Any drift forces a full render.
 //   - Single-content pages (post + standalone page) are skipped when
 //     source_hash and the on-disk output both match.
-//   - When the post + page set itself is unchanged (SiteStateHash match)
-//     list / taxonomy / 404 pages are also skipped, and aggregate
-//     artifacts (feed, sitemap, search, aliases, robots) are skipped.
+//   - List / taxonomy / 404 pages are aggregate-driven and skip when
+//     ListStateHash matches between the two builds.
+//   - Each aggregate artifact (feed, sitemap, search, aliases, robots) is
+//     skipped independently based on its own per-category state hash.
+//     This lets body edits flow into feed / search without invalidating
+//     list / sitemap.
 func applyIncrementalSkips(plan *generationPlan, outputDir string, current *BuildManifest) {
 	if plan == nil || current == nil {
 		return
@@ -287,7 +409,10 @@ func applyIncrementalSkips(plan *generationPlan, outputDir string, current *Buil
 		currentPageHash[entry.OutputPath] = entry.SourceHash
 	}
 
-	siteUnchanged := previous.SiteStateHash() == current.SiteStateHash()
+	listUnchanged := previous.ListStateHash() == current.ListStateHash()
+	feedUnchanged := previous.FeedStateHash() == current.FeedStateHash()
+	searchUnchanged := previous.SearchStateHash() == current.SearchStateHash()
+	sitemapUnchanged := previous.SitemapStateHash() == current.SitemapStateHash()
 
 	for i := range plan.pagePlan.pages {
 		spec := &plan.pagePlan.pages[i]
@@ -312,19 +437,32 @@ func applyIncrementalSkips(plan *generationPlan, outputDir string, current *Buil
 			continue
 		}
 		// Aggregate-driven pages (list, taxonomy, 404). They re-render only
-		// when the participating post set changes.
-		if siteUnchanged {
+		// when ListStateHash changes — title/date/url/summary/tags/categories
+		// drive the rendered output, so a pure body edit leaves them stable.
+		if listUnchanged {
 			spec.SkipReason = "unchanged-aggregate"
 		}
 	}
 
-	if siteUnchanged {
-		for i := range plan.artifacts.specs {
-			spec := &plan.artifacts.specs[i]
-			if !isAggregateArtifact(spec.Name) {
-				continue
+	for i := range plan.artifacts.specs {
+		spec := &plan.artifacts.specs[i]
+		switch spec.Name {
+		case "feed":
+			if feedUnchanged {
+				spec.SkipReason = "unchanged-aggregate"
 			}
-			spec.SkipReason = "unchanged-aggregate"
+		case "search":
+			if searchUnchanged {
+				spec.SkipReason = "unchanged-aggregate"
+			}
+		case "sitemap":
+			if sitemapUnchanged {
+				spec.SkipReason = "unchanged-aggregate"
+			}
+		case "aliases", "robots":
+			if listUnchanged {
+				spec.SkipReason = "unchanged-aggregate"
+			}
 		}
 	}
 }

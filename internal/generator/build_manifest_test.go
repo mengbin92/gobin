@@ -18,7 +18,7 @@ func TestReadWriteBuildManifest_RoundTrip(t *testing.T) {
 		Version:      buildManifestVersion,
 		BuildEnvHash: "envhash",
 		Posts: []BuildManifestPostEntry{
-			{SourcePath: "_posts/2026-01-01-hello.md", SourceHash: "hash1", OutputPath: "2026/01/01/hello/index.html", AggregateHash: "hash1"},
+			{SourcePath: "_posts/2026-01-01-hello.md", SourceHash: "hash1", OutputPath: "2026/01/01/hello/index.html", ListHash: "L1", FeedHash: "F1", SearchHash: "S1", SitemapHash: "M1"},
 		},
 		Pages: []BuildManifestPageEntry{
 			{SourcePath: "pages/about.md", SourceHash: "hash2", OutputPath: "about/index.html"},

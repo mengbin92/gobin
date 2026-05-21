@@ -287,3 +287,121 @@ func TestGenerate_Incremental_AddingPostInvalidatesAggregates(t *testing.T) {
 		}
 	}
 }
+
+func TestComputePostCategoryHashes_BodyOnlyEditOnlyAffectsFeedAndSearch(t *testing.T) {
+	base := &parser.Post{
+		Title:       "Hello",
+		Slug:        "hello",
+		URL:         "/hello/",
+		Description: "A description",
+		Summary:     "Summary",
+		Tags:        []string{"go"},
+		Categories:  []string{"tech"},
+		Content:     "body v1",
+		ContentHTML: "<p>body v1</p>",
+	}
+	edited := *base
+	edited.Content = "body v2"
+	edited.ContentHTML = "<p>body v2</p>"
+
+	a := computePostCategoryHashes(base)
+	b := computePostCategoryHashes(&edited)
+
+	if a.List != b.List {
+		t.Fatalf("body-only edit must not change ListHash, got %q vs %q", a.List, b.List)
+	}
+	if a.Sitemap != b.Sitemap {
+		t.Fatalf("body-only edit must not change SitemapHash, got %q vs %q", a.Sitemap, b.Sitemap)
+	}
+	if a.Feed == b.Feed {
+		t.Fatal("body edit must change FeedHash")
+	}
+	if a.Search == b.Search {
+		t.Fatal("body edit must change SearchHash")
+	}
+}
+
+func TestComputePostCategoryHashes_TitleEditAffectsAllCategories(t *testing.T) {
+	base := &parser.Post{Title: "Hello", URL: "/hello/", Tags: []string{"go"}}
+	edited := *base
+	edited.Title = "Hello World"
+
+	a := computePostCategoryHashes(base)
+	b := computePostCategoryHashes(&edited)
+
+	if a.List == b.List || a.Feed == b.Feed || a.Search == b.Search {
+		t.Fatal("title edit must change List/Feed/Search hashes")
+	}
+}
+
+func TestGenerate_Incremental_BodyOnlyEditSkipsListAndSitemap(t *testing.T) {
+	tmpDir := t.TempDir()
+	siteDir := filepath.Join(tmpDir, "site")
+	outputDir := filepath.Join(siteDir, "public")
+	postPath := filepath.Join(siteDir, "_posts", "2026-01-01-hello.md")
+	mustWriteFile(t, postPath, "v1")
+	writeIncrementalGoldenTemplates(t, siteDir)
+
+	oldWd, _ := os.Getwd()
+	if err := os.Chdir(siteDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	defer os.Chdir(oldWd)
+
+	base := &parser.Post{
+		Title:       "Hello",
+		Slug:        "hello",
+		URL:         "/hello/",
+		Description: "Desc",
+		Summary:     "Summary",
+		Tags:        []string{"go"},
+		FilePath:    postPath,
+		Content:     "body v1",
+		ContentHTML: "<p>body v1</p>",
+	}
+	cfg := incrementalCfg()
+	if _, err := GenerateWithOptions([]*parser.Post{base}, nil, cfg, GenerationOptions{OutputDir: outputDir, CleanOutput: false}); err != nil {
+		t.Fatalf("first build: %v", err)
+	}
+
+	// Edit only the body (and source file) but keep title/date/tags/url etc.
+	mustWriteFile(t, postPath, "v2")
+	edited := *base
+	edited.Content = "body v2"
+	edited.ContentHTML = "<p>body v2</p>"
+
+	plan, err := prepareGenerationPlan([]*parser.Post{&edited}, nil, cfg, outputDir, false, false, true)
+	if err != nil {
+		t.Fatalf("prepareGenerationPlan: %v", err)
+	}
+
+	skipsByName := map[string]string{}
+	for _, artifact := range plan.artifacts.specs {
+		skipsByName[artifact.Name] = artifact.SkipReason
+	}
+
+	if skipsByName["sitemap"] == "" {
+		t.Errorf("expected sitemap to be skipped on body-only edit, got SkipReason=%q", skipsByName["sitemap"])
+	}
+	if skipsByName["aliases"] == "" {
+		t.Errorf("expected aliases to be skipped on body-only edit, got SkipReason=%q", skipsByName["aliases"])
+	}
+	if skipsByName["feed"] != "" {
+		t.Errorf("expected feed to re-run on body edit, got SkipReason=%q", skipsByName["feed"])
+	}
+	if skipsByName["search"] != "" {
+		t.Errorf("expected search to re-run on body edit, got SkipReason=%q", skipsByName["search"])
+	}
+
+	for _, page := range plan.pagePlan.pages {
+		if page.OutputPath == "index.html" && page.SkipReason == "" {
+			t.Errorf("expected list page to skip on body-only edit")
+		}
+		if page.OutputPath == "tags/go/index.html" && page.SkipReason == "" {
+			t.Errorf("expected taxonomy page to skip on body-only edit")
+		}
+		if page.OutputPath == "hello/index.html" && page.SkipReason != "" {
+			t.Errorf("expected modified post page to re-render, got SkipReason=%q", page.SkipReason)
+		}
+	}
+}
