@@ -222,6 +222,79 @@ func renderOptionsForCfg(cfg *config.Config) parser.RenderOptions {
 	}
 	return opts
 }
+
+// applyIncrementalSkips loads the previous manifest from outputDir and marks
+// individual page specs whose source content + output file are unchanged so
+// that the page render pipeline can skip them.
+//
+// Skip rules:
+//   - The previous manifest must exist and have the same build_env_hash as
+//     the current build. Any drift forces a full render.
+//   - For each post/page in the current run, the source_hash in the new
+//     manifest must equal the previous manifest's entry AND the previous
+//     output file must still exist on disk.
+//   - Only single-content pages (post + standalone page) are affected here;
+//     list/taxonomy/aggregate skip rules land in a later phase.
+func applyIncrementalSkips(plan *generationPlan, outputDir string, current *BuildManifest) {
+	if plan == nil || current == nil {
+		return
+	}
+	previous, err := readBuildManifest(outputDir)
+	if err != nil || previous == nil {
+		return
+	}
+	if previous.BuildEnvHash == "" || previous.BuildEnvHash != current.BuildEnvHash {
+		return
+	}
+
+	postOutputToHash := make(map[string]string, len(previous.Posts))
+	for _, entry := range previous.Posts {
+		postOutputToHash[entry.OutputPath] = entry.SourceHash
+	}
+	pageOutputToHash := make(map[string]string, len(previous.Pages))
+	for _, entry := range previous.Pages {
+		pageOutputToHash[entry.OutputPath] = entry.SourceHash
+	}
+
+	currentPostHash := make(map[string]string, len(current.Posts))
+	for _, entry := range current.Posts {
+		currentPostHash[entry.OutputPath] = entry.SourceHash
+	}
+	currentPageHash := make(map[string]string, len(current.Pages))
+	for _, entry := range current.Pages {
+		currentPageHash[entry.OutputPath] = entry.SourceHash
+	}
+
+	for i := range plan.pagePlan.pages {
+		spec := &plan.pagePlan.pages[i]
+		// We only skip pages we can attribute to a single source file; that
+		// is post pages and standalone pages. List / 404 / taxonomy pages
+		// aggregate across the entire post set and are handled later.
+		var lookupHash string
+		var prevHash string
+		var ok bool
+		if h, hit := currentPostHash[spec.OutputPath]; hit {
+			lookupHash = h
+			prevHash, ok = postOutputToHash[spec.OutputPath]
+		} else if h, hit := currentPageHash[spec.OutputPath]; hit {
+			lookupHash = h
+			prevHash, ok = pageOutputToHash[spec.OutputPath]
+		} else {
+			continue
+		}
+		if !ok || prevHash == "" || prevHash != lookupHash {
+			continue
+		}
+		outputPath, err := safeOutputPath(outputDir, spec.OutputPath)
+		if err != nil {
+			continue
+		}
+		if info, statErr := os.Stat(outputPath); statErr != nil || info.IsDir() {
+			continue
+		}
+		spec.SkipReason = "unchanged-source"
+	}
+}
 func hashDirectoryTree(root string) (string, error) {
 	info, err := os.Stat(root)
 	if os.IsNotExist(err) {

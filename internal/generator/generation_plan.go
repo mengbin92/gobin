@@ -12,7 +12,7 @@ type generationPlan struct {
 	manifest  *BuildManifest
 }
 
-func prepareGenerationPlan(posts []*parser.Post, standalonePages []*parser.Page, cfg *config.Config, outputDir string, minify bool, buildDrafts bool) (*generationPlan, error) {
+func prepareGenerationPlan(posts []*parser.Post, standalonePages []*parser.Page, cfg *config.Config, outputDir string, minify bool, buildDrafts bool, incremental bool) (*generationPlan, error) {
 	cfg = config.Normalize(cfg)
 	if outputDir == "" {
 		outputDir = cfg.PublishDir
@@ -34,6 +34,10 @@ func prepareGenerationPlan(posts []*parser.Post, standalonePages []*parser.Page,
 		return nil, err
 	}
 	plan.manifest = manifest
+
+	if incremental {
+		applyIncrementalSkips(plan, outputDir, manifest)
+	}
 
 	return plan, nil
 }

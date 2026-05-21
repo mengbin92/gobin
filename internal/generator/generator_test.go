@@ -1732,7 +1732,7 @@ func TestPrepareGenerationPlan(t *testing.T) {
 		EnableRobotsTXT: true,
 	}
 
-	plan, err := prepareGenerationPlan(posts, pages, cfg, "public", true, false)
+	plan, err := prepareGenerationPlan(posts, pages, cfg, "public", true, false, false)
 	if err != nil {
 		t.Fatalf("prepareGenerationPlan failed: %v", err)
 	}
