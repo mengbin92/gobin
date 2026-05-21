@@ -223,18 +223,40 @@ func renderOptionsForCfg(cfg *config.Config) parser.RenderOptions {
 	return opts
 }
 
+// SiteStateHash returns a digest of the post + page set that participates in
+// aggregate artifacts. When this hash matches between two builds no list,
+// taxonomy, feed, sitemap, or search work needs to be redone.
+//
+// In this phase aggregate_hash is identical to source_hash, so changing any
+// post's bytes invalidates the entire aggregate state. A finer-grained split
+// (per-artifact hashes) is left for a future iteration.
+func (m *BuildManifest) SiteStateHash() string {
+	if m == nil {
+		return ""
+	}
+	parts := make([]string, 0, len(m.Posts)+len(m.Pages))
+	for _, entry := range m.Posts {
+		parts = append(parts, "post:"+entry.OutputPath+":"+entry.AggregateHash)
+	}
+	for _, entry := range m.Pages {
+		parts = append(parts, "page:"+entry.OutputPath+":"+entry.SourceHash)
+	}
+	sort.Strings(parts)
+	return hashBytes([]byte(strings.Join(parts, "|")))
+}
+
 // applyIncrementalSkips loads the previous manifest from outputDir and marks
-// individual page specs whose source content + output file are unchanged so
-// that the page render pipeline can skip them.
+// pages and aggregate artifacts whose inputs are unchanged so the render
+// pipeline can skip them.
 //
 // Skip rules:
 //   - The previous manifest must exist and have the same build_env_hash as
 //     the current build. Any drift forces a full render.
-//   - For each post/page in the current run, the source_hash in the new
-//     manifest must equal the previous manifest's entry AND the previous
-//     output file must still exist on disk.
-//   - Only single-content pages (post + standalone page) are affected here;
-//     list/taxonomy/aggregate skip rules land in a later phase.
+//   - Single-content pages (post + standalone page) are skipped when
+//     source_hash and the on-disk output both match.
+//   - When the post + page set itself is unchanged (SiteStateHash match)
+//     list / taxonomy / 404 pages are also skipped, and aggregate
+//     artifacts (feed, sitemap, search, aliases, robots) are skipped.
 func applyIncrementalSkips(plan *generationPlan, outputDir string, current *BuildManifest) {
 	if plan == nil || current == nil {
 		return
@@ -265,26 +287,10 @@ func applyIncrementalSkips(plan *generationPlan, outputDir string, current *Buil
 		currentPageHash[entry.OutputPath] = entry.SourceHash
 	}
 
+	siteUnchanged := previous.SiteStateHash() == current.SiteStateHash()
+
 	for i := range plan.pagePlan.pages {
 		spec := &plan.pagePlan.pages[i]
-		// We only skip pages we can attribute to a single source file; that
-		// is post pages and standalone pages. List / 404 / taxonomy pages
-		// aggregate across the entire post set and are handled later.
-		var lookupHash string
-		var prevHash string
-		var ok bool
-		if h, hit := currentPostHash[spec.OutputPath]; hit {
-			lookupHash = h
-			prevHash, ok = postOutputToHash[spec.OutputPath]
-		} else if h, hit := currentPageHash[spec.OutputPath]; hit {
-			lookupHash = h
-			prevHash, ok = pageOutputToHash[spec.OutputPath]
-		} else {
-			continue
-		}
-		if !ok || prevHash == "" || prevHash != lookupHash {
-			continue
-		}
 		outputPath, err := safeOutputPath(outputDir, spec.OutputPath)
 		if err != nil {
 			continue
@@ -292,7 +298,43 @@ func applyIncrementalSkips(plan *generationPlan, outputDir string, current *Buil
 		if info, statErr := os.Stat(outputPath); statErr != nil || info.IsDir() {
 			continue
 		}
-		spec.SkipReason = "unchanged-source"
+
+		if h, hit := currentPostHash[spec.OutputPath]; hit {
+			if prev, ok := postOutputToHash[spec.OutputPath]; ok && prev == h && h != "" {
+				spec.SkipReason = "unchanged-source"
+			}
+			continue
+		}
+		if h, hit := currentPageHash[spec.OutputPath]; hit {
+			if prev, ok := pageOutputToHash[spec.OutputPath]; ok && prev == h && h != "" {
+				spec.SkipReason = "unchanged-source"
+			}
+			continue
+		}
+		// Aggregate-driven pages (list, taxonomy, 404). They re-render only
+		// when the participating post set changes.
+		if siteUnchanged {
+			spec.SkipReason = "unchanged-aggregate"
+		}
+	}
+
+	if siteUnchanged {
+		for i := range plan.artifacts.specs {
+			spec := &plan.artifacts.specs[i]
+			if !isAggregateArtifact(spec.Name) {
+				continue
+			}
+			spec.SkipReason = "unchanged-aggregate"
+		}
+	}
+}
+
+func isAggregateArtifact(name string) bool {
+	switch name {
+	case "feed", "sitemap", "search", "aliases", "robots":
+		return true
+	default:
+		return false
 	}
 }
 func hashDirectoryTree(root string) (string, error) {

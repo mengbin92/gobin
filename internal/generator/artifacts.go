@@ -10,6 +10,7 @@ import (
 type ArtifactSpec struct {
 	Name          string
 	Enabled       bool
+	SkipReason    string
 	Run           func() error
 	RunWithResult func(*GenerationResult) error
 }
@@ -93,6 +94,10 @@ func (p artifactPipeline) ExecuteResult() (*GenerationResult, error) {
 		if !spec.Enabled {
 			continue
 		}
+		if spec.SkipReason != "" {
+			result.Artifacts.Skipped++
+			continue
+		}
 		run := spec.RunWithResult
 		if run == nil && spec.Run != nil {
 			run = func(*GenerationResult) error {
@@ -108,6 +113,7 @@ func (p artifactPipeline) ExecuteResult() (*GenerationResult, error) {
 			}
 			return nil, fmt.Errorf("%s artifact: %w", spec.Name, err)
 		}
+		result.Artifacts.Ran++
 	}
 
 	return result, nil

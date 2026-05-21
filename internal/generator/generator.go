@@ -20,6 +20,7 @@ type Pagination struct {
 type GenerationResult struct {
 	Pages        PageRenderStats
 	StaticAssets AssetCopyStats
+	Artifacts    ArtifactStats
 }
 
 // PageRenderStats summarizes rendered page work.
@@ -33,6 +34,15 @@ type AssetCopyStats struct {
 	Copied  int
 	Skipped int
 	Deleted int
+}
+
+// ArtifactStats summarizes aggregate artifact work (feed, sitemap, search,
+// aliases, robots, assets, minify). Skipped counts incremental skips; Ran
+// counts artifacts that actually executed (whether they wrote output or
+// not).
+type ArtifactStats struct {
+	Ran     int
+	Skipped int
 }
 
 // GenerationOptions controls a single Generate invocation. It is the

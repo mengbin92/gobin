@@ -81,6 +81,7 @@ func (p *generationPlan) ExecuteResult(cleanOutput bool) (*GenerationResult, err
 	}
 	if artifactResult != nil {
 		result.StaticAssets = artifactResult.StaticAssets
+		result.Artifacts = artifactResult.Artifacts
 	}
 
 	if err := writeBuildManifest(p.outputDir, p.manifest); err != nil {

@@ -76,6 +76,7 @@ func printStaticAssetStats(stdout io.Writer, result *generator.GenerationResult)
 		return
 	}
 	fmt.Fprintf(stdout, "Pages: rendered %d, skipped %d\n", result.Pages.Rendered, result.Pages.Skipped)
+	fmt.Fprintf(stdout, "Artifacts: ran %d, skipped %d\n", result.Artifacts.Ran, result.Artifacts.Skipped)
 	fmt.Fprintf(stdout, "Static assets: copied %d, skipped %d, deleted %d\n", result.StaticAssets.Copied, result.StaticAssets.Skipped, result.StaticAssets.Deleted)
 }
 
