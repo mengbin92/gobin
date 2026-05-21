@@ -195,9 +195,35 @@
 
 ## 6. 提交记录
 
+### P0
+
 - `7b9f468` `Complete P0 optimization cleanup`
 - `a241ed6` `Update optimization execution record`
-- 待补充 P1 统一提交哈希
-- 待补充 P2 Markdown safety / serve lifecycle 提交哈希
-- 待补充 P2 asset pipeline incremental copy 提交哈希
-- 待补充 P2 asset pipeline manifest / stale cleanup 提交哈希
+
+### P1
+
+- `37b11a1` `Complete P1 refactor pass`
+
+### P2 Markdown safety / serve lifecycle
+
+- `3c5c1f2` `Plan markdown safety and serve lifecycle work`
+- `183287d` `Add markdown safety config`
+- `864791f` `Make markdown rendering options explicit`
+- `0638b3f` `Apply markdown render config during site loading`
+- `f658140` `Cover serve rebuild lifecycle recovery`
+- `e549f4a` `Document markdown unsafe HTML setting`
+
+### P2 asset pipeline incremental copy
+
+- `9a0c5a3` `Plan asset pipeline incremental copy`
+- `adb987e` `Plan static asset copy decisions`
+- `720f27e` `Detect changed static assets`
+- `2207ea2` `Execute static asset copy plans`
+- `f4e155c` `Skip unchanged static assets during copy`
+- `b6743d6` `Document static asset copy optimization`
+- `805b417` `Improve static asset copy freshness checks`
+
+### P2 asset pipeline manifest / stale cleanup
+
+- `a4c0e68` `Optimize watch and asset pipeline`
+- `7a64208` `Optimize asset cleanup and docs`
