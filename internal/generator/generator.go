@@ -53,6 +53,57 @@ func GenerateWithPagesResult(posts []*parser.Post, standalonePages []*parser.Pag
 	return plan.ExecuteResult(cleanOutput)
 }
 
+// DryRunReport summarizes a check-only pass over the site inputs. It is
+// populated by DryRun for commands like `gobin check` that want to verify
+// configuration and content without touching the output directory.
+type DryRunReport struct {
+	PostCount     int
+	PageCount     int
+	OutputCount   int
+	CollidingURLs []DryRunCollision
+}
+
+// DryRunCollision describes a single permalink that multiple page outputs
+// would write to under the current configuration.
+type DryRunCollision struct {
+	OutputPath string
+	Sources    []string
+}
+
+// DryRun loads templates, computes the generation plan, and reports any
+// permalink collisions without writing any files.
+func DryRun(posts []*parser.Post, standalonePages []*parser.Page, cfg *config.Config, buildDrafts bool) (*DryRunReport, error) {
+	plan, err := prepareGenerationPlan(posts, standalonePages, cfg, "", false, buildDrafts)
+	if err != nil {
+		return nil, err
+	}
+
+	report := &DryRunReport{
+		PostCount:   len(posts),
+		PageCount:   len(standalonePages),
+		OutputCount: len(plan.pagePlan.pages),
+	}
+
+	sources := make(map[string][]string)
+	order := make([]string, 0)
+	for _, page := range plan.pagePlan.pages {
+		if _, seen := sources[page.OutputPath]; !seen {
+			order = append(order, page.OutputPath)
+		}
+		sources[page.OutputPath] = append(sources[page.OutputPath], page.Title)
+	}
+	for _, outputPath := range order {
+		if len(sources[outputPath]) > 1 {
+			report.CollidingURLs = append(report.CollidingURLs, DryRunCollision{
+				OutputPath: outputPath,
+				Sources:    sources[outputPath],
+			})
+		}
+	}
+
+	return report, nil
+}
+
 func paginate(posts []*parser.Post, perPage int) [][]*parser.Post {
 	if perPage <= 0 {
 		perPage = 10
