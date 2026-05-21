@@ -1922,6 +1922,7 @@ func TestGenerate_DefaultSiteGolden(t *testing.T) {
 
 	expectedFiles := []string{
 		".gobin-assets.json",
+		".gobin-build.json",
 		"2026/03/18/beta-post/index.html",
 		"2026/03/20/alpha-post/index.html",
 		"404.html",
@@ -2090,6 +2091,9 @@ func normalizeGoldenContent(relPath, content string) string {
 	case "sitemap.xml":
 		buildDate := time.Now().Format("2006-01-02")
 		return normalizeEOF(strings.ReplaceAll(content, "<lastmod>"+buildDate+"</lastmod>", "<lastmod><BUILD_DATE></lastmod>"))
+	case ".gobin-build.json":
+		hashField := regexp.MustCompile(`"(source_hash|aggregate_hash|build_env_hash)": "[0-9a-f]+"`)
+		return normalizeEOF(hashField.ReplaceAllString(content, `"$1": "<HASH>"`))
 	default:
 		return normalizeEOF(content)
 	}
@@ -2191,6 +2195,7 @@ func TestGenerate_OfficialWebsiteTheme(t *testing.T) {
 
 	expectedFiles := []string{
 		".gobin-assets.json",
+		".gobin-build.json",
 		"404.html",
 		"categories/index.html",
 		"categories/release-notes/index.html",
