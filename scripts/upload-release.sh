@@ -5,7 +5,7 @@ set -e
 
 if [ $# -ne 1 ]; then
     echo "Usage: $0 <tag>"
-    echo "Example: $0 v1.1.0"
+    echo "Example: $0 v1.2.0"
     echo ""
     echo "Prerequisites:"
     echo "  - Build binaries must exist in ./dist/ directory"

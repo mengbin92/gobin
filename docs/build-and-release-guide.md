@@ -1,6 +1,6 @@
 # Gobin 跨平台构建和发布指南
 
-本文档介绍如何为 Gobin 构建不同平台的二进制文件并发布到 GitHub Release。
+本文档介绍如何为 Gobin 构建不同平台的二进制文件、发布 GitHub Release，并同步发布 Docker Hub 多架构镜像。
 
 ---
 
@@ -16,7 +16,7 @@
 
 ## 方法一：使用 GitHub Actions（推荐）
 
-这是最推荐的自动化方法。每次你推送一个版本标签时，GitHub Actions 会自动构建所有平台的二进制文件并创建 Release。
+这是最推荐的自动化方法。每次你推送一个版本标签时，GitHub Actions 会自动构建所有平台的二进制文件、创建 Release，并发布 Docker Hub 镜像。
 
 ### 步骤
 
@@ -28,14 +28,23 @@
 ls .github/workflows/release.yml
 ```
 
-#### 2. 推送版本标签
+#### 2. 配置 Docker Hub Secrets
+
+Release workflow 会将镜像推送到 `docker.io/mengbin92/gobin`。首次发布前，需要在 GitHub 仓库的 `Settings > Secrets and variables > Actions` 中配置：
+
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN`
+
+`DOCKERHUB_TOKEN` 建议使用 Docker Hub access token，不要使用账户密码。
+
+#### 3. 推送版本标签
 
 ```bash
-git tag v1.1.0
-git push origin v1.1.0
+git tag v1.2.0
+git push origin v1.2.0
 ```
 
-#### 3. 等待构建完成
+#### 4. 等待构建完成
 
 GitHub Actions 会自动开始构建：
 
@@ -43,9 +52,16 @@ GitHub Actions 会自动开始构建：
 2. 查看 `Build and Release` 工作流的运行状态
 3. 等待所有平台的构建完成（通常 5-10 分钟）
 
-#### 4. 查看 Release
+#### 5. 查看 Release 和 Docker 镜像
 
 构建完成后，访问 https://github.com/mengbin92/gobin/releases 查看自动创建的 Release。
+
+Docker Hub 会同步发布：
+
+- `docker.io/mengbin92/gobin:v1.2.0`
+- `docker.io/mengbin92/gobin:latest`
+
+镜像支持 `linux/amd64` 和 `linux/arm64`。
 
 ### 自定义构建内容
 
@@ -91,9 +107,9 @@ ls -lh dist/
 
 输出示例：
 ```
--rwxr-xr-x 1 user user 8.5M Jan 7 10:30 gobin-v1.1.0-linux-amd64
--rw-r--r-- 1 user user 3.2M Jan 7 10:30 gobin-v1.1.0-linux-amd64.tar.gz
--rw-r--r-- 1 user user 3.1M Jan 7 10:30 gobin-v1.1.0-windows-amd64.zip
+-rwxr-xr-x 1 user user 8.5M Jan 7 10:30 gobin-v1.2.0-linux-amd64
+-rw-r--r-- 1 user user 3.2M Jan 7 10:30 gobin-v1.2.0-linux-amd64.tar.gz
+-rw-r--r-- 1 user user 3.1M Jan 7 10:30 gobin-v1.2.0-windows-amd64.zip
 -rw-r--r-- 1 user user  512 Jan 7 10:30 SHA256SUMS
 ```
 
@@ -120,23 +136,23 @@ gh auth login
 
 ```bash
 # 创建 Release
-gh release create v1.1.0 \
-  --title "Gobin v1.1.0" \
-  --notes-file RELEASE-NOTES-v1.1.0.md \
+gh release create v1.2.0 \
+  --title "Gobin v1.2.0" \
+  --notes-file RELEASE-NOTES-v1.2.0.md \
   dist/*.tar.gz dist/*.zip dist/SHA256SUMS
 ```
 
-发布说明文件建议按 tag 命名，例如 `RELEASE-NOTES-v1.1.0.md`。自动发布工作流会按顺序查找：
+发布说明文件建议按 tag 命名，例如 `RELEASE-NOTES-v1.2.0.md`。自动发布工作流会按顺序查找：
 
-- `RELEASE-NOTES-v1.1.0.md`
-- `RELEASE-NOTES-1.1.0.md`
+- `RELEASE-NOTES-v1.2.0.md`
+- `RELEASE-NOTES-1.2.0.md`
 - `RELEASE-NOTES.md`
 
 ##### 选项 B：通过 GitHub Web 界面
 
 1. 访问 https://github.com/mengbin92/gobin/releases
 2. 点击 "Draft a new release"
-3. 选择或创建一个 tag（如 v1.1.0）
+3. 选择或创建一个 tag（如 v1.2.0）
 4. 填写标题和描述（可以复制对应版本发布说明的内容）
 5. 将构建好的二进制文件拖到上传区域
 6. 点击 "Publish release"
@@ -166,17 +182,53 @@ gh auth login
 ./scripts/build-all.sh
 
 # 运行上传脚本
-./scripts/upload-release.sh v1.1.0
+./scripts/upload-release.sh v1.2.0
 ```
 
 #### 3. 或手动上传
 
 ```bash
 # 上传单个文件
-gh release upload v1.1.0 dist/gobin-v1.1.0-linux-amd64.tar.gz
+gh release upload v1.2.0 dist/gobin-v1.2.0-linux-amd64.tar.gz
 
 # 上传所有文件
-gh release upload v1.1.0 dist/*.tar.gz dist/*.zip dist/SHA256SUMS
+gh release upload v1.2.0 dist/*.tar.gz dist/*.zip dist/SHA256SUMS
+```
+
+---
+
+## Docker Hub 发布
+
+自动发布工作流使用 Docker Buildx 构建多架构镜像，并推送到 Docker Hub：
+
+```text
+docker.io/mengbin92/gobin:<tag>
+docker.io/mengbin92/gobin:latest
+```
+
+当前支持平台：
+
+- `linux/amd64`
+- `linux/arm64`
+
+本地验证镜像：
+
+```bash
+docker run --rm -e GOBIN_AUTO_INIT=false docker.io/mengbin92/gobin:v1.2.0 gobin version
+docker run --rm -p 8080:8080 -v "$PWD:/site" docker.io/mengbin92/gobin:v1.2.0
+```
+
+如果需要手动构建并推送多架构镜像：
+
+```bash
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  --build-arg VERSION=v1.2.0 \
+  --build-arg COMMIT="$(git rev-parse --short HEAD)" \
+  --build-arg BUILD_DATE="$(date -u '+%Y-%m-%d_%H:%M:%S')" \
+  -t docker.io/mengbin92/gobin:v1.2.0 \
+  -t docker.io/mengbin92/gobin:latest \
+  --push .
 ```
 
 ---
@@ -213,14 +265,17 @@ gh release upload v1.1.0 dist/*.tar.gz dist/*.zip dist/SHA256SUMS
 
 - [ ] 所有测试通过: `go test ./...`
 - [ ] 代码已提交并推送到远程
-- [ ] 创建了版本标签: `git tag v1.1.0`
-- [ ] 编写了发布说明（例如 `RELEASE-NOTES-v1.1.0.md`）
+- [ ] 配置了 Docker Hub secrets: `DOCKERHUB_USERNAME`、`DOCKERHUB_TOKEN`
+- [ ] 创建了版本标签: `git tag v1.2.0`
+- [ ] 编写了发布说明（例如 `RELEASE-NOTES-v1.2.0.md`）
 - [ ] 更新了 CHANGELOG
 
 ### 发布时检查
 
 - [ ] 所有平台的二进制文件已成功构建
 - [ ] 压缩包和 `SHA256SUMS` 已上传到 GitHub Release
+- [ ] Docker Hub 已发布 `docker.io/mengbin92/gobin:v1.2.0`
+- [ ] Docker Hub 已发布 `docker.io/mengbin92/gobin:latest`
 - [ ] Release 包含完整的说明文档
 - [ ] 示例站点可用且更新到最新版本
 
@@ -228,6 +283,7 @@ gh release upload v1.1.0 dist/*.tar.gz dist/*.zip dist/SHA256SUMS
 
 - [ ] 发布了 GitHub Release
 - [ ] 二进制文件可以正常下载和使用
+- [ ] Docker 镜像可以在 amd64 和 arm64 环境拉取和运行
 - [ ] 更新了文档中的版本引用
 - [ ] 在社区发布了公告（可选）
 
@@ -256,8 +312,8 @@ go version
 
 **解决**: 文件已存在，删除后重试：
 ```bash
-gh release delete-asset v1.1.0 filename
-gh release upload v1.1.0 filename
+gh release delete-asset v1.2.0 filename
+gh release upload v1.2.0 filename
 ```
 
 ### Windows 构建无扩展名
@@ -295,7 +351,7 @@ go build \
 
 ```bash
 # 使用 upx 压缩（可选）
-upx --best dist/gobin-v1.1.0-linux-amd64
+upx --best dist/gobin-v1.2.0-linux-amd64
 ```
 
 ### 4. 提供 checksums
@@ -333,5 +389,5 @@ sha256sum gobin-* > checksums.txt
 
 ---
 
-*文档版本: v1.1.0*
-*更新日期: 2026-05-10*
+*文档版本: v1.2.0*
+*更新日期: 2026-05-22*

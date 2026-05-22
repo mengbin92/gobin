@@ -3,8 +3,14 @@
 
 set -e
 
-# Set version from git tag or use default
+# Set version from git tag or use default. VERSION may be "1.2.0" or "v1.2.0".
 VERSION=${VERSION:-$(git describe --tags --exact-match 2>/dev/null || echo "dev")}
+VERSION_NAME=${VERSION#v}
+if [[ "$VERSION_NAME" == "dev" ]]; then
+    VERSION_TAG="dev"
+else
+    VERSION_TAG="v${VERSION_NAME}"
+fi
 COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_DATE=$(date -u '+%Y-%m-%d_%H:%M:%S')
 
@@ -12,7 +18,7 @@ BUILD_DATE=$(date -u '+%Y-%m-%d_%H:%M:%S')
 mkdir -p dist
 rm -rf dist/*
 
-echo "[build] Building Gobin ${VERSION} (commit: ${COMMIT})"
+echo "[build] Building Gobin ${VERSION_TAG} (commit: ${COMMIT})"
 echo "[date] Build date: ${BUILD_DATE}"
 echo ""
 
@@ -26,7 +32,7 @@ build_binary() {
 
     env GOOS=${GOOS} GOARCH=${GOARCH} \
         go build \
-        -ldflags "-s -w -X 'github.com/mengbin92/gobin/cmd/gobin/commands.Version=${VERSION}' -X 'github.com/mengbin92/gobin/cmd/gobin/commands.Commit=${COMMIT}' -X 'github.com/mengbin92/gobin/cmd/gobin/commands.BuildDate=${BUILD_DATE}'" \
+        -ldflags "-s -w -X 'github.com/mengbin92/gobin/cmd/gobin/commands.Version=${VERSION_TAG}' -X 'github.com/mengbin92/gobin/cmd/gobin/commands.Commit=${COMMIT}' -X 'github.com/mengbin92/gobin/cmd/gobin/commands.BuildDate=${BUILD_DATE}'" \
         -o "dist/${OUTPUT_NAME}" \
         ./cmd/gobin
 
@@ -74,18 +80,18 @@ write_checksums() {
 }
 
 # Linux
-build_binary "linux" "amd64" "gobin-v${VERSION}-linux-amd64"
-build_binary "linux" "arm64" "gobin-v${VERSION}-linux-arm64"
+build_binary "linux" "amd64" "gobin-${VERSION_TAG}-linux-amd64"
+build_binary "linux" "arm64" "gobin-${VERSION_TAG}-linux-arm64"
 
 # macOS
-build_binary "darwin" "amd64" "gobin-v${VERSION}-darwin-amd64"
-build_binary "darwin" "arm64" "gobin-v${VERSION}-darwin-arm64"
+build_binary "darwin" "amd64" "gobin-${VERSION_TAG}-darwin-amd64"
+build_binary "darwin" "arm64" "gobin-${VERSION_TAG}-darwin-arm64"
 
 # Windows
-build_binary "windows" "amd64" "gobin-v${VERSION}-windows-amd64.exe"
+build_binary "windows" "amd64" "gobin-${VERSION_TAG}-windows-amd64.exe"
 
 # FreeBSD (optional)
-build_binary "freebsd" "amd64" "gobin-v${VERSION}-freebsd-amd64"
+build_binary "freebsd" "amd64" "gobin-${VERSION_TAG}-freebsd-amd64"
 
 # Optional: Build for more platforms
 # build_binary "openbsd" "amd64" "gobin-${VERSION}-openbsd-amd64"

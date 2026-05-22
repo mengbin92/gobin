@@ -60,21 +60,69 @@ jobs:
           BUILD_DATE="$(date -u '+%Y-%m-%d_%H:%M:%S')"
           LDFLAGS="-s -w -X 'github.com/mengbin92/gobin/cmd/gobin/commands.Version=${VERSION}' -X 'github.com/mengbin92/gobin/cmd/gobin/commands.Commit=${COMMIT}' -X 'github.com/mengbin92/gobin/cmd/gobin/commands.BuildDate=${BUILD_DATE}'"
           if [ "${{ matrix.goos }}" = "windows" ]; then
-            go build -ldflags "${LDFLAGS}" -o dist/gobin-${{ matrix.suffix }} ./cmd/gobin
+            go build -ldflags "${LDFLAGS}" -o dist/gobin-${VERSION}-${{ matrix.suffix }} ./cmd/gobin
           else
-            go build -ldflags "${LDFLAGS}" -o dist/gobin-${{ matrix.suffix }} ./cmd/gobin
-            chmod +x dist/gobin-${{ matrix.suffix }}
+            go build -ldflags "${LDFLAGS}" -o dist/gobin-${VERSION}-${{ matrix.suffix }} ./cmd/gobin
+            chmod +x dist/gobin-${VERSION}-${{ matrix.suffix }}
           fi
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: gobin-${{ matrix.suffix }}
-          path: dist/gobin-${{ matrix.suffix }}
+          path: dist/gobin-${{ github.ref_name }}-${{ matrix.suffix }}
+
+  docker:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: docker.io/mengbin92/gobin
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Prepare build metadata
+        id: build-vars
+        run: |
+          echo "commit=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "build_date=$(date -u '+%Y-%m-%d_%H:%M:%S')" >> "$GITHUB_OUTPUT"
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=tag
+            type=raw,value=latest
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ github.ref_name }}
+            COMMIT=${{ steps.build-vars.outputs.commit }}
+            BUILD_DATE=${{ steps.build-vars.outputs.build_date }}
 
   release:
     name: Create Release
-    needs: build
+    needs:
+      - build
+      - docker
     runs-on: ubuntu-latest
 
     steps:
