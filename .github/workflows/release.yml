@@ -9,69 +9,6 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: Build Release Binaries
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          # Linux AMD64
-          - goos: linux
-            goarch: amd64
-            suffix: linux-amd64
-          # Linux ARM64
-          - goos: linux
-            goarch: arm64
-            suffix: linux-arm64
-          # macOS AMD64
-          - goos: darwin
-            goarch: amd64
-            suffix: darwin-amd64
-          # macOS ARM64 (Apple Silicon)
-          - goos: darwin
-            goarch: arm64
-            suffix: darwin-arm64
-          # Windows AMD64
-          - goos: windows
-            goarch: amd64
-            suffix: windows-amd64.exe
-          # FreeBSD AMD64
-          - goos: freebsd
-            goarch: amd64
-            suffix: freebsd-amd64
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-
-      - name: Build binary
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-        run: |
-          mkdir -p dist
-          VERSION="${GITHUB_REF_NAME}"
-          COMMIT="$(git rev-parse --short HEAD)"
-          BUILD_DATE="$(date -u '+%Y-%m-%d_%H:%M:%S')"
-          LDFLAGS="-s -w -X 'github.com/mengbin92/gobin/cmd/gobin/commands.Version=${VERSION}' -X 'github.com/mengbin92/gobin/cmd/gobin/commands.Commit=${COMMIT}' -X 'github.com/mengbin92/gobin/cmd/gobin/commands.BuildDate=${BUILD_DATE}'"
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            go build -ldflags "${LDFLAGS}" -o dist/gobin-${VERSION}-${{ matrix.suffix }} ./cmd/gobin
-          else
-            go build -ldflags "${LDFLAGS}" -o dist/gobin-${VERSION}-${{ matrix.suffix }} ./cmd/gobin
-            chmod +x dist/gobin-${VERSION}-${{ matrix.suffix }}
-          fi
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: gobin-${{ matrix.suffix }}
-          path: dist/gobin-${{ github.ref_name }}-${{ matrix.suffix }}
-
   docker:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
@@ -120,9 +57,7 @@ jobs:
 
   release:
     name: Create Release
-    needs:
-      - build
-      - docker
+    needs: docker
     runs-on: ubuntu-latest
 
     steps:
@@ -131,30 +66,17 @@ jobs:
         with:
           fetch-depth: 0  # 获取所有标签和提交历史
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          path: dist
+          go-version-file: go.mod
+          cache: true
 
-      - name: List artifacts
+      - name: Build release artifacts
+        run: ./scripts/build-all.sh
+
+      - name: List release artifacts
         run: ls -lh dist/
-
-      - name: Package release artifacts
-        run: |
-          mkdir -p release
-          find dist -maxdepth 2 -type f -name 'gobin-*' | sort | while read -r file; do
-            name="$(basename "$file")"
-            if [[ "$name" == *.exe ]]; then
-              archive="${name%.exe}.zip"
-              (cd "$(dirname "$file")" && zip -q "${GITHUB_WORKSPACE}/release/${archive}" "$name")
-            else
-              archive="${name}.tar.gz"
-              tar czf "release/${archive}" -C "$(dirname "$file")" "$name"
-            fi
-            echo "Created release/${archive}"
-          done
-          (cd release && shasum -a 256 *.tar.gz *.zip > SHA256SUMS)
-          ls -lh release/
 
       - name: Select release notes
         id: notes
@@ -190,8 +112,8 @@ jobs:
           generate_release_notes: false
           body_path: ${{ steps.notes.outputs.path }}
           files: |
-            release/*.tar.gz
-            release/*.zip
-            release/SHA256SUMS
+            dist/*.tar.gz
+            dist/*.zip
+            dist/SHA256SUMS
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
