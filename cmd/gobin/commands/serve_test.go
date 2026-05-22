@@ -387,6 +387,36 @@ func TestRunServeWithOps_BuildsBeforeStartingServer(t *testing.T) {
 	}
 }
 
+func TestRunServeWithOps_WatcherRuntimeRequestsIncremental(t *testing.T) {
+	watchedCh := make(chan serveRuntime, 1)
+
+	err := runServeWithOps(io.Discard, false, true, serveOps{
+		loadSiteInput: func() (*siteBuildInput, error) {
+			return &siteBuildInput{cfg: &config.Config{PublishDir: "public"}}, nil
+		},
+		generateSite: func(*siteBuildInput, string, bool, bool, bool) error { return nil },
+		watchFiles: func(_ context.Context, _ *config.Config, runtime serveRuntime) {
+			watchedCh <- runtime
+		},
+		startServer: func(io.Writer, *config.Config) error { return nil },
+	})
+	if err != nil {
+		t.Fatalf("runServeWithOps failed: %v", err)
+	}
+
+	select {
+	case runtime := <-watchedCh:
+		if !runtime.incremental {
+			t.Fatal("expected watcher runtime to have incremental=true")
+		}
+		if runtime.cleanOutput {
+			t.Fatal("expected watcher runtime to have cleanOutput=false")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("watcher was not started")
+	}
+}
+
 func TestRunServeWithOps_BuildFailureStopsBeforeServer(t *testing.T) {
 	buildErr := errors.New("boom")
 	var started bool
@@ -446,6 +476,93 @@ func TestServeBuilder_InitialBuildForwardsOptions(t *testing.T) {
 	}
 	if gotClean {
 		t.Fatal("Expected clean flag false to be forwarded")
+	}
+}
+
+func TestServeBuilder_RebuildUsesIncrementalWhenRuntimeRequests(t *testing.T) {
+	var gotOpts generator.GenerationOptions
+
+	builder := serveBuilder{
+		loadSiteInput: func() (*siteBuildInput, error) {
+			return &siteBuildInput{cfg: &config.Config{PublishDir: "public"}}, nil
+		},
+		generateSiteWithOptionsFn: func(_ *siteBuildInput, opts generator.GenerationOptions) (*generator.GenerationResult, error) {
+			gotOpts = opts
+			return &generator.GenerationResult{}, nil
+		},
+	}
+
+	if _, err := builder.rebuildResult(serveRuntime{
+		buildDrafts: true,
+		cleanOutput: false,
+		incremental: true,
+	}); err != nil {
+		t.Fatalf("rebuildResult failed: %v", err)
+	}
+
+	if gotOpts.OutputDir != "public" {
+		t.Fatalf("Expected OutputDir public, got %q", gotOpts.OutputDir)
+	}
+	if !gotOpts.Incremental {
+		t.Fatal("Expected Incremental=true to be forwarded")
+	}
+	if !gotOpts.BuildDrafts {
+		t.Fatal("Expected BuildDrafts=true to be forwarded")
+	}
+	if gotOpts.CleanOutput {
+		t.Fatal("Expected CleanOutput=false to be forwarded")
+	}
+}
+
+func TestServeBuilder_RebuildDisablesIncrementalWhenCleaning(t *testing.T) {
+	var gotOpts generator.GenerationOptions
+
+	builder := serveBuilder{
+		loadSiteInput: func() (*siteBuildInput, error) {
+			return &siteBuildInput{cfg: &config.Config{PublishDir: "public"}}, nil
+		},
+		generateSiteWithOptionsFn: func(_ *siteBuildInput, opts generator.GenerationOptions) (*generator.GenerationResult, error) {
+			gotOpts = opts
+			return &generator.GenerationResult{}, nil
+		},
+	}
+
+	// A runtime that asks for both clean output and incremental should drop
+	// incremental — clean wipes the manifest, so honoring incremental would
+	// be a no-op at best and confusing at worst.
+	if _, err := builder.rebuildResult(serveRuntime{
+		cleanOutput: true,
+		incremental: true,
+	}); err != nil {
+		t.Fatalf("rebuildResult failed: %v", err)
+	}
+
+	if gotOpts.Incremental {
+		t.Fatal("Expected Incremental to be disabled when CleanOutput=true")
+	}
+	if !gotOpts.CleanOutput {
+		t.Fatal("Expected CleanOutput=true to be forwarded")
+	}
+}
+
+func TestServeBuilder_RebuildFallsBackToLegacyPointer(t *testing.T) {
+	called := 0
+
+	builder := serveBuilder{
+		loadSiteInput: func() (*siteBuildInput, error) {
+			return &siteBuildInput{cfg: &config.Config{PublishDir: "public"}}, nil
+		},
+		generateSiteWithResult: func(*siteBuildInput, string, bool, bool, bool) (*generator.GenerationResult, error) {
+			called++
+			return &generator.GenerationResult{}, nil
+		},
+	}
+
+	if _, err := builder.rebuildResult(serveRuntime{}); err != nil {
+		t.Fatalf("rebuildResult failed: %v", err)
+	}
+	if called != 1 {
+		t.Fatalf("expected legacy generateSiteWithResult to run once, got %d", called)
 	}
 }
 

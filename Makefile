@@ -34,7 +34,7 @@ help:
 	@echo "  help          - 显示帮助信息"
 	@echo ""
 	@echo "示例:"
-	@echo "  make build VERSION=v1.1.0"
+	@echo "  make build VERSION=v1.2.0"
 	@echo "  make test"
 	@echo "  make benchmark"
 	@echo "  make build-all"

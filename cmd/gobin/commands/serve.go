@@ -18,12 +18,13 @@ type devServer interface {
 }
 
 type serveOps struct {
-	loadSiteInput          func() (*siteBuildInput, error)
-	generateSite           func(*siteBuildInput, string, bool, bool, bool) error
-	generateSiteWithResult func(*siteBuildInput, string, bool, bool, bool) (*generator.GenerationResult, error)
-	startServer            func(io.Writer, *config.Config) error
-	startServerWithRuntime func(io.Writer, *config.Config, serveRuntime) error
-	watchFiles             func(context.Context, *config.Config, serveRuntime)
+	loadSiteInput             func() (*siteBuildInput, error)
+	generateSite              func(*siteBuildInput, string, bool, bool, bool) error
+	generateSiteWithResult    func(*siteBuildInput, string, bool, bool, bool) (*generator.GenerationResult, error)
+	generateSiteWithOptionsFn func(*siteBuildInput, generator.GenerationOptions) (*generator.GenerationResult, error)
+	startServer               func(io.Writer, *config.Config) error
+	startServerWithRuntime    func(io.Writer, *config.Config, serveRuntime) error
+	watchFiles                func(context.Context, *config.Config, serveRuntime)
 }
 
 type serveRuntime struct {
@@ -31,6 +32,7 @@ type serveRuntime struct {
 	stderr      io.Writer
 	buildDrafts bool
 	cleanOutput bool
+	incremental bool
 	verbose     bool
 	liveReload  *liveReloadBroker
 }
@@ -71,17 +73,18 @@ func init() {
 
 func runServe(stdout io.Writer, buildDrafts bool, watch bool) error {
 	return runServeWithOps(stdout, buildDrafts, watch, serveOps{
-		loadSiteInput:          loadSiteBuildInput,
-		generateSite:           generateSite,
-		generateSiteWithResult: generateSiteWithResult,
-		startServer:            startServer,
-		startServerWithRuntime: startServerWithRuntime,
-		watchFiles:             watchFilesWithRuntime,
+		loadSiteInput:             loadSiteBuildInput,
+		generateSite:              generateSite,
+		generateSiteWithResult:    generateSiteWithResult,
+		generateSiteWithOptionsFn: generateSiteWithOptions,
+		startServer:               startServer,
+		startServerWithRuntime:    startServerWithRuntime,
+		watchFiles:                watchFilesWithRuntime,
 	})
 }
 
 func runServeWithOps(stdout io.Writer, buildDrafts bool, watch bool, ops serveOps) error {
-	builder := newServeBuilder(ops.loadSiteInput, ops.generateSite, ops.generateSiteWithResult)
+	builder := newServeBuilderWithOptions(ops.loadSiteInput, ops.generateSite, ops.generateSiteWithResult, ops.generateSiteWithOptionsFn)
 	fmt.Fprintln(stdout, "Building site...")
 	input, result, err := builder.initialBuildResult(buildDrafts, serveClean)
 	if err != nil {
@@ -106,13 +109,18 @@ func runServeWithOps(stdout io.Writer, buildDrafts bool, watch bool, ops serveOp
 
 	if watch {
 		runtime.buildDrafts = buildDrafts
-		runtime.cleanOutput = serveClean
+		// Watcher rebuilds always run incremental: serveClean only governs
+		// the initial build. Wiping the output dir on every file save would
+		// throw away the manifest the watcher just primed.
+		runtime.cleanOutput = false
+		runtime.incremental = true
 		runtime.verbose = serveVerbose
 		go ops.watchFiles(watchCtx, cfg, serveRuntime{
 			stdout:      runtime.stdout,
 			stderr:      runtime.stderr,
 			buildDrafts: runtime.buildDrafts,
 			cleanOutput: runtime.cleanOutput,
+			incremental: runtime.incremental,
 			verbose:     runtime.verbose,
 			liveReload:  runtime.liveReload,
 		})
@@ -156,7 +164,7 @@ func buildSiteWithRuntime(runtime serveRuntime) error {
 
 func rebuildSiteAndReport(runtime serveRuntime) {
 	rebuildSiteAndReportWithResultDeps(runtime, func(runtime serveRuntime) (*generator.GenerationResult, error) {
-		return buildSiteWithResultWithDeps(loadSiteBuildInput, generateSiteWithResult, runtime.buildDrafts, runtime.cleanOutput)
+		return newServeBuilderWithOptions(loadSiteBuildInput, generateSite, generateSiteWithResult, generateSiteWithOptions).rebuildResult(runtime)
 	})
 }
 

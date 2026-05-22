@@ -24,7 +24,8 @@ Gobin 是一个基于 Go 语言开发的静态博客网站生成器，专为追�
 - `draft` / `published` 内容可见性控制
 - `assets.fingerprint` 静态资源指纹（`query` / `filename` 两种策略）
 - `serve` watch 模式下的 LiveReload 注入
-- `gobin build --incremental` 增量构建：跳过未变化的单文章页与聚合产物
+- `gobin build --incremental` 增量构建：按 source / list / feed / search / sitemap 多类别指纹跳过未变化的产物
+- `gobin serve` watcher 重建自动启用增量，只重渲染受影响的产物
 
 ### 当前限制
 - 暂未实现并行构建
@@ -57,6 +58,11 @@ go build -o gobin ./cmd/gobin
 
 # 使用 Go install 安装
 go install github.com/mengbin92/gobin/cmd/gobin@latest
+
+# 使用 Docker 运行
+docker run --rm -p 8080:8080 \
+  -v "$PWD:/site" \
+  docker.io/mengbin92/gobin:latest
 ```
 
 ### 创建新站点
@@ -120,6 +126,9 @@ gobin serve --watch
 ```bash
 # 构建静态文件
 gobin build
+
+# 增量构建，仅重写受影响的产物
+gobin build --incremental --clean=false
 
 # 轻量压缩输出（保守模式）
 gobin build --minify
@@ -231,7 +240,9 @@ gobin/
 | 命令 | 说明 | 示例 |
 |------|------|------|
 | `gobin init [name]` | 初始化新站点 | `gobin init myblog` |
-| `gobin build` | 构建静态站点，可选启用保守 HTML/CSS 压缩 | `gobin build --minify --drafts --clean=false` |
+| `gobin new <post|page> <title>` | 创建文章或页面草稿 | `gobin new post "Release notes"` |
+| `gobin check` | 校验配置、内容、模板和 permalink 冲突 | `gobin check --drafts` |
+| `gobin build` | 构建静态站点，可选启用增量构建和保守 HTML/CSS 压缩 | `gobin build --incremental --clean=false --minify` |
 | `gobin serve` | 启动开发服务器 | `gobin serve -p 8080 --drafts --clean=false` |
 | `gobin version` | 显示版本信息 | `gobin version` |
 | `gobin help` | 显示帮助信息 | `gobin help` |
@@ -345,6 +356,25 @@ jobs:
 
 [build.environment]
   GO_VERSION = "1.25"
+```
+
+### Docker 部署
+
+官方镜像发布到 Docker Hub，支持 `linux/amd64` 和 `linux/arm64`：
+
+```bash
+docker pull docker.io/mengbin92/gobin:latest
+
+docker run --rm -p 8080:8080 \
+  -e GOBIN_AUTO_INIT=true \
+  -v "$PWD:/site" \
+  docker.io/mengbin92/gobin:latest
+```
+
+也可以使用 `docker-compose.yml`：
+
+```bash
+GOBIN_IMAGE=docker.io/mengbin92/gobin:latest docker compose up
 ```
 
 ## 性能指标
