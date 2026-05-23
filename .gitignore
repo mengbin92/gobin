@@ -40,6 +40,8 @@ static-blog-technical-proposal.md
 bin/
 
 _posts/
+!website/_posts/
+!website/_posts/**
 public/
 
 .DS_Store
