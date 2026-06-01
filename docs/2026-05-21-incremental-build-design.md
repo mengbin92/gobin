@@ -179,6 +179,37 @@ aliases 跟单文章页绑定：post 的 `aliases` 字段在 `source_hash` 中�
 
 ## 10. 后续可演进项
 
-- `aggregate_hash` 收紧：分离"对 feed 有效字段"和"对 search 有效字段"
-- 配合并行构建（P3）
-- `serve` 中根据变化文件集做"亚秒级 partial rebuild"
+- `aggregate_hash` 收紧：分离"对 feed 有效字段"和"对 search 有效字段"（已完成，见 v2 manifest 的 per-category 哈希）
+- 配合并行构建（P3）（已完成，见 `gobin build --jobs`）
+- `serve` 中根据变化文件集做"亚秒级 partial rebuild"（已完成，见下）
+
+## 11. serve 亚秒级 partial rebuild（2026-06-01）
+
+此前 `gobin serve` 的每次 watch 重建都会调用 `loadSiteBuildInput()`，
+对站点内**全部** markdown 重新读取、解析并渲染 HTML（`O(N)` 解析），即便
+增量构建已跳过未变化页面的重新渲染。watcher 虽然知道哪个文件变化
+（`event.Name`），却把这个信息丢弃了。
+
+现在 watcher 子系统内维护一个会话级解析缓存（`contentCache`）和变更集
+（`changeSet`）。每个通过 `shouldRebuildForEvent` 的事件经 `classifyChange`
+归类后记入变更集；重建时 `newIncrementalLoader` 只重新解析变化的内容文件，
+其余从缓存复用：
+
+- **首次重建 / 结构性变更 / 无内容变更** → 全量 `loadSiteBuildInput`
+  并刷新整个缓存。结构性变更指 config 文件、`templates/`、主题目录，或内容
+  目录下的非 markdown 文件。
+- **内容 / 页面 markdown 变更** → 仅重新解析这些文件。变更路径若已不存在
+  （删除、编辑器原子保存的 rename-over）则从缓存移除，以磁盘最终状态为准。
+- **静态资源变更** → 不触碰解析缓存，交由生成器的增量资源复制处理。
+
+正确性保证：
+
+- 缓存在 `assemble()` 时按 `FilePath` 字典序输出**结构体浅拷贝**。浅拷贝避免
+  生成器 `preparePosts` 的原地改写（`URL`/`Content`/`ContentHTML`/`Summary`）
+  在多次重建间累积；字典序复现 `filepath.WalkDir` 的解析顺序，使等日期文章与
+  独立页面的产物保持字节一致。
+- 解析仅在全部成功后提交到缓存，半写文件的瞬时解析错误不会污染上次的良好状态。
+
+已知 v1 限制：watch 模式以 `cleanOutput=false` 运行，删除一篇文章会留下其
+旧的单页 HTML（与本次优化前行为一致，非回归）；按变更集精确清理 stale 输出
+留作后续项。
