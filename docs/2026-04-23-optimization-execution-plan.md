@@ -268,5 +268,5 @@
 
 ### P3 parallel build
 
-- `<pending>` `fix(assets): guard fingerprint hash cache against concurrent render`
-- `<pending>` `feat(build): render pages in parallel with --jobs (auto capped at 4)`
+- `4afe359` `fix(assets): guard fingerprint hash cache against concurrent render`
+- `dccd09d` `feat(build): render pages in parallel with --jobs (auto capped at 4)`
