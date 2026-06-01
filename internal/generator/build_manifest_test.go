@@ -183,6 +183,40 @@ func TestComputeBuildEnvHash_ChangesWithConfig(t *testing.T) {
 	}
 }
 
+// Editing a shortcode template under templates/shortcodes must invalidate the
+// build env hash, since shortcodes live within the already-hashed templates
+// tree and changing one changes rendered output.
+func TestComputeBuildEnvHash_ChangesWithShortcode(t *testing.T) {
+	siteDir := t.TempDir()
+	scPath := filepath.Join(siteDir, "templates", "shortcodes", "figure.html")
+	mustWriteFile(t, scPath, `<figure>v1</figure>`)
+
+	oldWd, _ := os.Getwd()
+	if err := os.Chdir(siteDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	defer os.Chdir(oldWd)
+
+	cfg := config.Normalize(&config.Config{Title: "A"})
+	opts := parser.DefaultRenderOptions()
+
+	before, err := computeBuildEnvHash(cfg, opts)
+	if err != nil {
+		t.Fatalf("before hash failed: %v", err)
+	}
+
+	mustWriteFile(t, scPath, `<figure>v2 changed</figure>`)
+
+	after, err := computeBuildEnvHash(cfg, opts)
+	if err != nil {
+		t.Fatalf("after hash failed: %v", err)
+	}
+
+	if before == after {
+		t.Fatal("expected shortcode template change to invalidate build env hash")
+	}
+}
+
 func TestGenerate_WritesBuildManifest(t *testing.T) {
 	tmpDir := t.TempDir()
 	siteDir := filepath.Join(tmpDir, "site")

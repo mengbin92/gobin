@@ -60,6 +60,8 @@
    - 说明：`gobin build --jobs N` 并行页面渲染，`--jobs 0`（默认）= `min(NumCPU, 4)`。
 3. 多语言
 4. 短代码
+   - 状态：已完成
+   - 说明：Hugo 风格短代码，支持 `{{< >}}`（原始 HTML，经 sentinel 绕过 Markdown 转义）与 `{{% %}}`（再经 Markdown 渲染）及配对 `.Inner`；内置 `figure` / `youtube` / `gist` / `highlight`，可由 `templates/shortcodes` 与主题 `layouts/shortcodes` 覆盖；未知短代码中断构建。短代码位于已被 env hash 的目录树内，增量 / serve 自动失效，无需额外接线。详见 `CHANGELOG-v1.4.md`。
 5. 图片优化
 
 ## 3. P0 执行拆分
@@ -289,3 +291,11 @@
 
 - `fa7d6dd` `feat(serve): reparse only changed files for sub-second partial rebuild`
 - `3eaa4ae` `docs(serve): document serve partial rebuild`
+
+### P3 shortcodes
+
+- `3656d50` `feat(shortcode): add invocation scanner and arg parser`
+- `f54b6a9` `feat(shortcode): add registry, loader, and built-in shortcodes`
+- `f777022` `feat(shortcode): add sentinel-based expansion (pre/post goldmark)`
+- `fa6e765` `feat(parser): expand shortcodes in renderMarkdownWithOptions`
+- `4023a5e` `feat(build): build shortcode registry for build and serve renders`

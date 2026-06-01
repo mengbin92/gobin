@@ -172,9 +172,13 @@ type contentCache struct {
 
 // refreshAll replaces the entire cache from a full site load. Called for the
 // initial prime and whenever a structural change forces a full reload.
-func (c *contentCache) refreshAll(input *siteBuildInput) {
+func (c *contentCache) refreshAll(input *siteBuildInput) error {
+	opts, err := renderOptionsFromConfig(input.cfg)
+	if err != nil {
+		return err
+	}
 	c.cfg = input.cfg
-	c.opts = renderOptionsFromConfig(input.cfg)
+	c.opts = opts
 	c.posts = make(map[string]*parser.Post, len(input.posts))
 	for _, post := range input.posts {
 		if post == nil || post.FilePath == "" {
@@ -190,6 +194,7 @@ func (c *contentCache) refreshAll(input *siteBuildInput) {
 		c.pages[filepath.Clean(page.FilePath)] = page
 	}
 	c.primed = true
+	return nil
 }
 
 // assemble builds a siteBuildInput from the cache. Entries are emitted in
@@ -249,7 +254,9 @@ func newIncrementalLoader(cache *contentCache, changes *changeSet, fullLoad func
 			if err != nil {
 				return nil, err
 			}
-			cache.refreshAll(input)
+			if err := cache.refreshAll(input); err != nil {
+				return nil, err
+			}
 			if report != nil {
 				report(len(cache.posts)+len(cache.pages), 0, true)
 			}

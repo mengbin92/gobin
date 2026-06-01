@@ -6,6 +6,7 @@ import (
 	"github.com/mengbin92/gobin/internal/config"
 	"github.com/mengbin92/gobin/internal/generator"
 	"github.com/mengbin92/gobin/internal/parser"
+	"github.com/mengbin92/gobin/internal/shortcode"
 )
 
 type siteBuildInput struct {
@@ -21,7 +22,10 @@ func loadSiteBuildInput() (*siteBuildInput, error) {
 	}
 	cfg = config.Normalize(cfg)
 
-	renderOptions := renderOptionsFromConfig(cfg)
+	renderOptions, err := renderOptionsFromConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("load shortcodes: %w", err)
+	}
 
 	posts, err := parser.ParsePostsWithOptions(cfg.ContentDir, renderOptions)
 	if err != nil {
@@ -40,12 +44,19 @@ func loadSiteBuildInput() (*siteBuildInput, error) {
 	}, nil
 }
 
-func renderOptionsFromConfig(cfg *config.Config) parser.RenderOptions {
+func renderOptionsFromConfig(cfg *config.Config) (parser.RenderOptions, error) {
 	opts := parser.DefaultRenderOptions()
 	if cfg != nil && cfg.Markup != nil && cfg.Markup.AllowUnsafeHTML != nil {
 		opts.AllowUnsafeHTML = *cfg.Markup.AllowUnsafeHTML
 	}
-	return opts
+
+	registry, err := shortcode.LoadRegistry(cfg)
+	if err != nil {
+		return parser.RenderOptions{}, err
+	}
+	opts.Shortcodes = registry
+
+	return opts, nil
 }
 
 func generateSite(input *siteBuildInput, outputDir string, minify bool, buildDrafts bool, cleanOutput bool) error {

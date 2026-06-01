@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mengbin92/gobin/internal/shortcode"
 	"github.com/mengbin92/gobin/internal/textutil"
 	"github.com/yuin/goldmark"
 	goldmarkhtml "github.com/yuin/goldmark/renderer/html"
@@ -62,6 +63,12 @@ type Page struct {
 // RenderOptions controls Markdown rendering behavior.
 type RenderOptions struct {
 	AllowUnsafeHTML bool
+
+	// Shortcodes, when non-nil, expands Hugo-style shortcodes in the Markdown
+	// source. It is excluded from JSON marshaling so it does not perturb the
+	// incremental build env hash; shortcode template changes are tracked via
+	// the templates/ and theme directory hashes instead.
+	Shortcodes *shortcode.Registry `json:"-"`
 }
 
 // DefaultRenderOptions returns parser settings that avoid rendering raw HTML
@@ -406,12 +413,18 @@ func renderMarkdownWithOptions(markdownContent string, opts RenderOptions) (stri
 
 	md := goldmark.New(options...)
 
-	var buf strings.Builder
-	if err := md.Convert([]byte(markdownContent), &buf); err != nil {
-		return "", err
+	convert := func(content string) (string, error) {
+		var buf strings.Builder
+		if err := md.Convert([]byte(content), &buf); err != nil {
+			return "", err
+		}
+		return buf.String(), nil
 	}
 
-	return buf.String(), nil
+	if opts.Shortcodes != nil {
+		return opts.Shortcodes.Render(markdownContent, convert)
+	}
+	return convert(markdownContent)
 }
 
 func pageURLForPath(path, baseDir string, page *Page) string {

@@ -48,7 +48,11 @@ func runCheck(stdout, stderr io.Writer, includeDrafts bool) error {
 	cfg = config.Normalize(cfg)
 	fmt.Fprintln(stdout, "  [OK]   config loaded and validated")
 
-	renderOpts := renderOptionsFromConfig(cfg)
+	renderOpts, err := renderOptionsFromConfig(cfg)
+	if err != nil {
+		fmt.Fprintf(stderr, "  [FAIL] shortcodes: %v\n", err)
+		return errors.New("check failed")
+	}
 	posts, err := parser.ParsePostsWithOptions(cfg.ContentDir, renderOpts)
 	if err != nil {
 		fmt.Fprintf(stderr, "  [FAIL] posts: %v\n", err)
