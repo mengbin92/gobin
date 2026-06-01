@@ -27,14 +27,15 @@ Gobin 是一个基于 Go 语言开发的静态博客网站生成器，专为追�
 - `gobin build --incremental` 增量构建：按 source / list / feed / search / sitemap 多类别指纹跳过未变化的产物
 - `gobin serve` watcher 重建自动启用增量，只重渲染受影响的产物
 - `gobin build --jobs N` 并行页面渲染：多 worker 并发渲染文章/列表/taxonomy 页面，与增量构建正交叠加
+- Hugo 风格短代码（shortcodes）：`{{< name args >}}` / `{{% name args %}}`，内置 `figure` / `youtube` / `gist` / `highlight`，并支持站点与主题自定义
 
 ### 当前限制
-- 多语言、短代码、图片优化等能力仍在规划中
+- 多语言、图片优化等能力仍在规划中
 - 并行仅覆盖页面渲染阶段；feed/sitemap/search 等聚合产物与 Markdown 解析仍为串行
 
 ### 规划中
 - 更完整的 Jekyll 迁移兼容层
-- 多语言与短代码支持
+- 多语言支持
 - 更完善的主题系统和开发服务器体验
 - 图片与资源优化
 
@@ -222,6 +223,60 @@ markup:
 ```
 
 `markup.allowUnsafeHTML` 默认关闭。显式设置为 `true` 时，Markdown 中的原始 HTML 会作为活动 HTML 输出，适合迁移完全可信的旧内容；内容来源不完全可信时应保持默认值。
+
+## 短代码（Shortcodes）
+
+短代码让你在 Markdown 正文里用简短指令生成结构化 HTML，而不必开启全局 `allowUnsafeHTML` 或手写重复 HTML。语法兼容 Hugo：
+
+| 形式 | 说明 |
+|------|------|
+| `{{< name args >}}` | HTML 形式，模板输出作为**原始 HTML** 注入（即使 `allowUnsafeHTML: false` 也生效）|
+| `{{% name args %}}` | Markdown 形式，模板输出**再经 Markdown 渲染** |
+| `{{< name >}}body{{< /name >}}` | 配对形式，正文通过 `.Inner` 提供 |
+
+参数支持位置参数与引号命名参数，二者可混用：
+
+```markdown
+{{< youtube dQw4w9WgXcQ >}}
+
+{{< figure src="/img/cover.png" alt="封面" caption="图 1" >}}
+
+{{< highlight go >}}
+fmt.Println("hello")
+{{< /highlight >}}
+```
+
+### 内置短代码
+
+| 名称 | 参数 | 用途 |
+|------|------|------|
+| `figure` | `src`（必填）、`alt`、`title`、`caption`、`link` | 输出 `<figure>` 图片块 |
+| `youtube` | 视频 id（位置或 `id=`） | 响应式 YouTube 嵌入 |
+| `gist` | `user`、`id`（位置或命名） | 嵌入 GitHub Gist |
+| `highlight` | 语言（位置 0），配对 | 包裹正文为代码块 |
+
+### 自定义短代码
+
+新增或覆盖短代码：在站点 `templates/shortcodes/<name>.html` 放一个 Go 模板即可（主题作者用 `<theme>/layouts/shortcodes/<name>.html`）。覆盖优先级为**站点 > 主题 > 内置**，与模板覆盖规则一致。
+
+模板上下文提供：
+
+- `{{ .Get 0 }}`：第 N 个位置参数；`{{ .Get "key" }}`：命名参数（缺失返回空串）
+- `{{ .Inner }}`：配对短代码的正文（已先行展开嵌套短代码；按文本转义，需原始 HTML 用 `{{ .Inner | safeHTML }}`）
+- `{{ .Name }}`：短代码名称
+- 辅助函数：`safeHTML`、`absURL`、`urlize`、`default`
+
+示例 `templates/shortcodes/note.html`：
+
+```html
+<div class="note note-{{ .Get "type" | default "info" }}">{{ .Inner | safeHTML }}</div>
+```
+
+### 说明
+
+- 代码围栏（```` ``` ````）与行内代码（`` `...` ``）中的短代码语法不会展开。
+- 引用未注册的短代码会**中断构建并指出文件与名称**，便于及早发现拼写错误。
+- 选型建议：要输出 HTML 用 `{{< >}}`，要输出仍走 Markdown 渲染的内容用 `{{% %}}`。短代码改动会触发增量构建失效与 `serve` 全量重载。
 
 ## 项目结构
 
