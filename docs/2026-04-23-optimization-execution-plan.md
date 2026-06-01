@@ -288,4 +288,4 @@
 ### P3 serve partial rebuild
 
 - `fa7d6dd` `feat(serve): reparse only changed files for sub-second partial rebuild`
-- `<pending>` `docs(serve): document serve partial rebuild`
+- `3eaa4ae` `docs(serve): document serve partial rebuild`
