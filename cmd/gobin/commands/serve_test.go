@@ -579,7 +579,7 @@ func TestServeWatcher_RunDelegatesToWatchLoop(t *testing.T) {
 				},
 			}, nil
 		},
-		runLoop: func(ctx context.Context, watcher fsWatcher, events <-chan fsnotify.Event, errors <-chan error, runtime serveRuntime, schedule func(func()), rebuild func()) {
+		runLoop: func(ctx context.Context, watcher fsWatcher, events <-chan fsnotify.Event, errors <-chan error, runtime serveRuntime, schedule func(func()), rebuild func(), record func(fsnotify.Event)) {
 			called = true
 		},
 		afterFunc: func(delay time.Duration, run func()) debounceCancelFunc {
@@ -733,7 +733,7 @@ func TestRunWatchLoop_SchedulesRebuildFromEvents(t *testing.T) {
 			run()
 		}, func() {
 			rebuilt = true
-		})
+		}, nil)
 		close(done)
 	}()
 
@@ -780,7 +780,7 @@ func TestServeWatchLoop_RebuildFailureDoesNotStopLaterRebuild(t *testing.T) {
 				}
 				return nil
 			})
-		})
+		}, nil)
 		close(done)
 	}()
 
@@ -871,7 +871,7 @@ func TestRunWatchLoop_WritesWatcherErrors(t *testing.T) {
 		runWatchLoop(context.Background(), events, errorsCh, serveRuntime{
 			stdout: io.Discard,
 			stderr: &stderr,
-		}, func(func()) {}, func() {})
+		}, func(func()) {}, func() {}, nil)
 		close(done)
 	}()
 
@@ -898,7 +898,7 @@ func TestRunWatchLoop_ExitsWhenErrorsChannelClosesFirst(t *testing.T) {
 		runWatchLoop(context.Background(), events, errorsCh, serveRuntime{
 			stdout: io.Discard,
 			stderr: io.Discard,
-		}, func(func()) {}, func() {})
+		}, func(func()) {}, func() {}, nil)
 		close(done)
 	}()
 
@@ -921,7 +921,7 @@ func TestRunWatchLoop_ExitsWhenContextCancelled(t *testing.T) {
 		runWatchLoop(ctx, events, errorsCh, serveRuntime{
 			stdout: io.Discard,
 			stderr: io.Discard,
-		}, func(func()) {}, func() {})
+		}, func(func()) {}, func() {}, nil)
 		close(done)
 	}()
 
@@ -951,7 +951,7 @@ func TestHandleWatchEvent_SchedulesRebuildForSupportedEvents(t *testing.T) {
 		run()
 	}, func() {
 		rebuilt = true
-	})
+	}, nil)
 
 	if !triggered {
 		t.Fatal("Expected write event to trigger rebuild scheduling")
@@ -984,7 +984,7 @@ func TestHandleWatchEventWithWatcher_RegistersCreatedDirectories(t *testing.T) {
 		verbose: true,
 	}, func(run func()) {
 		scheduled = true
-	}, func() {})
+	}, func() {}, nil)
 
 	if !triggered {
 		t.Fatal("Expected created directory event to trigger rebuild scheduling")
@@ -1007,7 +1007,7 @@ func TestHandleWatchEvent_IgnoresUnsupportedEvents(t *testing.T) {
 		verbose: true,
 	}, func(func()) {
 		scheduled = true
-	}, func() {})
+	}, func() {}, nil)
 
 	if triggered {
 		t.Fatal("Expected chmod event to be ignored")
