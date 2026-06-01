@@ -30,7 +30,9 @@ func TestClassifyChange(t *testing.T) {
 		{"config yaml", "config.yaml", changeStructural},
 		{"config yml underscore", "_config.yml", changeStructural},
 		{"template", filepath.Join("templates", "_default", "single.html"), changeStructural},
+		{"site shortcode", filepath.Join("templates", "shortcodes", "figure.html"), changeStructural},
 		{"theme layout", filepath.Join("themes", "mytheme", "layouts", "x.html"), changeStructural},
+		{"theme shortcode", filepath.Join("themes", "mytheme", "layouts", "shortcodes", "figure.html"), changeStructural},
 		{"non-md under content", filepath.Join("_posts", "data.json"), changeStructural},
 		{"unknown path", filepath.Join("somewhere", "else.md"), changeStructural},
 	}
@@ -254,7 +256,9 @@ func TestIncrementalRebuild_ByteIdenticalToFullRebuild(t *testing.T) {
 		t.Fatalf("prime build failed: %v", err)
 	}
 	cache := &contentCache{}
-	cache.refreshAll(primeInput)
+	if err := cache.refreshAll(primeInput); err != nil {
+		t.Fatalf("refreshAll failed: %v", err)
+	}
 
 	// Edit only the body of one post (title/date unchanged → aggregates stable).
 	mustWriteFile(t, filepath.Join(siteDir, "_posts", "2026-05-02-second.md"), postBody("Second Title", "Second body REVISED"))

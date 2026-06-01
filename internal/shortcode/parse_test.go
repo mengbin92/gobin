@@ -34,9 +34,9 @@ func TestParseArgs(t *testing.T) {
 			positional: []string{"a = b"},
 		},
 		{
-			name:     "closing tag",
-			inner:    "/highlight",
-			wantName: "highlight",
+			name:      "closing tag",
+			inner:     "/highlight",
+			wantName:  "highlight",
 			wantClose: true,
 		},
 		{
