@@ -190,7 +190,7 @@ func TestAssembleGenerationPlan_UsesProvidedPlans(t *testing.T) {
 		Run:     func() error { return nil },
 	}}
 
-	plan := assembleGenerationPlan("public", tmpl, sitePagePlan{pages: pageSpecs}, artifacts, true)
+	plan := assembleGenerationPlan("public", tmpl, sitePagePlan{pages: pageSpecs}, artifacts, true, 1)
 	if plan.outputDir != "public" {
 		t.Fatalf("Expected outputDir public, got %q", plan.outputDir)
 	}
@@ -1732,7 +1732,7 @@ func TestPrepareGenerationPlan(t *testing.T) {
 		EnableRobotsTXT: true,
 	}
 
-	plan, err := prepareGenerationPlan(posts, pages, cfg, "public", true, false, false)
+	plan, err := prepareGenerationPlan(posts, pages, cfg, "public", true, false, false, 1)
 	if err != nil {
 		t.Fatalf("prepareGenerationPlan failed: %v", err)
 	}

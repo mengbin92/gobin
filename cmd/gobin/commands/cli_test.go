@@ -64,7 +64,7 @@ func TestRunBuild_GeneratesSite(t *testing.T) {
 	defer os.Chdir(oldWd)
 
 	var stdout bytes.Buffer
-	if err := runBuild(&stdout, false, false, true, false); err != nil {
+	if err := runBuild(&stdout, false, false, true, false, 0); err != nil {
 		t.Fatalf("runBuild failed: %v", err)
 	}
 
@@ -102,7 +102,7 @@ func TestRunBuild_ReturnsConfigError(t *testing.T) {
 	}
 	defer os.Chdir(oldWd)
 
-	err := runBuild(io.Discard, false, false, true, false)
+	err := runBuild(io.Discard, false, false, true, false, 0)
 	if err == nil {
 		t.Fatal("Expected runBuild to fail without config")
 	}

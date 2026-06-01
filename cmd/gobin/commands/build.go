@@ -12,6 +12,7 @@ var minify bool
 var buildDrafts bool
 var cleanOutput bool
 var incremental bool
+var jobs int
 
 // BuildCmd is the build command
 var BuildCmd = &cobra.Command{
@@ -29,13 +30,16 @@ With --minify enabled, Gobin applies conservative HTML/CSS minification while
 preserving JavaScript content to avoid unsafe rewrites.
 
 Use --incremental to skip rendering pages whose source content is unchanged
-since the previous build (requires --clean=false).`,
+since the previous build (requires --clean=false).
+
+Use --jobs to control how many pages are rendered in parallel (0 = number of
+CPUs, 1 = sequential).`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runBuild(cmd.OutOrStdout(), minify, buildDrafts, cleanOutput, incremental)
+		return runBuild(cmd.OutOrStdout(), minify, buildDrafts, cleanOutput, incremental, jobs)
 	},
 }
 
-func runBuild(stdout io.Writer, minify bool, buildDrafts bool, cleanOutput bool, incremental bool) error {
+func runBuild(stdout io.Writer, minify bool, buildDrafts bool, cleanOutput bool, incremental bool, jobs int) error {
 	fmt.Fprintf(stdout, "Blog Static Site Generator v%s\n", Version)
 	fmt.Fprintln(stdout, "===================================")
 
@@ -56,6 +60,7 @@ func runBuild(stdout io.Writer, minify bool, buildDrafts bool, cleanOutput bool,
 		BuildDrafts: buildDrafts,
 		CleanOutput: cleanOutput,
 		Incremental: incremental,
+		Concurrency: jobs,
 	})
 	if err != nil {
 		return err
@@ -81,7 +86,7 @@ func printStaticAssetStats(stdout io.Writer, result *generator.GenerationResult)
 }
 
 func RunDefaultBuild(stdout io.Writer) error {
-	return runBuild(stdout, false, false, true, false)
+	return runBuild(stdout, false, false, true, false, 0)
 }
 
 func init() {
@@ -89,4 +94,5 @@ func init() {
 	BuildCmd.Flags().BoolVar(&buildDrafts, "drafts", false, "Include draft posts in the output")
 	BuildCmd.Flags().BoolVar(&cleanOutput, "clean", true, "Clean the output directory before generating")
 	BuildCmd.Flags().BoolVar(&incremental, "incremental", false, "Skip rendering pages whose source content is unchanged (requires --clean=false)")
+	BuildCmd.Flags().IntVar(&jobs, "jobs", 0, "Number of parallel page-render workers (0 = number of CPUs, 1 = sequential)")
 }

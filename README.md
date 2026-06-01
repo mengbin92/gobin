@@ -26,16 +26,17 @@ Gobin 是一个基于 Go 语言开发的静态博客网站生成器，专为追�
 - `serve` watch 模式下的 LiveReload 注入
 - `gobin build --incremental` 增量构建：按 source / list / feed / search / sitemap 多类别指纹跳过未变化的产物
 - `gobin serve` watcher 重建自动启用增量，只重渲染受影响的产物
+- `gobin build --jobs N` 并行页面渲染：多 worker 并发渲染文章/列表/taxonomy 页面，与增量构建正交叠加
 
 ### 当前限制
-- 暂未实现并行构建
 - 多语言、短代码、图片优化等能力仍在规划中
+- 并行仅覆盖页面渲染阶段；feed/sitemap/search 等聚合产物与 Markdown 解析仍为串行
 
 ### 规划中
-- 并行构建
 - 更完整的 Jekyll 迁移兼容层
 - 多语言与短代码支持
 - 更完善的主题系统和开发服务器体验
+- 图片与资源优化
 
 ## 技术栈
 
@@ -138,9 +139,14 @@ gobin build --drafts
 
 # 跳过输出目录清理
 gobin build --clean=false
+
+# 控制并行页面渲染的 worker 数（0 = 自动，1 = 串行）
+gobin build --jobs 4
 ```
 
 `--minify` 当前会对 HTML 和 CSS 做保守压缩，并保留 JavaScript 原始内容，优先保证输出正确性而不是做激进资源改写。
+
+`--jobs` 控制并行渲染页面的 worker 数：`0`（默认）按 CPU 数自动选择并封顶为 4，`1` 强制串行。页面渲染以写入大量小文件为主、偏 I/O 密集，因此默认封顶可在多核机器上获得收益（基准约 15–19%）而不引入高并发下的文件系统竞争退化；如使用更重、更偏 CPU 的模板，可显式指定更大的 `--jobs`。并行只改变写盘顺序、不改变内容，产物与串行字节级一致，且可与 `--incremental` 叠加。
 
 使用 `--clean=false` 时，未变化的静态资源会跳过复制以加快重建。Gobin 会通过资源 manifest 清理上次构建记录过、但本次源目录中已不存在的旧静态资源；未被资源管线管理的输出文件仍会保留。
 
@@ -242,7 +248,7 @@ gobin/
 | `gobin init [name]` | 初始化新站点 | `gobin init myblog` |
 | `gobin new <post|page> <title>` | 创建文章或页面草稿 | `gobin new post "Release notes"` |
 | `gobin check` | 校验配置、内容、模板和 permalink 冲突 | `gobin check --drafts` |
-| `gobin build` | 构建静态站点，可选启用增量构建和保守 HTML/CSS 压缩 | `gobin build --incremental --clean=false --minify` |
+| `gobin build` | 构建静态站点，可选启用增量构建、并行渲染和保守 HTML/CSS 压缩 | `gobin build --incremental --clean=false --jobs 4 --minify` |
 | `gobin serve` | 启动开发服务器 | `gobin serve -p 8080 --drafts --clean=false` |
 | `gobin version` | 显示版本信息 | `gobin version` |
 | `gobin help` | 显示帮助信息 | `gobin help` |
@@ -426,8 +432,8 @@ make benchmark
 - [x] 集成测试
 - [x] 静态资源复制优化
 - [x] CI benchmark 基线
-- [ ] 增量构建
-- [ ] 并行构建
+- [x] 增量构建
+- [x] 并行构建
 - [ ] 指纹资源和更完整的资源管线
 - [ ] 文档持续收口
 - [x] 示例站点创建

@@ -1,6 +1,8 @@
 package generator
 
 import (
+	"runtime"
+
 	"github.com/mengbin92/gobin/internal/config"
 	"github.com/mengbin92/gobin/internal/parser"
 )
@@ -12,7 +14,7 @@ type generationPlan struct {
 	manifest  *BuildManifest
 }
 
-func prepareGenerationPlan(posts []*parser.Post, standalonePages []*parser.Page, cfg *config.Config, outputDir string, minify bool, buildDrafts bool, incremental bool) (*generationPlan, error) {
+func prepareGenerationPlan(posts []*parser.Post, standalonePages []*parser.Page, cfg *config.Config, outputDir string, minify bool, buildDrafts bool, incremental bool, concurrency int) (*generationPlan, error) {
 	cfg = config.Normalize(cfg)
 	if outputDir == "" {
 		outputDir = cfg.PublishDir
@@ -27,7 +29,7 @@ func prepareGenerationPlan(posts []*parser.Post, standalonePages []*parser.Page,
 	}
 
 	artifactSpecs := buildArtifactSpecs(content.posts, cfg, outputDir, pagePlan.tags, pagePlan.categories)
-	plan := assembleGenerationPlan(outputDir, tmpl, pagePlan, artifactSpecs, minify)
+	plan := assembleGenerationPlan(outputDir, tmpl, pagePlan, artifactSpecs, minify, normalizeConcurrency(concurrency))
 
 	manifest, err := buildManifestForRun(cfg, content.posts, content.standalonePages)
 	if err != nil {
@@ -42,18 +44,37 @@ func prepareGenerationPlan(posts []*parser.Post, standalonePages []*parser.Page,
 	return plan, nil
 }
 
-func assembleGenerationPlan(outputDir string, tmpl renderer, pagePlan sitePagePlan, artifactSpecs []ArtifactSpec, minify bool) *generationPlan {
+func assembleGenerationPlan(outputDir string, tmpl renderer, pagePlan sitePagePlan, artifactSpecs []ArtifactSpec, minify bool, concurrency int) *generationPlan {
 	return &generationPlan{
 		outputDir: outputDir,
 		pagePlan: pageRenderPlan{
-			outputDir: outputDir,
-			templates: tmpl,
-			pages:     pagePlan.pages,
+			outputDir:   outputDir,
+			templates:   tmpl,
+			pages:       pagePlan.pages,
+			concurrency: concurrency,
 		},
 		artifacts: artifactPipeline{
 			specs: withMinifyArtifactEnabled(artifactSpecs, minify),
 		},
 	}
+}
+
+// autoConcurrencyCap bounds the worker count chosen for "auto" (--jobs 0).
+// Page rendering writes many small files and is I/O-bound, so throughput peaks
+// at a handful of workers and regresses past that as filesystem contention
+// outweighs the gains (benchmarked: NumCPU=10 was slower than serial, while 4
+// workers gave the best result). Explicit --jobs N is not capped, so power
+// users with heavier, CPU-bound templates can opt into more.
+const autoConcurrencyCap = 4
+
+// normalizeConcurrency resolves a requested worker count into an effective one.
+// A non-positive value means "auto", which maps to the number of CPUs capped at
+// autoConcurrencyCap.
+func normalizeConcurrency(concurrency int) int {
+	if concurrency <= 0 {
+		return min(runtime.NumCPU(), autoConcurrencyCap)
+	}
+	return concurrency
 }
 
 func (p *generationPlan) Execute(cleanOutput bool) error {
@@ -111,9 +132,10 @@ func (p *generationPlan) executeWith(cleanOutput bool, prepare func(string, bool
 }
 
 type pageRenderPlan struct {
-	outputDir string
-	templates renderer
-	pages     []PageSpec
+	outputDir   string
+	templates   renderer
+	pages       []PageSpec
+	concurrency int
 }
 
 func (p pageRenderPlan) Execute() error {
@@ -122,7 +144,7 @@ func (p pageRenderPlan) Execute() error {
 }
 
 func (p pageRenderPlan) ExecuteResult() (PageRenderStats, error) {
-	stats, err := renderPageSpecsWithResult(p.templates, p.outputDir, p.pages)
+	stats, err := renderPageSpecsConcurrent(p.templates, p.outputDir, p.pages, p.concurrency)
 	if err != nil {
 		return PageRenderStats{}, err
 	}

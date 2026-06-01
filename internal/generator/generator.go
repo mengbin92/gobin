@@ -55,6 +55,10 @@ type GenerationOptions struct {
 	BuildDrafts bool
 	CleanOutput bool
 	Incremental bool
+	// Concurrency sets the number of parallel page-render workers. A value
+	// of 0 (or negative) means auto, which uses the number of CPUs. A value
+	// of 1 forces sequential rendering.
+	Concurrency int
 }
 
 // Generate generates the static site.
@@ -79,7 +83,7 @@ func GenerateWithPagesResult(posts []*parser.Post, standalonePages []*parser.Pag
 // GenerateWithOptions is the canonical entry point for site generation.
 // Other Generate* signatures forward to it.
 func GenerateWithOptions(posts []*parser.Post, standalonePages []*parser.Page, cfg *config.Config, opts GenerationOptions) (*GenerationResult, error) {
-	plan, err := prepareGenerationPlan(posts, standalonePages, cfg, opts.OutputDir, opts.Minify, opts.BuildDrafts, opts.Incremental)
+	plan, err := prepareGenerationPlan(posts, standalonePages, cfg, opts.OutputDir, opts.Minify, opts.BuildDrafts, opts.Incremental, opts.Concurrency)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +110,7 @@ type DryRunCollision struct {
 // DryRun loads templates, computes the generation plan, and reports any
 // permalink collisions without writing any files.
 func DryRun(posts []*parser.Post, standalonePages []*parser.Page, cfg *config.Config, buildDrafts bool) (*DryRunReport, error) {
-	plan, err := prepareGenerationPlan(posts, standalonePages, cfg, "", false, buildDrafts, false)
+	plan, err := prepareGenerationPlan(posts, standalonePages, cfg, "", false, buildDrafts, false, 1)
 	if err != nil {
 		return nil, err
 	}

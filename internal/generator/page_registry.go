@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 )
 
 type renderer interface {
@@ -36,39 +38,123 @@ func renderPageSpecs(tmpl renderer, outputDir string, pages []PageSpec) error {
 func renderPageSpecsWithResult(tmpl renderer, outputDir string, pages []PageSpec) (PageRenderStats, error) {
 	var stats PageRenderStats
 	for _, page := range pages {
-		if page.SkipReason != "" {
+		wrote, err := renderSinglePage(tmpl, outputDir, page)
+		if err != nil {
+			return stats, err
+		}
+		if wrote {
+			stats.Rendered++
+		} else {
 			stats.Skipped++
-			continue
 		}
-		templateName, err := resolveTemplateName(tmpl, page.TemplateCandidates)
-		if err != nil {
-			return stats, pageRenderError(page, "", err)
-		}
-
-		outputPath, err := safeOutputPath(outputDir, page.OutputPath)
-		if err != nil {
-			return stats, pageRenderError(page, templateName, err)
-		}
-		if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
-			return stats, pageRenderError(page, templateName, err)
-		}
-		rendered, err := renderTemplateContent(tmpl, templateName, page.Data)
-		if err != nil {
-			return stats, pageRenderError(page, templateName, err)
-		}
-		if same, err := fileHasContent(outputPath, rendered); err != nil {
-			return stats, pageRenderError(page, templateName, err)
-		} else if same {
-			stats.Skipped++
-			continue
-		}
-		if err := os.WriteFile(outputPath, rendered, 0644); err != nil {
-			return stats, pageRenderError(page, templateName, err)
-		}
-		stats.Rendered++
 	}
 
 	return stats, nil
+}
+
+// renderPageSpecsConcurrent renders pages across a fixed set of workers. It is
+// behaviourally equivalent to renderPageSpecsWithResult: each page writes its
+// own independent output path and the shared *template.Template is only
+// executed (read-only). Output is deterministic because content does not depend
+// on render order.
+//
+// Pages are striped across workers (worker w renders indices w, w+workers, …)
+// rather than dispatched one at a time over a channel. Per-page work is small
+// and uniform, so striping avoids per-page channel handoff and lock contention:
+// each worker accumulates a local PageRenderStats and the totals are summed
+// once at the end. A shared atomic flag lets workers stop promptly after the
+// first error.
+//
+// When concurrency <= 1 (or there is at most one page) it falls back to the
+// serial path.
+func renderPageSpecsConcurrent(tmpl renderer, outputDir string, pages []PageSpec, concurrency int) (PageRenderStats, error) {
+	if concurrency <= 1 || len(pages) <= 1 {
+		return renderPageSpecsWithResult(tmpl, outputDir, pages)
+	}
+
+	workers := min(concurrency, len(pages))
+
+	var (
+		failed   atomic.Bool
+		firstErr error
+		once     sync.Once
+	)
+	fail := func(err error) {
+		once.Do(func() { firstErr = err })
+		failed.Store(true)
+	}
+
+	localStats := make([]PageRenderStats, workers)
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for w := 0; w < workers; w++ {
+		go func(w int) {
+			defer wg.Done()
+			stats := &localStats[w]
+			for i := w; i < len(pages); i += workers {
+				if failed.Load() {
+					return
+				}
+				wrote, err := renderSinglePage(tmpl, outputDir, pages[i])
+				if err != nil {
+					fail(err)
+					return
+				}
+				if wrote {
+					stats.Rendered++
+				} else {
+					stats.Skipped++
+				}
+			}
+		}(w)
+	}
+	wg.Wait()
+
+	if firstErr != nil {
+		return PageRenderStats{}, firstErr
+	}
+	var total PageRenderStats
+	for _, s := range localStats {
+		total.Rendered += s.Rendered
+		total.Skipped += s.Skipped
+	}
+	return total, nil
+}
+
+// renderSinglePage renders one page spec to its output file. It reports whether
+// it actually wrote the file (rendered) versus skipped it (SkipReason set, or
+// the on-disk content already matches). It is safe to call concurrently for
+// distinct pages: the template is executed read-only into a private buffer and
+// each page targets its own output path.
+func renderSinglePage(tmpl renderer, outputDir string, page PageSpec) (rendered bool, err error) {
+	if page.SkipReason != "" {
+		return false, nil
+	}
+	templateName, err := resolveTemplateName(tmpl, page.TemplateCandidates)
+	if err != nil {
+		return false, pageRenderError(page, "", err)
+	}
+
+	outputPath, err := safeOutputPath(outputDir, page.OutputPath)
+	if err != nil {
+		return false, pageRenderError(page, templateName, err)
+	}
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
+		return false, pageRenderError(page, templateName, err)
+	}
+	content, err := renderTemplateContent(tmpl, templateName, page.Data)
+	if err != nil {
+		return false, pageRenderError(page, templateName, err)
+	}
+	if same, err := fileHasContent(outputPath, content); err != nil {
+		return false, pageRenderError(page, templateName, err)
+	} else if same {
+		return false, nil
+	}
+	if err := os.WriteFile(outputPath, content, 0644); err != nil {
+		return false, pageRenderError(page, templateName, err)
+	}
+	return true, nil
 }
 
 func renderTemplateContent(tmpl renderer, name string, data interface{}) ([]byte, error) {

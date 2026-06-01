@@ -214,6 +214,16 @@
   - 模板 / 主题 / 配置 / render options 变化导致 `build_env_hash` 失配，自动降级为全量构建
   - benchmark（M5）：100 篇 post 的无变化 incremental build ≈ 2.9 ms，全量 build ≈ 19.3 ms（约 6.7x）
 
+- 2026-06-01
+- 验证命令：`go test ./... -race`，`go test ./internal/generator -bench BenchmarkBuildFull_Concurrency -benchtime=40x`，并对同一站点 `gobin build --jobs 1` 与 `gobin build` 输出做 `diff -r`
+- 验证结果：通过
+- 验收结论：
+  - 新增 `gobin build --jobs N` 并行页面渲染（worker 按索引 stripe 拆分，本地 stats 末尾合并，首个错误经原子标志快速停止）
+  - `--jobs 0`（默认）= `min(NumCPU, 4)`，`--jobs 1` 强制串行，显式 `--jobs N` 不封顶；新增 `GenerationOptions.Concurrency` 贯穿
+  - 修复 `assetURL` 指纹 hash 缓存（`assetFingerprinter`）在并发渲染下的数据竞争，`-race` 通过
+  - 并行与串行产物字节级一致（`diff -r` 无差异），与 `--incremental` 叠加仍正确（编辑 1 篇后仅重渲染 1 页）
+  - benchmark（10 核，渲染 + 聚合阶段）：500 篇 post 串行 ≈ 106 ms，jobs=4 ≈ 90.7 ms，自动（封顶 4）≈ 88.1 ms（约 1.2x）；未封顶的 NumCPU=10 ≈ 124 ms 慢于串行，因此默认封顶 4
+
 ## 6. 提交记录
 
 ### P0
@@ -255,3 +265,8 @@
 - `d52cbcb` `feat(incremental): persist build manifest as side effect of each build`
 - `78770fc` `feat(incremental): skip unchanged single-content pages on --incremental`
 - `62fca01` `feat(incremental): skip list, taxonomy, and aggregate artifacts when site unchanged`
+
+### P3 parallel build
+
+- `<pending>` `fix(assets): guard fingerprint hash cache against concurrent render`
+- `<pending>` `feat(build): render pages in parallel with --jobs (auto capped at 4)`
