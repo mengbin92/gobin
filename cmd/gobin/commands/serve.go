@@ -41,12 +41,11 @@ type debounceCancelFunc func() bool
 type debounceAfterFunc func(time.Duration, func()) debounceCancelFunc
 
 var (
-	servePort    int
-	serveWatch   bool
-	serveVerbose bool
-	serveDrafts  bool
-	serveClean   bool
-	serveReload  bool
+	servePort   int
+	serveWatch  bool
+	serveDrafts bool
+	serveClean  bool
+	serveReload bool
 )
 
 // ServeCmd is the serve command
@@ -65,7 +64,6 @@ rebuilds the site when files change, and can refresh open pages with LiveReload.
 func init() {
 	ServeCmd.Flags().IntVarP(&servePort, "port", "p", 8080, "Port to serve on")
 	ServeCmd.Flags().BoolVarP(&serveWatch, "watch", "w", true, "Watch for file changes and rebuild")
-	ServeCmd.Flags().BoolVarP(&serveVerbose, "verbose", "v", false, "Verbose output")
 	ServeCmd.Flags().BoolVar(&serveDrafts, "drafts", false, "Include draft posts in the output")
 	ServeCmd.Flags().BoolVar(&serveClean, "clean", true, "Clean the output directory before rebuilding")
 	ServeCmd.Flags().BoolVar(&serveReload, "live-reload", true, "Inject a development-only LiveReload client while watching")
@@ -114,7 +112,7 @@ func runServeWithOps(stdout io.Writer, buildDrafts bool, watch bool, ops serveOp
 		// throw away the manifest the watcher just primed.
 		runtime.cleanOutput = false
 		runtime.incremental = true
-		runtime.verbose = serveVerbose
+		runtime.verbose = verbose
 		go ops.watchFiles(watchCtx, cfg, serveRuntime{
 			stdout:      runtime.stdout,
 			stderr:      runtime.stderr,

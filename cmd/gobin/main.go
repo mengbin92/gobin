@@ -32,4 +32,9 @@ func init() {
 	rootCmd.AddCommand(commands.ServeCmd)
 	rootCmd.AddCommand(commands.NewCmd)
 	rootCmd.AddCommand(commands.CheckCmd)
+
+	commands.AddGlobalFlags(rootCmd)
+	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		commands.InitLogging()
+	}
 }

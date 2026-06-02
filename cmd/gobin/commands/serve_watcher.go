@@ -88,7 +88,7 @@ func watchFiles(cfg *config.Config) {
 		stderr:      os.Stderr,
 		buildDrafts: serveDrafts,
 		cleanOutput: serveClean,
-		verbose:     serveVerbose,
+		verbose:     verbose,
 	})
 }
 
