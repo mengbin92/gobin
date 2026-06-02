@@ -2,6 +2,7 @@ package log
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"log/slog"
 	"os"
@@ -162,5 +163,20 @@ func TestSetAndGetDefault(t *testing.T) {
 	Info("via-convenience")
 	if !strings.Contains(buf.String(), "via-convenience") {
 		t.Errorf("convenience Info did not route to default logger, got: %s", buf.String())
+	}
+}
+
+func TestContextRoundTrip(t *testing.T) {
+	var buf bytes.Buffer
+	logger := newTestLogger(&buf, FormatText, slog.LevelInfo)
+	ctx := IntoContext(context.Background(), logger)
+	if FromContext(ctx) != logger {
+		t.Error("FromContext did not return the logger put via IntoContext")
+	}
+}
+
+func TestFromContextFallsBackToDefault(t *testing.T) {
+	if FromContext(context.Background()) != GetDefault() {
+		t.Error("FromContext on empty context should return the default logger")
 	}
 }
