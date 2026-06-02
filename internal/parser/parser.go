@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mengbin92/gobin/internal/log"
 	"github.com/mengbin92/gobin/internal/shortcode"
 	"github.com/mengbin92/gobin/internal/textutil"
 	"github.com/yuin/goldmark"
@@ -238,12 +239,16 @@ func ParsePosts(dir string) ([]*Post, error) {
 
 // ParsePostsWithOptions parses all markdown posts from a directory using render options.
 func ParsePostsWithOptions(dir string, opts RenderOptions) ([]*Post, error) {
+	logger := log.GetDefault().With("component", "parser")
 	if dir == "" {
 		return nil, nil
 	}
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		logger.Debug("content directory does not exist, skipping", "dir", dir)
 		return nil, nil
 	}
+
+	logger.Debug("scanning content directory", "dir", dir)
 
 	var posts []*Post
 
@@ -273,6 +278,7 @@ func ParsePostsWithOptions(dir string, opts RenderOptions) ([]*Post, error) {
 		return nil, fmt.Errorf("failed to read directory %s: %w", dir, err)
 	}
 
+	logger.Info("posts parsed", "dir", dir, "total", len(posts))
 	return posts, nil
 }
 

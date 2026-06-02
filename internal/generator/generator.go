@@ -2,6 +2,7 @@ package generator
 
 import (
 	"github.com/mengbin92/gobin/internal/config"
+	"github.com/mengbin92/gobin/internal/log"
 	"github.com/mengbin92/gobin/internal/parser"
 )
 
@@ -83,11 +84,29 @@ func GenerateWithPagesResult(posts []*parser.Post, standalonePages []*parser.Pag
 // GenerateWithOptions is the canonical entry point for site generation.
 // Other Generate* signatures forward to it.
 func GenerateWithOptions(posts []*parser.Post, standalonePages []*parser.Page, cfg *config.Config, opts GenerationOptions) (*GenerationResult, error) {
+	logger := log.GetDefault().With("component", "generator")
+	logger.Debug("preparing generation plan",
+		"posts", len(posts),
+		"pages", len(standalonePages),
+		"output_dir", opts.OutputDir,
+		"incremental", opts.Incremental,
+		"concurrency", opts.Concurrency,
+	)
+
 	plan, err := prepareGenerationPlan(posts, standalonePages, cfg, opts.OutputDir, opts.Minify, opts.BuildDrafts, opts.Incremental, opts.Concurrency)
 	if err != nil {
 		return nil, err
 	}
-	return plan.ExecuteResult(opts.CleanOutput)
+
+	result, err := plan.ExecuteResult(opts.CleanOutput)
+	if err != nil {
+		return nil, err
+	}
+	logger.Debug("generation plan executed",
+		"pages_rendered", result.Pages.Rendered,
+		"pages_skipped", result.Pages.Skipped,
+	)
+	return result, nil
 }
 
 // DryRunReport summarizes a check-only pass over the site inputs. It is
