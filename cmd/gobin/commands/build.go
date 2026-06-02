@@ -3,8 +3,10 @@ package commands
 import (
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/mengbin92/gobin/internal/generator"
+	"github.com/mengbin92/gobin/internal/log"
 	"github.com/spf13/cobra"
 )
 
@@ -40,6 +42,9 @@ CPUs, 1 = sequential).`,
 }
 
 func runBuild(stdout io.Writer, minify bool, buildDrafts bool, cleanOutput bool, incremental bool, jobs int) error {
+	logger := log.GetDefault()
+	start := time.Now()
+
 	fmt.Fprintf(stdout, "Blog Static Site Generator v%s\n", Version)
 	fmt.Fprintln(stdout, "===================================")
 
@@ -47,11 +52,23 @@ func runBuild(stdout io.Writer, minify bool, buildDrafts bool, cleanOutput bool,
 		return fmt.Errorf("--incremental cannot be combined with --clean=true; pass --clean=false")
 	}
 
+	logger.Info("site build started",
+		"version", Version,
+		"minify", minify,
+		"build_drafts", buildDrafts,
+		"clean_output", cleanOutput,
+		"incremental", incremental,
+		"jobs", jobs,
+	)
+
+	logger.Debug("loading site build input")
 	input, err := loadSiteBuildInput()
 	if err != nil {
+		logger.Error("failed to load site build input", "error", err)
 		return err
 	}
 
+	logger.Info("content parsed", "posts", len(input.posts), "pages", len(input.pages))
 	fmt.Fprintf(stdout, "Found %d posts\n", len(input.posts))
 
 	result, err := generateSiteWithOptions(input, generator.GenerationOptions{
@@ -63,9 +80,19 @@ func runBuild(stdout io.Writer, minify bool, buildDrafts bool, cleanOutput bool,
 		Concurrency: jobs,
 	})
 	if err != nil {
+		logger.Error("site generation failed", "error", err, "elapsed", time.Since(start))
 		return err
 	}
 	printStaticAssetStats(stdout, result)
+
+	logger.Info("site build completed",
+		"pages_rendered", result.Pages.Rendered,
+		"pages_skipped", result.Pages.Skipped,
+		"artifacts_ran", result.Artifacts.Ran,
+		"assets_copied", result.StaticAssets.Copied,
+		"publish_dir", input.cfg.PublishDir,
+		"elapsed", time.Since(start),
+	)
 
 	if minify {
 		fmt.Fprintf(stdout, "Site generated and minified successfully in '%s' directory\n", input.cfg.PublishDir)

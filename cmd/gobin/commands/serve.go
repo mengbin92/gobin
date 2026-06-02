@@ -9,6 +9,7 @@ import (
 
 	"github.com/mengbin92/gobin/internal/config"
 	"github.com/mengbin92/gobin/internal/generator"
+	"github.com/mengbin92/gobin/internal/log"
 	"github.com/spf13/cobra"
 )
 
@@ -84,6 +85,7 @@ func runServe(stdout io.Writer, buildDrafts bool, watch bool) error {
 func runServeWithOps(stdout io.Writer, buildDrafts bool, watch bool, ops serveOps) error {
 	builder := newServeBuilderWithOptions(ops.loadSiteInput, ops.generateSite, ops.generateSiteWithResult, ops.generateSiteWithOptionsFn)
 	fmt.Fprintln(stdout, "Building site...")
+	log.Info("dev server build started", "drafts", buildDrafts, "watch", watch, "clean", serveClean)
 	input, result, err := builder.initialBuildResult(buildDrafts, serveClean)
 	if err != nil {
 		return fmt.Errorf("build site: %w", err)
@@ -93,6 +95,12 @@ func runServeWithOps(stdout io.Writer, buildDrafts bool, watch bool, ops serveOp
 	defer cancelWatch()
 
 	printStaticAssetStats(stdout, result)
+	if result != nil {
+		log.Info("dev server initial build completed",
+			"pages_rendered", result.Pages.Rendered,
+			"assets_copied", result.StaticAssets.Copied,
+		)
+	}
 	fmt.Fprintln(stdout, "Site built successfully!")
 
 	var liveReload *liveReloadBroker

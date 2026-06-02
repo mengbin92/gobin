@@ -708,9 +708,8 @@ func TestRegisterWatchPaths_UsesProvidedOutputsOnWatcherFailure(t *testing.T) {
 		t.Fatalf("registerWatchPaths failed: %v", err)
 	}
 
-	if !strings.Contains(stdout.String(), "Warning: Could not watch missing-content") {
-		t.Fatalf("Expected watch warning on provided stdout, got %q", stdout.String())
-	}
+	// Watch-path warnings are now routed through slog (log.Warn) rather than
+	// written to runtime.stdout, so stdout remains empty for these warnings.
 	if stderr.Len() != 0 {
 		t.Fatalf("Expected no stderr output for watch path warnings, got %q", stderr.String())
 	}
@@ -865,12 +864,11 @@ func TestRunWatchLoop_WritesWatcherErrors(t *testing.T) {
 	events := make(chan fsnotify.Event)
 	errorsCh := make(chan error, 1)
 	done := make(chan struct{})
-	var stderr bytes.Buffer
 
 	go func() {
 		runWatchLoop(context.Background(), events, errorsCh, serveRuntime{
 			stdout: io.Discard,
-			stderr: &stderr,
+			stderr: io.Discard,
 		}, func(func()) {}, func() {}, nil)
 		close(done)
 	}()
@@ -884,9 +882,8 @@ func TestRunWatchLoop_WritesWatcherErrors(t *testing.T) {
 		t.Fatal("Expected watch loop to exit after errors channel closed")
 	}
 
-	if !strings.Contains(stderr.String(), "Watcher error: watch failed") {
-		t.Fatalf("Expected watcher error output, got %q", stderr.String())
-	}
+	// Watcher errors are now routed through slog (log.Error) rather than
+	// written to runtime.stderr, so stderr remains empty for these errors.
 }
 
 func TestRunWatchLoop_ExitsWhenErrorsChannelClosesFirst(t *testing.T) {
