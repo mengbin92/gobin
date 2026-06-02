@@ -68,3 +68,48 @@ func New(opts Options) *slog.Logger {
 	}
 	return slog.New(handler)
 }
+
+// NewFromCLI builds a logger from CLI flag values.
+// verbose=true raises the level to debug and enables source locations.
+func NewFromCLI(verbose bool, format, logFile string) *slog.Logger {
+	opts := Default()
+	if verbose {
+		opts.Level = LevelDebug
+		opts.AddSource = true
+	}
+	if format != "" {
+		opts.Format = Format(format)
+	}
+	if logFile != "" {
+		opts.Output = logFile
+	}
+	return New(opts)
+}
+
+// WithComponent returns a child logger tagged with the given component name.
+func WithComponent(logger *slog.Logger, component string) *slog.Logger {
+	return logger.With("component", component)
+}
+
+// ----- global default logger -----
+
+var defaultLogger *slog.Logger
+
+func init() {
+	defaultLogger = New(Default())
+}
+
+// SetDefault installs l as the package default and the slog default.
+func SetDefault(l *slog.Logger) {
+	defaultLogger = l
+	slog.SetDefault(l)
+}
+
+// GetDefault returns the current package default logger.
+func GetDefault() *slog.Logger { return defaultLogger }
+
+// Convenience helpers forwarding to the default logger.
+func Debug(msg string, args ...any) { defaultLogger.Debug(msg, args...) }
+func Info(msg string, args ...any)  { defaultLogger.Info(msg, args...) }
+func Warn(msg string, args ...any)  { defaultLogger.Warn(msg, args...) }
+func Error(msg string, args ...any) { defaultLogger.Error(msg, args...) }

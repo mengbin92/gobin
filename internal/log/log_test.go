@@ -111,3 +111,56 @@ func TestNewJSONFormat(t *testing.T) {
 		t.Errorf("unexpected JSON record: %v", rec)
 	}
 }
+
+func TestNewFromCLIVerboseEnablesDebug(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v.log")
+	logger := NewFromCLI(true, "text", path)
+	logger.Debug("dbg-line")
+	data, _ := os.ReadFile(path)
+	if !strings.Contains(string(data), "dbg-line") {
+		t.Errorf("verbose logger should emit debug, got: %s", string(data))
+	}
+}
+
+func TestNewFromCLIDefaultsHideDebug(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "nv.log")
+	logger := NewFromCLI(false, "", path)
+	logger.Debug("dbg-line")
+	logger.Info("info-line")
+	data, _ := os.ReadFile(path)
+	out := string(data)
+	if strings.Contains(out, "dbg-line") {
+		t.Errorf("non-verbose logger should hide debug, got: %s", out)
+	}
+	if !strings.Contains(out, "info-line") {
+		t.Errorf("non-verbose logger should show info, got: %s", out)
+	}
+}
+
+func TestWithComponentAddsField(t *testing.T) {
+	var buf bytes.Buffer
+	base := newTestLogger(&buf, FormatJSON, slog.LevelInfo)
+	logger := WithComponent(base, "parser")
+	logger.Info("scanned")
+	var rec map[string]any
+	json.Unmarshal(buf.Bytes()[:buf.Len()-1], &rec)
+	if rec["component"] != "parser" {
+		t.Errorf("component field = %v, want parser", rec["component"])
+	}
+}
+
+func TestSetAndGetDefault(t *testing.T) {
+	orig := GetDefault()
+	defer SetDefault(orig)
+
+	var buf bytes.Buffer
+	custom := newTestLogger(&buf, FormatText, slog.LevelInfo)
+	SetDefault(custom)
+	if GetDefault() != custom {
+		t.Error("GetDefault did not return the logger set by SetDefault")
+	}
+	Info("via-convenience")
+	if !strings.Contains(buf.String(), "via-convenience") {
+		t.Errorf("convenience Info did not route to default logger, got: %s", buf.String())
+	}
+}
