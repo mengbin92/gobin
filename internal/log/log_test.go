@@ -1,8 +1,12 @@
 package log
 
 import (
+	"bytes"
+	"encoding/json"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -43,5 +47,67 @@ func TestResolveWriterBadPathFallsBackToStderr(t *testing.T) {
 	bad := filepath.Join(t.TempDir(), "nope", "deeper", "x.log")
 	if got := resolveWriter(bad); got != os.Stderr {
 		t.Errorf("resolveWriter(bad) = %v, want os.Stderr fallback", got)
+	}
+}
+
+// newTestLogger builds a logger writing into buf with the given format/level.
+func newTestLogger(buf *bytes.Buffer, format Format, level slog.Level) *slog.Logger {
+	var h slog.Handler
+	opts := &slog.HandlerOptions{Level: level}
+	if format == FormatJSON {
+		h = slog.NewJSONHandler(buf, opts)
+	} else {
+		h = slog.NewTextHandler(buf, opts)
+	}
+	return slog.New(h)
+}
+
+func TestParseLevel(t *testing.T) {
+	cases := map[Level]slog.Level{
+		LevelDebug:    slog.LevelDebug,
+		LevelInfo:     slog.LevelInfo,
+		LevelWarn:     slog.LevelWarn,
+		LevelError:    slog.LevelError,
+		Level("bogus"): slog.LevelInfo, // unknown -> info
+	}
+	for in, want := range cases {
+		if got := parseLevel(in); got != want {
+			t.Errorf("parseLevel(%q) = %v, want %v", in, got, want)
+		}
+	}
+}
+
+func TestNewTextHandlerFiltersByLevel(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "out.log")
+	logger := New(Options{Level: LevelInfo, Format: FormatText, Output: path})
+	logger.Debug("debug-msg")
+	logger.Info("info-msg")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := string(data)
+	if strings.Contains(out, "debug-msg") {
+		t.Errorf("INFO logger should not emit debug, got: %s", out)
+	}
+	if !strings.Contains(out, "info-msg") {
+		t.Errorf("INFO logger should emit info, got: %s", out)
+	}
+}
+
+func TestNewJSONFormat(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "out.json")
+	logger := New(Options{Level: LevelInfo, Format: FormatJSON, Output: path})
+	logger.Info("hello", "k", "v")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rec map[string]any
+	if err := json.Unmarshal(data[:len(data)-1], &rec); err != nil {
+		t.Fatalf("output is not valid JSON: %v (%q)", err, string(data))
+	}
+	if rec["msg"] != "hello" || rec["k"] != "v" {
+		t.Errorf("unexpected JSON record: %v", rec)
 	}
 }
