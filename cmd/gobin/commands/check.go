@@ -4,9 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/mengbin92/gobin/internal/config"
 	"github.com/mengbin92/gobin/internal/generator"
+	"github.com/mengbin92/gobin/internal/log"
 	"github.com/mengbin92/gobin/internal/parser"
 	"github.com/spf13/cobra"
 )
@@ -39,18 +41,26 @@ func init() {
 
 func runCheck(stdout, stderr io.Writer, includeDrafts bool) error {
 	fmt.Fprintln(stdout, "Checking site...")
+	log.Info("site check started", "include_drafts", includeDrafts)
 
 	cfg, err := config.LoadDefault()
 	if err != nil {
+		log.Error("check failed: config", "error", err)
 		fmt.Fprintf(stderr, "  [FAIL] config: %v\n", err)
 		return errors.New("check failed")
 	}
 	cfg = config.Normalize(cfg)
 	fmt.Fprintln(stdout, "  [OK]   config loaded and validated")
 
-	renderOpts := renderOptionsFromConfig(cfg)
+	renderOpts, err := renderOptionsFromConfig(cfg)
+	if err != nil {
+		log.Error("check failed: shortcodes", "error", err)
+		fmt.Fprintf(stderr, "  [FAIL] shortcodes: %v\n", err)
+		return errors.New("check failed")
+	}
 	posts, err := parser.ParsePostsWithOptions(cfg.ContentDir, renderOpts)
 	if err != nil {
+		log.Error("check failed: posts", "error", err)
 		fmt.Fprintf(stderr, "  [FAIL] posts: %v\n", err)
 		return errors.New("check failed")
 	}
@@ -58,6 +68,7 @@ func runCheck(stdout, stderr io.Writer, includeDrafts bool) error {
 
 	pages, err := parser.ParsePagesWithOptions(cfg.PageDir, renderOpts)
 	if err != nil {
+		log.Error("check failed: pages", "error", err)
 		fmt.Fprintf(stderr, "  [FAIL] pages: %v\n", err)
 		return errors.New("check failed")
 	}
@@ -65,6 +76,7 @@ func runCheck(stdout, stderr io.Writer, includeDrafts bool) error {
 
 	report, err := generator.DryRun(posts, pages, cfg, includeDrafts)
 	if err != nil {
+		log.Error("check failed: templates / plan", "error", err)
 		fmt.Fprintf(stderr, "  [FAIL] templates / plan: %v\n", err)
 		return errors.New("check failed")
 	}
@@ -72,6 +84,7 @@ func runCheck(stdout, stderr io.Writer, includeDrafts bool) error {
 
 	if len(report.CollidingURLs) > 0 {
 		for _, collision := range report.CollidingURLs {
+			log.Error("check failed: permalink collision", "path", collision.OutputPath, "sources", strings.Join(collision.Sources, ","))
 			fmt.Fprintf(stderr, "  [FAIL] permalink collision: %s\n", collision.OutputPath)
 			for _, src := range collision.Sources {
 				fmt.Fprintf(stderr, "          - %s\n", src)
@@ -82,5 +95,6 @@ func runCheck(stdout, stderr io.Writer, includeDrafts bool) error {
 	fmt.Fprintln(stdout, "  [OK]   no permalink collisions")
 
 	fmt.Fprintln(stdout, "Site check passed.")
+	log.Info("site check passed")
 	return nil
 }

@@ -53,10 +53,15 @@
 
 1. 增量构建
    - 状态：已完成
-   - 说明：`gobin build --incremental` 通过 `<publishDir>/.gobin-build.json` manifest 跟踪 source / build_env 指纹，跳过未变化的单文章页、列表、taxonomy 与 feed/sitemap/search/aliases/robots 聚合产物。详见 `docs/2026-05-21-incremental-build-design.md`。`gobin serve` 自动启用增量留作后续优化。
+   - 说明：`gobin build --incremental` 通过 `<publishDir>/.gobin-build.json` manifest 跟踪 source / build_env 指纹，跳过未变化的单文章页、列表、taxonomy 与 feed/sitemap/search/aliases/robots 聚合产物。详见 `docs/2026-05-21-incremental-build-design.md`。`gobin serve` 已自动启用增量。
+   - 后续：`serve` 亚秒级 partial rebuild（已完成）——watcher 按变化文件集只重新解析变化文件，其余从会话级缓存复用，结构性变更回退全量。详见 `docs/2026-05-21-incremental-build-design.md` §11。
 2. 并行构建
+   - 状态：已完成
+   - 说明：`gobin build --jobs N` 并行页面渲染，`--jobs 0`（默认）= `min(NumCPU, 4)`。
 3. 多语言
 4. 短代码
+   - 状态：已完成
+   - 说明：Hugo 风格短代码，支持 `{{< >}}`（原始 HTML，经 sentinel 绕过 Markdown 转义）与 `{{% %}}`（再经 Markdown 渲染）及配对 `.Inner`；内置 `figure` / `youtube` / `gist` / `highlight`，可由 `templates/shortcodes` 与主题 `layouts/shortcodes` 覆盖；未知短代码中断构建。短代码位于已被 env hash 的目录树内，增量 / serve 自动失效，无需额外接线。详见 `CHANGELOG-v1.4.md`。
 5. 图片优化
 
 ## 3. P0 执行拆分
@@ -214,6 +219,27 @@
   - 模板 / 主题 / 配置 / render options 变化导致 `build_env_hash` 失配，自动降级为全量构建
   - benchmark（M5）：100 篇 post 的无变化 incremental build ≈ 2.9 ms，全量 build ≈ 19.3 ms（约 6.7x）
 
+- 2026-06-01
+- 验证命令：`go test ./... -race`，`go test ./internal/generator -bench BenchmarkBuildFull_Concurrency -benchtime=40x`，并对同一站点 `gobin build --jobs 1` 与 `gobin build` 输出做 `diff -r`
+- 验证结果：通过
+- 验收结论：
+  - 新增 `gobin build --jobs N` 并行页面渲染（worker 按索引 stripe 拆分，本地 stats 末尾合并，首个错误经原子标志快速停止）
+  - `--jobs 0`（默认）= `min(NumCPU, 4)`，`--jobs 1` 强制串行，显式 `--jobs N` 不封顶；新增 `GenerationOptions.Concurrency` 贯穿
+  - 修复 `assetURL` 指纹 hash 缓存（`assetFingerprinter`）在并发渲染下的数据竞争，`-race` 通过
+  - 并行与串行产物字节级一致（`diff -r` 无差异），与 `--incremental` 叠加仍正确（编辑 1 篇后仅重渲染 1 页）
+  - benchmark（10 核，渲染 + 聚合阶段）：500 篇 post 串行 ≈ 106 ms，jobs=4 ≈ 90.7 ms，自动（封顶 4）≈ 88.1 ms（约 1.2x）；未封顶的 NumCPU=10 ≈ 124 ms 慢于串行，因此默认封顶 4
+
+- 2026-06-01
+- 验证命令：`go test ./... -race`，并对 50 篇 post 站点跑 `gobin serve --verbose`、依次编辑文章/模板，再对 serve 产物与新鲜 `gobin build` 做 `diff -r`
+- 验证结果：通过
+- 验收结论：
+  - `gobin serve` watch 重建改为 partial rebuild：watcher 子系统内的 `contentCache` + `changeSet` 只重新解析变化的内容文件，其余从缓存复用，消除每次保存对全站 markdown 的 `O(N)` 重新解析
+  - `classifyChange` 把变化路径归类为 content / page / static / structural；结构性变更（config、`templates/`、主题、内容目录下非 md）或缓存未预热回退全量 `loadSiteBuildInput`
+  - 缓存按 `FilePath` 字典序输出结构体浅拷贝，规避生成器原地改写累积并保持字节级确定性；解析全部成功后才提交缓存
+  - 删除 / rename-over 以磁盘最终状态为准（缺失即从缓存移除）；watch 仍 `cleanOutput=false`，删除文章留下旧单页 HTML 与优化前一致，非回归
+  - 手测：冷缓存首次保存 `Full reload: 50 source(s) parsed`，二次保存 `Partial rebuild: 1 changed, 49 reused`，模板变更回退全量；serve 产物与全量构建 `diff -r` 无差异
+  - `serve_watcher.go` 的 watch loop / handler 链新增 `record func(fsnotify.Event)` 形参贯穿（既有调用点传 `nil`），`recordChange` 钩子默认 nil 不影响既有测试
+
 ## 6. 提交记录
 
 ### P0
@@ -255,3 +281,21 @@
 - `d52cbcb` `feat(incremental): persist build manifest as side effect of each build`
 - `78770fc` `feat(incremental): skip unchanged single-content pages on --incremental`
 - `62fca01` `feat(incremental): skip list, taxonomy, and aggregate artifacts when site unchanged`
+
+### P3 parallel build
+
+- `4afe359` `fix(assets): guard fingerprint hash cache against concurrent render`
+- `dccd09d` `feat(build): render pages in parallel with --jobs (auto capped at 4)`
+
+### P3 serve partial rebuild
+
+- `fa7d6dd` `feat(serve): reparse only changed files for sub-second partial rebuild`
+- `3eaa4ae` `docs(serve): document serve partial rebuild`
+
+### P3 shortcodes
+
+- `3656d50` `feat(shortcode): add invocation scanner and arg parser`
+- `f54b6a9` `feat(shortcode): add registry, loader, and built-in shortcodes`
+- `f777022` `feat(shortcode): add sentinel-based expansion (pre/post goldmark)`
+- `fa6e765` `feat(parser): expand shortcodes in renderMarkdownWithOptions`
+- `4023a5e` `feat(build): build shortcode registry for build and serve renders`

@@ -139,6 +139,11 @@ func hashBytes(data []byte) string {
 // files that can change rendered output: config fields, render options,
 // template files (site + theme), and active theme assets. A change to any of
 // these forces the next build to ignore the previous manifest.
+//
+// Shortcode templates need no dedicated hashing: site shortcodes live under
+// templates/shortcodes and theme shortcodes under <theme>/layouts/shortcodes,
+// so they are already covered by the "templates" and theme directory trees
+// below. Editing a shortcode therefore invalidates the manifest as expected.
 func computeBuildEnvHash(cfg *config.Config, opts parser.RenderOptions) (string, error) {
 	parts := make([]string, 0, 8)
 

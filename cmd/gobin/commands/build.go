@@ -3,8 +3,10 @@ package commands
 import (
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/mengbin92/gobin/internal/generator"
+	"github.com/mengbin92/gobin/internal/log"
 	"github.com/spf13/cobra"
 )
 
@@ -12,6 +14,7 @@ var minify bool
 var buildDrafts bool
 var cleanOutput bool
 var incremental bool
+var jobs int
 
 // BuildCmd is the build command
 var BuildCmd = &cobra.Command{
@@ -29,13 +32,19 @@ With --minify enabled, Gobin applies conservative HTML/CSS minification while
 preserving JavaScript content to avoid unsafe rewrites.
 
 Use --incremental to skip rendering pages whose source content is unchanged
-since the previous build (requires --clean=false).`,
+since the previous build (requires --clean=false).
+
+Use --jobs to control how many pages are rendered in parallel (0 = number of
+CPUs, 1 = sequential).`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runBuild(cmd.OutOrStdout(), minify, buildDrafts, cleanOutput, incremental)
+		return runBuild(cmd.OutOrStdout(), minify, buildDrafts, cleanOutput, incremental, jobs)
 	},
 }
 
-func runBuild(stdout io.Writer, minify bool, buildDrafts bool, cleanOutput bool, incremental bool) error {
+func runBuild(stdout io.Writer, minify bool, buildDrafts bool, cleanOutput bool, incremental bool, jobs int) error {
+	logger := log.GetDefault()
+	start := time.Now()
+
 	fmt.Fprintf(stdout, "Blog Static Site Generator v%s\n", Version)
 	fmt.Fprintln(stdout, "===================================")
 
@@ -43,11 +52,23 @@ func runBuild(stdout io.Writer, minify bool, buildDrafts bool, cleanOutput bool,
 		return fmt.Errorf("--incremental cannot be combined with --clean=true; pass --clean=false")
 	}
 
+	logger.Info("site build started",
+		"version", Version,
+		"minify", minify,
+		"build_drafts", buildDrafts,
+		"clean_output", cleanOutput,
+		"incremental", incremental,
+		"jobs", jobs,
+	)
+
+	logger.Debug("loading site build input")
 	input, err := loadSiteBuildInput()
 	if err != nil {
+		logger.Error("failed to load site build input", "error", err)
 		return err
 	}
 
+	logger.Info("content parsed", "posts", len(input.posts), "pages", len(input.pages))
 	fmt.Fprintf(stdout, "Found %d posts\n", len(input.posts))
 
 	result, err := generateSiteWithOptions(input, generator.GenerationOptions{
@@ -56,11 +77,22 @@ func runBuild(stdout io.Writer, minify bool, buildDrafts bool, cleanOutput bool,
 		BuildDrafts: buildDrafts,
 		CleanOutput: cleanOutput,
 		Incremental: incremental,
+		Concurrency: jobs,
 	})
 	if err != nil {
+		logger.Error("site generation failed", "error", err, "elapsed", time.Since(start))
 		return err
 	}
 	printStaticAssetStats(stdout, result)
+
+	logger.Info("site build completed",
+		"pages_rendered", result.Pages.Rendered,
+		"pages_skipped", result.Pages.Skipped,
+		"artifacts_ran", result.Artifacts.Ran,
+		"assets_copied", result.StaticAssets.Copied,
+		"publish_dir", input.cfg.PublishDir,
+		"elapsed", time.Since(start),
+	)
 
 	if minify {
 		fmt.Fprintf(stdout, "Site generated and minified successfully in '%s' directory\n", input.cfg.PublishDir)
@@ -81,7 +113,7 @@ func printStaticAssetStats(stdout io.Writer, result *generator.GenerationResult)
 }
 
 func RunDefaultBuild(stdout io.Writer) error {
-	return runBuild(stdout, false, false, true, false)
+	return runBuild(stdout, false, false, true, false, 0)
 }
 
 func init() {
@@ -89,4 +121,5 @@ func init() {
 	BuildCmd.Flags().BoolVar(&buildDrafts, "drafts", false, "Include draft posts in the output")
 	BuildCmd.Flags().BoolVar(&cleanOutput, "clean", true, "Clean the output directory before generating")
 	BuildCmd.Flags().BoolVar(&incremental, "incremental", false, "Skip rendering pages whose source content is unchanged (requires --clean=false)")
+	BuildCmd.Flags().IntVar(&jobs, "jobs", 0, "Number of parallel page-render workers (0 = number of CPUs, 1 = sequential)")
 }

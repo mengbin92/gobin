@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"github.com/mengbin92/gobin/internal/config"
+	"github.com/mengbin92/gobin/internal/log"
 )
 
 type serveServer struct {
@@ -56,6 +56,7 @@ func startServerWithRuntime(stdout io.Writer, cfg *config.Config, runtime serveR
 func runServerLifecycle(stdout io.Writer, server devServer, addr string, signals <-chan os.Signal) error {
 	fmt.Fprintf(stdout, "Development server started at http://localhost%s\n", addr)
 	fmt.Fprintln(stdout, "Press Ctrl+C to stop")
+	log.Info("development server listening", "addr", addr)
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -69,7 +70,7 @@ func runServerLifecycle(stdout io.Writer, server devServer, addr string, signals
 		defer cancel()
 
 		if err := server.Shutdown(ctx); err != nil {
-			log.Printf("Server forced to shutdown: %v", err)
+			log.Error("server forced to shutdown", "error", err)
 		}
 		if err := <-errCh; err != nil && err != http.ErrServerClosed {
 			return fmt.Errorf("server error: %w", err)

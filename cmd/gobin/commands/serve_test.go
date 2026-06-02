@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -17,6 +18,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/mengbin92/gobin/internal/config"
 	"github.com/mengbin92/gobin/internal/generator"
+	"github.com/mengbin92/gobin/internal/log"
 )
 
 type fakeDevServer struct {
@@ -579,7 +581,7 @@ func TestServeWatcher_RunDelegatesToWatchLoop(t *testing.T) {
 				},
 			}, nil
 		},
-		runLoop: func(ctx context.Context, watcher fsWatcher, events <-chan fsnotify.Event, errors <-chan error, runtime serveRuntime, schedule func(func()), rebuild func()) {
+		runLoop: func(ctx context.Context, watcher fsWatcher, events <-chan fsnotify.Event, errors <-chan error, runtime serveRuntime, schedule func(func()), rebuild func(), record func(fsnotify.Event)) {
 			called = true
 		},
 		afterFunc: func(delay time.Duration, run func()) debounceCancelFunc {
@@ -693,6 +695,12 @@ func TestRegisterWatchPaths_UsesProvidedOutputsOnWatcherFailure(t *testing.T) {
 	}
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
+
+	var logBuf bytes.Buffer
+	origLogger := log.GetDefault()
+	log.SetDefault(slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	defer log.SetDefault(origLogger)
+
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		t.Fatalf("create watcher: %v", err)
@@ -708,11 +716,13 @@ func TestRegisterWatchPaths_UsesProvidedOutputsOnWatcherFailure(t *testing.T) {
 		t.Fatalf("registerWatchPaths failed: %v", err)
 	}
 
-	if !strings.Contains(stdout.String(), "Warning: Could not watch missing-content") {
-		t.Fatalf("Expected watch warning on provided stdout, got %q", stdout.String())
-	}
+	// Watch-path warnings are now routed through slog (log.Warn) rather than
+	// written to runtime.stdout, so stdout remains empty for these warnings.
 	if stderr.Len() != 0 {
 		t.Fatalf("Expected no stderr output for watch path warnings, got %q", stderr.String())
+	}
+	if !strings.Contains(logBuf.String(), "could not watch directory") {
+		t.Fatalf("Expected slog warning %q, got %q", "could not watch directory", logBuf.String())
 	}
 }
 
@@ -733,7 +743,7 @@ func TestRunWatchLoop_SchedulesRebuildFromEvents(t *testing.T) {
 			run()
 		}, func() {
 			rebuilt = true
-		})
+		}, nil)
 		close(done)
 	}()
 
@@ -780,7 +790,7 @@ func TestServeWatchLoop_RebuildFailureDoesNotStopLaterRebuild(t *testing.T) {
 				}
 				return nil
 			})
-		})
+		}, nil)
 		close(done)
 	}()
 
@@ -865,13 +875,17 @@ func TestRunWatchLoop_WritesWatcherErrors(t *testing.T) {
 	events := make(chan fsnotify.Event)
 	errorsCh := make(chan error, 1)
 	done := make(chan struct{})
-	var stderr bytes.Buffer
+
+	var logBuf bytes.Buffer
+	origLogger := log.GetDefault()
+	log.SetDefault(slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	defer log.SetDefault(origLogger)
 
 	go func() {
 		runWatchLoop(context.Background(), events, errorsCh, serveRuntime{
 			stdout: io.Discard,
-			stderr: &stderr,
-		}, func(func()) {}, func() {})
+			stderr: io.Discard,
+		}, func(func()) {}, func() {}, nil)
 		close(done)
 	}()
 
@@ -884,8 +898,10 @@ func TestRunWatchLoop_WritesWatcherErrors(t *testing.T) {
 		t.Fatal("Expected watch loop to exit after errors channel closed")
 	}
 
-	if !strings.Contains(stderr.String(), "Watcher error: watch failed") {
-		t.Fatalf("Expected watcher error output, got %q", stderr.String())
+	// Watcher errors are now routed through slog (log.Error) rather than
+	// written to runtime.stderr, so stderr remains empty for these errors.
+	if !strings.Contains(logBuf.String(), "watcher error") {
+		t.Fatalf("Expected slog error %q, got %q", "watcher error", logBuf.String())
 	}
 }
 
@@ -898,7 +914,7 @@ func TestRunWatchLoop_ExitsWhenErrorsChannelClosesFirst(t *testing.T) {
 		runWatchLoop(context.Background(), events, errorsCh, serveRuntime{
 			stdout: io.Discard,
 			stderr: io.Discard,
-		}, func(func()) {}, func() {})
+		}, func(func()) {}, func() {}, nil)
 		close(done)
 	}()
 
@@ -921,7 +937,7 @@ func TestRunWatchLoop_ExitsWhenContextCancelled(t *testing.T) {
 		runWatchLoop(ctx, events, errorsCh, serveRuntime{
 			stdout: io.Discard,
 			stderr: io.Discard,
-		}, func(func()) {}, func() {})
+		}, func(func()) {}, func() {}, nil)
 		close(done)
 	}()
 
@@ -951,7 +967,7 @@ func TestHandleWatchEvent_SchedulesRebuildForSupportedEvents(t *testing.T) {
 		run()
 	}, func() {
 		rebuilt = true
-	})
+	}, nil)
 
 	if !triggered {
 		t.Fatal("Expected write event to trigger rebuild scheduling")
@@ -984,7 +1000,7 @@ func TestHandleWatchEventWithWatcher_RegistersCreatedDirectories(t *testing.T) {
 		verbose: true,
 	}, func(run func()) {
 		scheduled = true
-	}, func() {})
+	}, func() {}, nil)
 
 	if !triggered {
 		t.Fatal("Expected created directory event to trigger rebuild scheduling")
@@ -1007,7 +1023,7 @@ func TestHandleWatchEvent_IgnoresUnsupportedEvents(t *testing.T) {
 		verbose: true,
 	}, func(func()) {
 		scheduled = true
-	}, func() {})
+	}, func() {}, nil)
 
 	if triggered {
 		t.Fatal("Expected chmod event to be ignored")

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/mengbin92/gobin/internal/log"
 	"github.com/spf13/cobra"
 )
 
@@ -38,6 +39,7 @@ func initializeSite(stdout io.Writer, dir string) error {
 	// Get absolute path
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
+		log.Error("failed to get absolute path", "error", err)
 		return fmt.Errorf("failed to get absolute path: %w", err)
 	}
 
@@ -45,16 +47,19 @@ func initializeSite(stdout io.Writer, dir string) error {
 	dirName := filepath.Base(absDir)
 
 	fmt.Fprintf(stdout, "Initializing new blog site in: %s\n", absDir)
+	log.Info("scaffolding new site", "dir", absDir)
 
 	for _, d := range scaffoldDirectories() {
 		path := filepath.Join(absDir, d)
 		if err := os.MkdirAll(path, 0755); err != nil {
+			log.Error("failed to create directory", "path", path, "error", err)
 			return fmt.Errorf("failed to create directory %s: %w", path, err)
 		}
 	}
 
 	for path, content := range scaffoldFiles(dirName) {
 		if err := writeFile(filepath.Join(absDir, path), content); err != nil {
+			log.Error("failed to create scaffold file", "path", path, "error", err)
 			return fmt.Errorf("failed to create %s: %w", path, err)
 		}
 	}

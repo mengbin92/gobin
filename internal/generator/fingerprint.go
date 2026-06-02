@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/mengbin92/gobin/internal/config"
 )
@@ -12,9 +13,15 @@ import (
 // rewriting for the static asset pipeline. It is built per build so callers
 // (copy planner and asset URL resolver) share a hash cache and the same
 // configured fingerprint policy.
+//
+// The resolver is exposed as a template function (assetURLResolver), so its
+// memo caches are read and written from concurrent page-render workers during
+// a parallel build. mu guards hashByPath and fingerprintPath; strategy and
+// enabledExt are set once at construction and only read afterwards.
 type assetFingerprinter struct {
 	strategy        string
 	enabledExt      map[string]struct{}
+	mu              sync.Mutex
 	hashByPath      map[string]string
 	fingerprintPath map[string]string
 }
@@ -62,14 +69,19 @@ func (f *assetFingerprinter) shouldFingerprintFilename(outputPath string) bool {
 // hash returns the short content hash for sourcePath, caching the result by
 // source path so repeated callers do not re-read the file.
 func (f *assetFingerprinter) hash(sourcePath string) (string, error) {
-	if cached, ok := f.hashByPath[sourcePath]; ok {
+	f.mu.Lock()
+	cached, ok := f.hashByPath[sourcePath]
+	f.mu.Unlock()
+	if ok {
 		return cached, nil
 	}
 	digest, err := hashFile(sourcePath)
 	if err != nil {
 		return "", err
 	}
+	f.mu.Lock()
 	f.hashByPath[sourcePath] = digest
+	f.mu.Unlock()
 	return digest, nil
 }
 
@@ -81,15 +93,21 @@ func (f *assetFingerprinter) resolveFingerprintOutput(asset staticAssetFile) (st
 	if !f.shouldFingerprintFilename(asset.OutputPath) {
 		return asset.OutputPath, nil
 	}
-	if cached, ok := f.fingerprintPath[asset.OutputPath]; ok {
+	f.mu.Lock()
+	cached, ok := f.fingerprintPath[asset.OutputPath]
+	f.mu.Unlock()
+	if ok {
 		return cached, nil
 	}
+	// f.hash locks internally; do not hold mu across this call.
 	digest, err := f.hash(asset.SourcePath)
 	if err != nil {
 		return "", err
 	}
 	rewritten := insertFingerprint(asset.OutputPath, digest)
+	f.mu.Lock()
 	f.fingerprintPath[asset.OutputPath] = rewritten
+	f.mu.Unlock()
 	return rewritten, nil
 }
 

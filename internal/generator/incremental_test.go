@@ -122,7 +122,7 @@ func TestGenerate_Incremental_ChangedPostInvalidatesItsOwnPage(t *testing.T) {
 	mustWriteFile(t, postPath, "post body v2")
 	postV2 := &parser.Post{Title: "Hello", Slug: "hello", URL: "/hello/", FilePath: postPath, ContentHTML: "<p>v2</p>"}
 
-	plan, err := prepareGenerationPlan([]*parser.Post{postV2}, nil, incrementalCfg(), outputDir, false, false, true)
+	plan, err := prepareGenerationPlan([]*parser.Post{postV2}, nil, incrementalCfg(), outputDir, false, false, true, 1)
 	if err != nil {
 		t.Fatalf("prepareGenerationPlan: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestGenerate_Incremental_BuildEnvHashMismatchForcesFullRender(t *testing.T)
 	cfgB := incrementalCfg()
 	cfgB.Title = "Changed Title"
 
-	plan, err := prepareGenerationPlan([]*parser.Post{post}, nil, cfgB, outputDir, false, false, true)
+	plan, err := prepareGenerationPlan([]*parser.Post{post}, nil, cfgB, outputDir, false, false, true, 1)
 	if err != nil {
 		t.Fatalf("prepareGenerationPlan: %v", err)
 	}
@@ -239,7 +239,7 @@ func TestGenerate_Incremental_AddingPostInvalidatesAggregates(t *testing.T) {
 	mustWriteFile(t, postBPath, "b body")
 	postB := &parser.Post{Title: "B", Slug: "b", URL: "/b/", FilePath: postBPath, Tags: []string{"go"}}
 
-	plan, err := prepareGenerationPlan([]*parser.Post{postA, postB}, nil, incrementalCfg(), outputDir, false, false, true)
+	plan, err := prepareGenerationPlan([]*parser.Post{postA, postB}, nil, incrementalCfg(), outputDir, false, false, true, 1)
 	if err != nil {
 		t.Fatalf("prepareGenerationPlan: %v", err)
 	}
@@ -370,7 +370,7 @@ func TestGenerate_Incremental_BodyOnlyEditSkipsListAndSitemap(t *testing.T) {
 	edited.Content = "body v2"
 	edited.ContentHTML = "<p>body v2</p>"
 
-	plan, err := prepareGenerationPlan([]*parser.Post{&edited}, nil, cfg, outputDir, false, false, true)
+	plan, err := prepareGenerationPlan([]*parser.Post{&edited}, nil, cfg, outputDir, false, false, true, 1)
 	if err != nil {
 		t.Fatalf("prepareGenerationPlan: %v", err)
 	}

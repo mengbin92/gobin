@@ -26,16 +26,18 @@ Gobin 是一个基于 Go 语言开发的静态博客网站生成器，专为追�
 - `serve` watch 模式下的 LiveReload 注入
 - `gobin build --incremental` 增量构建：按 source / list / feed / search / sitemap 多类别指纹跳过未变化的产物
 - `gobin serve` watcher 重建自动启用增量，只重渲染受影响的产物
+- `gobin build --jobs N` 并行页面渲染：多 worker 并发渲染文章/列表/taxonomy 页面，与增量构建正交叠加
+- Hugo 风格短代码（shortcodes）：`{{< name args >}}` / `{{% name args %}}`，内置 `figure` / `youtube` / `gist` / `highlight`，并支持站点与主题自定义
 
 ### 当前限制
-- 暂未实现并行构建
-- 多语言、短代码、图片优化等能力仍在规划中
+- 多语言、图片优化等能力仍在规划中
+- 并行仅覆盖页面渲染阶段；feed/sitemap/search 等聚合产物与 Markdown 解析仍为串行
 
 ### 规划中
-- 并行构建
 - 更完整的 Jekyll 迁移兼容层
-- 多语言与短代码支持
+- 多语言支持
 - 更完善的主题系统和开发服务器体验
+- 图片与资源优化
 
 ## 技术栈
 
@@ -138,9 +140,14 @@ gobin build --drafts
 
 # 跳过输出目录清理
 gobin build --clean=false
+
+# 控制并行页面渲染的 worker 数（0 = 自动，1 = 串行）
+gobin build --jobs 4
 ```
 
 `--minify` 当前会对 HTML 和 CSS 做保守压缩，并保留 JavaScript 原始内容，优先保证输出正确性而不是做激进资源改写。
+
+`--jobs` 控制并行渲染页面的 worker 数：`0`（默认）按 CPU 数自动选择并封顶为 4，`1` 强制串行。页面渲染以写入大量小文件为主、偏 I/O 密集，因此默认封顶可在多核机器上获得收益（基准约 15–19%）而不引入高并发下的文件系统竞争退化；如使用更重、更偏 CPU 的模板，可显式指定更大的 `--jobs`。并行只改变写盘顺序、不改变内容，产物与串行字节级一致，且可与 `--incremental` 叠加。
 
 使用 `--clean=false` 时，未变化的静态资源会跳过复制以加快重建。Gobin 会通过资源 manifest 清理上次构建记录过、但本次源目录中已不存在的旧静态资源；未被资源管线管理的输出文件仍会保留。
 
@@ -217,6 +224,60 @@ markup:
 
 `markup.allowUnsafeHTML` 默认关闭。显式设置为 `true` 时，Markdown 中的原始 HTML 会作为活动 HTML 输出，适合迁移完全可信的旧内容；内容来源不完全可信时应保持默认值。
 
+## 短代码（Shortcodes）
+
+短代码让你在 Markdown 正文里用简短指令生成结构化 HTML，而不必开启全局 `allowUnsafeHTML` 或手写重复 HTML。语法兼容 Hugo：
+
+| 形式 | 说明 |
+|------|------|
+| `{{< name args >}}` | HTML 形式，模板输出作为**原始 HTML** 注入（即使 `allowUnsafeHTML: false` 也生效）|
+| `{{% name args %}}` | Markdown 形式，模板输出**再经 Markdown 渲染** |
+| `{{< name >}}body{{< /name >}}` | 配对形式，正文通过 `.Inner` 提供 |
+
+参数支持位置参数与引号命名参数，二者可混用：
+
+```markdown
+{{< youtube dQw4w9WgXcQ >}}
+
+{{< figure src="/img/cover.png" alt="封面" caption="图 1" >}}
+
+{{< highlight go >}}
+fmt.Println("hello")
+{{< /highlight >}}
+```
+
+### 内置短代码
+
+| 名称 | 参数 | 用途 |
+|------|------|------|
+| `figure` | `src`（必填）、`alt`、`title`、`caption`、`link` | 输出 `<figure>` 图片块 |
+| `youtube` | 视频 id（位置或 `id=`） | 响应式 YouTube 嵌入 |
+| `gist` | `user`、`id`（位置或命名） | 嵌入 GitHub Gist |
+| `highlight` | 语言（位置 0），配对 | 包裹正文为代码块 |
+
+### 自定义短代码
+
+新增或覆盖短代码：在站点 `templates/shortcodes/<name>.html` 放一个 Go 模板即可（主题作者用 `<theme>/layouts/shortcodes/<name>.html`）。覆盖优先级为**站点 > 主题 > 内置**，与模板覆盖规则一致。
+
+模板上下文提供：
+
+- `{{ .Get 0 }}`：第 N 个位置参数；`{{ .Get "key" }}`：命名参数（缺失返回空串）
+- `{{ .Inner }}`：配对短代码的正文（已先行展开嵌套短代码；按文本转义，需原始 HTML 用 `{{ .Inner | safeHTML }}`）
+- `{{ .Name }}`：短代码名称
+- 辅助函数：`safeHTML`、`absURL`、`urlize`、`default`
+
+示例 `templates/shortcodes/note.html`：
+
+```html
+<div class="note note-{{ .Get "type" | default "info" }}">{{ .Inner | safeHTML }}</div>
+```
+
+### 说明
+
+- 代码围栏（```` ``` ````）与行内代码（`` `...` ``）中的短代码语法不会展开。
+- 引用未注册的短代码会**中断构建并指出文件与名称**，便于及早发现拼写错误。
+- 选型建议：要输出 HTML 用 `{{< >}}`，要输出仍走 Markdown 渲染的内容用 `{{% %}}`。短代码改动会触发增量构建失效与 `serve` 全量重载。
+
 ## 项目结构
 
 ```
@@ -242,7 +303,7 @@ gobin/
 | `gobin init [name]` | 初始化新站点 | `gobin init myblog` |
 | `gobin new <post|page> <title>` | 创建文章或页面草稿 | `gobin new post "Release notes"` |
 | `gobin check` | 校验配置、内容、模板和 permalink 冲突 | `gobin check --drafts` |
-| `gobin build` | 构建静态站点，可选启用增量构建和保守 HTML/CSS 压缩 | `gobin build --incremental --clean=false --minify` |
+| `gobin build` | 构建静态站点，可选启用增量构建、并行渲染和保守 HTML/CSS 压缩 | `gobin build --incremental --clean=false --jobs 4 --minify` |
 | `gobin serve` | 启动开发服务器 | `gobin serve -p 8080 --drafts --clean=false` |
 | `gobin version` | 显示版本信息 | `gobin version` |
 | `gobin help` | 显示帮助信息 | `gobin help` |
@@ -426,8 +487,8 @@ make benchmark
 - [x] 集成测试
 - [x] 静态资源复制优化
 - [x] CI benchmark 基线
-- [ ] 增量构建
-- [ ] 并行构建
+- [x] 增量构建
+- [x] 并行构建
 - [ ] 指纹资源和更完整的资源管线
 - [ ] 文档持续收口
 - [x] 示例站点创建

@@ -92,6 +92,34 @@ func BenchmarkBuildFull(b *testing.B) {
 	}
 }
 
+// BenchmarkBuildFull_Concurrency isolates the page-render phase (posts are
+// pre-parsed, so no markdown work happens here) and sweeps the worker count to
+// quantify the parallel-build speedup. concurrency=1 is the serial baseline;
+// 0 means auto (runtime.NumCPU()).
+func BenchmarkBuildFull_Concurrency(b *testing.B) {
+	for _, n := range []int{100, 500} {
+		for _, jobs := range []int{1, 2, 4, 0} {
+			label := fmt.Sprintf("posts=%d/jobs=%d", n, jobs)
+			b.Run(label, func(b *testing.B) {
+				siteDir, outputDir, posts := generateIncrementalBenchmarkPosts(b, n)
+				cfg := incrementalCfg()
+				chdirForBench(b, siteDir)
+
+				b.ResetTimer()
+				for i := 0; i < b.N; i++ {
+					if _, err := GenerateWithOptions(posts, nil, cfg, GenerationOptions{
+						OutputDir:   outputDir,
+						CleanOutput: true,
+						Concurrency: jobs,
+					}); err != nil {
+						b.Fatalf("build: %v", err)
+					}
+				}
+			})
+		}
+	}
+}
+
 func BenchmarkBuildIncremental_NoChanges(b *testing.B) {
 	for _, n := range []int{10, 100} {
 		b.Run(fmt.Sprintf("posts=%d", n), func(b *testing.B) {
