@@ -27,7 +27,7 @@ type Options struct {
 	Level     Level  // default info
 	Format    Format // default text
 	Output    string // "stderr" (default), "stdout", or a file path
-	AddSource bool   // include source location (only meaningful at debug)
+	AddSource bool   // AddSource includes source location; effective only at debug level.
 }
 
 // Default returns the baseline configuration: INFO, text, stderr.
@@ -93,6 +93,7 @@ func WithComponent(logger *slog.Logger, component string) *slog.Logger {
 
 // ----- global default logger -----
 
+// defaultLogger is set once at startup (PersistentPreRun) and is not safe for concurrent mutation.
 var defaultLogger *slog.Logger
 
 func init() {

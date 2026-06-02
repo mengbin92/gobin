@@ -17,7 +17,7 @@ func resolveWriter(output string) io.Writer {
 	default:
 		f, err := os.OpenFile(output, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
-			os.Stderr.WriteString("warning: cannot open log file " + output + ", falling back to stderr\n")
+			os.Stderr.WriteString("warning: cannot open log file " + output + ", falling back to stderr\n") // bootstrap fallback: slog is not yet available here
 			return os.Stderr
 		}
 		return f

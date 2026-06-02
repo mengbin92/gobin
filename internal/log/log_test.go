@@ -105,7 +105,7 @@ func TestNewJSONFormat(t *testing.T) {
 		t.Fatal(err)
 	}
 	var rec map[string]any
-	if err := json.Unmarshal(data[:len(data)-1], &rec); err != nil {
+	if err := json.Unmarshal(bytes.TrimRight(data, "\n"), &rec); err != nil {
 		t.Fatalf("output is not valid JSON: %v (%q)", err, string(data))
 	}
 	if rec["msg"] != "hello" || rec["k"] != "v" {
@@ -144,7 +144,7 @@ func TestWithComponentAddsField(t *testing.T) {
 	logger := WithComponent(base, "parser")
 	logger.Info("scanned")
 	var rec map[string]any
-	json.Unmarshal(buf.Bytes()[:buf.Len()-1], &rec)
+	json.Unmarshal(bytes.TrimRight(buf.Bytes(), "\n"), &rec)
 	if rec["component"] != "parser" {
 		t.Errorf("component field = %v, want parser", rec["component"])
 	}
@@ -163,6 +163,14 @@ func TestSetAndGetDefault(t *testing.T) {
 	Info("via-convenience")
 	if !strings.Contains(buf.String(), "via-convenience") {
 		t.Errorf("convenience Info did not route to default logger, got: %s", buf.String())
+	}
+	Warn("warn-convenience")
+	if !strings.Contains(buf.String(), "warn-convenience") {
+		t.Errorf("convenience Warn did not route to default logger, got: %s", buf.String())
+	}
+	Error("error-convenience")
+	if !strings.Contains(buf.String(), "error-convenience") {
+		t.Errorf("convenience Error did not route to default logger, got: %s", buf.String())
 	}
 }
 
