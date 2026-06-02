@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -17,6 +18,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/mengbin92/gobin/internal/config"
 	"github.com/mengbin92/gobin/internal/generator"
+	"github.com/mengbin92/gobin/internal/log"
 )
 
 type fakeDevServer struct {
@@ -693,6 +695,12 @@ func TestRegisterWatchPaths_UsesProvidedOutputsOnWatcherFailure(t *testing.T) {
 	}
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
+
+	var logBuf bytes.Buffer
+	origLogger := log.GetDefault()
+	log.SetDefault(slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	defer log.SetDefault(origLogger)
+
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		t.Fatalf("create watcher: %v", err)
@@ -708,11 +716,13 @@ func TestRegisterWatchPaths_UsesProvidedOutputsOnWatcherFailure(t *testing.T) {
 		t.Fatalf("registerWatchPaths failed: %v", err)
 	}
 
-	if !strings.Contains(stdout.String(), "Warning: Could not watch missing-content") {
-		t.Fatalf("Expected watch warning on provided stdout, got %q", stdout.String())
-	}
+	// Watch-path warnings are now routed through slog (log.Warn) rather than
+	// written to runtime.stdout, so stdout remains empty for these warnings.
 	if stderr.Len() != 0 {
 		t.Fatalf("Expected no stderr output for watch path warnings, got %q", stderr.String())
+	}
+	if !strings.Contains(logBuf.String(), "could not watch directory") {
+		t.Fatalf("Expected slog warning %q, got %q", "could not watch directory", logBuf.String())
 	}
 }
 
@@ -865,12 +875,16 @@ func TestRunWatchLoop_WritesWatcherErrors(t *testing.T) {
 	events := make(chan fsnotify.Event)
 	errorsCh := make(chan error, 1)
 	done := make(chan struct{})
-	var stderr bytes.Buffer
+
+	var logBuf bytes.Buffer
+	origLogger := log.GetDefault()
+	log.SetDefault(slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	defer log.SetDefault(origLogger)
 
 	go func() {
 		runWatchLoop(context.Background(), events, errorsCh, serveRuntime{
 			stdout: io.Discard,
-			stderr: &stderr,
+			stderr: io.Discard,
 		}, func(func()) {}, func() {}, nil)
 		close(done)
 	}()
@@ -884,8 +898,10 @@ func TestRunWatchLoop_WritesWatcherErrors(t *testing.T) {
 		t.Fatal("Expected watch loop to exit after errors channel closed")
 	}
 
-	if !strings.Contains(stderr.String(), "Watcher error: watch failed") {
-		t.Fatalf("Expected watcher error output, got %q", stderr.String())
+	// Watcher errors are now routed through slog (log.Error) rather than
+	// written to runtime.stderr, so stderr remains empty for these errors.
+	if !strings.Contains(logBuf.String(), "watcher error") {
+		t.Fatalf("Expected slog error %q, got %q", "watcher error", logBuf.String())
 	}
 }
 

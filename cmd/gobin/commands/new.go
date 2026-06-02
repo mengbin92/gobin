@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/mengbin92/gobin/internal/config"
+	"github.com/mengbin92/gobin/internal/log"
 	"github.com/mengbin92/gobin/internal/textutil"
 	"github.com/spf13/cobra"
 )
@@ -62,8 +63,10 @@ type newOptions struct {
 }
 
 func runNew(stdout io.Writer, opts newOptions) error {
+	log.Info("scaffolding new content", "kind", opts.Kind, "title", opts.Title)
 	cfg, err := config.LoadDefault()
 	if err != nil {
+		log.Error("failed to load config", "error", err)
 		return fmt.Errorf("load config: %w", err)
 	}
 	cfg = config.Normalize(cfg)
@@ -99,14 +102,17 @@ func scaffoldContent(stdout io.Writer, cfg *config.Config, opts newOptions, nowF
 		if _, err := os.Stat(destPath); err == nil {
 			return fmt.Errorf("%s already exists (use --force to overwrite)", destPath)
 		} else if !os.IsNotExist(err) {
+			log.Error("failed to check destination", "path", destPath, "error", err)
 			return fmt.Errorf("check destination: %w", err)
 		}
 	}
 
 	if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+		log.Error("failed to create destination directory", "path", destPath, "error", err)
 		return fmt.Errorf("create destination directory: %w", err)
 	}
 	if err := os.WriteFile(destPath, []byte(content), 0644); err != nil {
+		log.Error("failed to write content file", "path", destPath, "error", err)
 		return fmt.Errorf("write content file: %w", err)
 	}
 

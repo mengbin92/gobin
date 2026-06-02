@@ -12,6 +12,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/mengbin92/gobin/internal/config"
 	"github.com/mengbin92/gobin/internal/generator"
+	"github.com/mengbin92/gobin/internal/log"
 )
 
 type fsWatcher interface {
@@ -62,13 +63,13 @@ func newServeWatcher(rebuild func(serveRuntime)) serveWatcher {
 func (w serveWatcher) run(ctx context.Context, cfg *config.Config, runtime serveRuntime) {
 	watcher, err := w.newWatcher()
 	if err != nil {
-		fmt.Fprintf(runtime.stderr, "Failed to create file watcher: %v\n", err)
+		log.Error("failed to create file watcher", "error", err)
 		return
 	}
 	defer watcher.Close()
 
 	if err := w.registerPaths(watcher, cfg, runtime); err != nil {
-		fmt.Fprintf(runtime.stderr, "Failed to register watch paths: %v\n", err)
+		log.Error("failed to register watch paths", "error", err)
 		return
 	}
 
@@ -88,7 +89,7 @@ func watchFiles(cfg *config.Config) {
 		stderr:      os.Stderr,
 		buildDrafts: serveDrafts,
 		cleanOutput: serveClean,
-		verbose:     serveVerbose,
+		verbose:     verbose,
 	})
 }
 
@@ -123,6 +124,7 @@ func watchFilesWithRuntime(ctx context.Context, cfg *config.Config, runtime serv
 	w.run(ctx, cfg, runtime)
 }
 
+// runtime is retained for registerPaths signature compatibility; warnings now route through slog.
 func registerWatchPaths(watcher *fsnotify.Watcher, cfg *config.Config, runtime serveRuntime) error {
 	if watcher == nil {
 		return fmt.Errorf("watcher is nil")
@@ -130,15 +132,14 @@ func registerWatchPaths(watcher *fsnotify.Watcher, cfg *config.Config, runtime s
 
 	for _, dir := range watchPaths(cfg) {
 		if err := addWatchPath(watcher, dir); err != nil {
-			if runtime.verbose {
-				fmt.Fprintf(runtime.stdout, "Warning: Could not watch %s: %v\n", dir, err)
-			}
+			log.Warn("could not watch directory", "dir", dir, "error", err)
 		}
 	}
 
 	return nil
 }
 
+// runtime is retained for registerPaths signature compatibility; warnings now route through slog.
 func registerWatchPathsForFSWatcher(watcher fsWatcher, cfg *config.Config, runtime serveRuntime) error {
 	if watcher == nil {
 		return fmt.Errorf("watcher is nil")
@@ -146,9 +147,7 @@ func registerWatchPathsForFSWatcher(watcher fsWatcher, cfg *config.Config, runti
 
 	for _, dir := range watchPaths(cfg) {
 		if err := addWatchPathFS(watcher, dir); err != nil {
-			if runtime.verbose {
-				fmt.Fprintf(runtime.stdout, "Warning: Could not watch %s: %v\n", dir, err)
-			}
+			log.Warn("could not watch directory", "dir", dir, "error", err)
 		}
 	}
 
@@ -173,7 +172,7 @@ func runWatchLoopWithWatcher(ctx context.Context, watcher fsWatcher, events <-ch
 			if !ok {
 				return
 			}
-			fmt.Fprintf(runtime.stderr, "Watcher error: %v\n", err)
+			log.Error("watcher error", "error", err)
 		}
 	}
 }
@@ -211,7 +210,7 @@ func registerCreatedWatchDirectory(event fsnotify.Event, watcher fsWatcher, runt
 	}
 
 	if err := addWatchPathFS(watcher, event.Name); err != nil {
-		fmt.Fprintf(runtime.stderr, "Warning: Could not watch new directory %s: %v\n", event.Name, err)
+		log.Warn("could not watch new directory", "dir", event.Name, "error", err)
 	}
 }
 

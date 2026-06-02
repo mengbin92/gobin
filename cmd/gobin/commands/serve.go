@@ -9,6 +9,7 @@ import (
 
 	"github.com/mengbin92/gobin/internal/config"
 	"github.com/mengbin92/gobin/internal/generator"
+	"github.com/mengbin92/gobin/internal/log"
 	"github.com/spf13/cobra"
 )
 
@@ -41,12 +42,11 @@ type debounceCancelFunc func() bool
 type debounceAfterFunc func(time.Duration, func()) debounceCancelFunc
 
 var (
-	servePort    int
-	serveWatch   bool
-	serveVerbose bool
-	serveDrafts  bool
-	serveClean   bool
-	serveReload  bool
+	servePort   int
+	serveWatch  bool
+	serveDrafts bool
+	serveClean  bool
+	serveReload bool
 )
 
 // ServeCmd is the serve command
@@ -65,7 +65,6 @@ rebuilds the site when files change, and can refresh open pages with LiveReload.
 func init() {
 	ServeCmd.Flags().IntVarP(&servePort, "port", "p", 8080, "Port to serve on")
 	ServeCmd.Flags().BoolVarP(&serveWatch, "watch", "w", true, "Watch for file changes and rebuild")
-	ServeCmd.Flags().BoolVarP(&serveVerbose, "verbose", "v", false, "Verbose output")
 	ServeCmd.Flags().BoolVar(&serveDrafts, "drafts", false, "Include draft posts in the output")
 	ServeCmd.Flags().BoolVar(&serveClean, "clean", true, "Clean the output directory before rebuilding")
 	ServeCmd.Flags().BoolVar(&serveReload, "live-reload", true, "Inject a development-only LiveReload client while watching")
@@ -86,6 +85,7 @@ func runServe(stdout io.Writer, buildDrafts bool, watch bool) error {
 func runServeWithOps(stdout io.Writer, buildDrafts bool, watch bool, ops serveOps) error {
 	builder := newServeBuilderWithOptions(ops.loadSiteInput, ops.generateSite, ops.generateSiteWithResult, ops.generateSiteWithOptionsFn)
 	fmt.Fprintln(stdout, "Building site...")
+	log.Info("dev server build started", "drafts", buildDrafts, "watch", watch, "clean", serveClean)
 	input, result, err := builder.initialBuildResult(buildDrafts, serveClean)
 	if err != nil {
 		return fmt.Errorf("build site: %w", err)
@@ -95,6 +95,12 @@ func runServeWithOps(stdout io.Writer, buildDrafts bool, watch bool, ops serveOp
 	defer cancelWatch()
 
 	printStaticAssetStats(stdout, result)
+	if result != nil {
+		log.Info("dev server initial build completed",
+			"pages_rendered", result.Pages.Rendered,
+			"assets_copied", result.StaticAssets.Copied,
+		)
+	}
 	fmt.Fprintln(stdout, "Site built successfully!")
 
 	var liveReload *liveReloadBroker
@@ -114,7 +120,7 @@ func runServeWithOps(stdout io.Writer, buildDrafts bool, watch bool, ops serveOp
 		// throw away the manifest the watcher just primed.
 		runtime.cleanOutput = false
 		runtime.incremental = true
-		runtime.verbose = serveVerbose
+		runtime.verbose = verbose
 		go ops.watchFiles(watchCtx, cfg, serveRuntime{
 			stdout:      runtime.stdout,
 			stderr:      runtime.stderr,

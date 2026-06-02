@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/mengbin92/gobin/internal/log"
 	"gopkg.in/yaml.v3"
 )
 
@@ -408,6 +409,9 @@ func resolveConfigPath(baseDir string, path string) string {
 
 // Load loads configuration from a YAML file
 func Load(path string) (*Config, error) {
+	logger := log.GetDefault().With("component", "config")
+	logger.Debug("loading configuration", "path", path)
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -423,6 +427,7 @@ func Load(path string) (*Config, error) {
 		return nil, err
 	}
 
+	logger.Debug("config loaded", "path", path, "title", normalized.Title, "publish_dir", normalized.PublishDir)
 	return normalized, nil
 }
 
