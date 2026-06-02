@@ -289,12 +289,16 @@ func ParsePages(dir string) ([]*Page, error) {
 
 // ParsePagesWithOptions parses standalone markdown pages recursively using render options.
 func ParsePagesWithOptions(dir string, opts RenderOptions) ([]*Page, error) {
+	logger := log.GetDefault().With("component", "parser")
 	if dir == "" {
 		return nil, nil
 	}
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		logger.Debug("page directory does not exist, skipping", "dir", dir)
 		return nil, nil
 	}
+
+	logger.Debug("scanning page directory", "dir", dir)
 
 	var pages []*Page
 	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
@@ -321,6 +325,7 @@ func ParsePagesWithOptions(dir string, opts RenderOptions) ([]*Page, error) {
 		return nil, err
 	}
 
+	logger.Info("pages parsed", "dir", dir, "total", len(pages))
 	return pages, nil
 }
 
