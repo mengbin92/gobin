@@ -22,6 +22,11 @@ type GenerationResult struct {
 	Pages        PageRenderStats
 	StaticAssets AssetCopyStats
 	Artifacts    ArtifactStats
+	// Postprocess summarizes the post-render HTML reference rewrite pass
+	// introduced in v1.5.0. It is populated by the postprocess artifact
+	// regardless of whether any rewrites were needed, so callers can
+	// confirm the pass ran.
+	Postprocess PostprocessStats
 }
 
 // PageRenderStats summarizes rendered page work.

@@ -76,6 +76,29 @@ func buildArtifactSpecs(posts []*parser.Post, cfg *config.Config, outputDir stri
 				return minifyOutput(outputDir)
 			},
 		},
+		{
+			Name:    "postprocess",
+			Enabled: true,
+			RunWithResult: func(result *GenerationResult) error {
+				assets, err := collectStaticAssetFiles(cfg)
+				if err != nil {
+					return err
+				}
+				fp := newAssetFingerprinter(cfg)
+				entries, err := collectAssetRewriteEntries(assets, fp)
+				if err != nil {
+					return err
+				}
+				stats, err := PostprocessHTML(PostprocessOptions{
+					OutputDir:       outputDir,
+					LogicalToOutput: entries,
+				})
+				if result != nil {
+					result.Postprocess = stats
+				}
+				return err
+			},
+		},
 	}
 }
 

@@ -1619,18 +1619,19 @@ func TestBuildArtifactSpecs(t *testing.T) {
 		},
 	}, t.TempDir(), []string{"go"}, []string{"tech"})
 
-	if len(specs) != 7 {
-		t.Fatalf("Expected 7 artifact specs, got %d", len(specs))
+	if len(specs) != 8 {
+		t.Fatalf("Expected 8 artifact specs, got %d", len(specs))
 	}
 
 	expected := map[string]bool{
-		"feed":    true,
-		"sitemap": true,
-		"search":  false,
-		"robots":  true,
-		"aliases": true,
-		"assets":  true,
-		"minify":  false,
+		"feed":        true,
+		"sitemap":     true,
+		"search":      false,
+		"robots":      true,
+		"aliases":     true,
+		"assets":      true,
+		"minify":      false,
+		"postprocess": true,
 	}
 
 	for _, spec := range specs {

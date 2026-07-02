@@ -24,7 +24,7 @@ func TestRunCheck_ReportsSuccessForScaffoldedSite(t *testing.T) {
 	defer os.Chdir(oldWd)
 
 	var stdout, stderr bytes.Buffer
-	if err := runCheck(&stdout, &stderr, false); err != nil {
+	if err := runCheck(&stdout, &stderr, false, false); err != nil {
 		t.Fatalf("runCheck failed: %v\nstderr=%s", err, stderr.String())
 	}
 
@@ -43,7 +43,7 @@ func TestRunCheck_ReportsConfigErrors(t *testing.T) {
 	defer os.Chdir(oldWd)
 
 	var stdout, stderr bytes.Buffer
-	err := runCheck(&stdout, &stderr, false)
+	err := runCheck(&stdout, &stderr, false, false)
 	if err == nil {
 		t.Fatal("Expected check to fail without config")
 	}
@@ -99,11 +99,80 @@ B`
 	defer os.Chdir(oldWd)
 
 	var stdout, stderr bytes.Buffer
-	err := runCheck(&stdout, &stderr, false)
+	err := runCheck(&stdout, &stderr, false, false)
 	if err == nil {
 		t.Fatal("Expected colliding permalinks to fail check")
 	}
 	if !strings.Contains(stderr.String(), "permalink collision") {
 		t.Fatalf("Expected permalink collision FAIL line, got stderr=%q", stderr.String())
+	}
+}
+
+func TestRunCheckAssets_NoManifestIsClean(t *testing.T) {
+	tmpDir := t.TempDir()
+	siteDir := filepath.Join(tmpDir, "site")
+	if err := initializeSite(io.Discard, siteDir); err != nil {
+		t.Fatalf("initializeSite failed: %v", err)
+	}
+	oldWd, _ := os.Getwd()
+	if err := os.Chdir(siteDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	defer os.Chdir(oldWd)
+
+	var stdout, stderr bytes.Buffer
+	if err := runCheckAssets(&stdout, &stderr); err != nil {
+		t.Fatalf("runCheckAssets should pass with no manifest, got: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "verified 0 fingerprinted asset(s)") {
+		t.Fatalf("expected zero-assets line, got %q", stdout.String())
+	}
+}
+
+func TestRunCheckAssets_DetectsMismatch(t *testing.T) {
+	tmpDir := t.TempDir()
+	siteDir := filepath.Join(tmpDir, "site")
+	if err := initializeSite(io.Discard, siteDir); err != nil {
+		t.Fatalf("initializeSite failed: %v", err)
+	}
+	oldWd, _ := os.Getwd()
+	if err := os.Chdir(siteDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	defer os.Chdir(oldWd)
+
+	// Set up a fingerprinted css with a deliberately wrong embedded hash.
+	cssDir := filepath.Join(siteDir, "public", "css")
+	if err := os.MkdirAll(cssDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	hashed := "css/site.aaaaaaaaaaaa.css"
+	if err := os.WriteFile(filepath.Join(siteDir, "public", hashed), []byte("body{}"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	manifestJSON := `{"assets":["` + hashed + `"]}`
+	if err := os.WriteFile(filepath.Join(siteDir, "public", ".gobin-assets.json"), []byte(manifestJSON), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Enable filename fingerprinting in config so the check sees the file.
+	cfgPath := filepath.Join(siteDir, "config.yaml")
+	cfgBytes, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	extList := `[".css"]`
+	cfgBytes = append(cfgBytes, []byte("\nassets:\n  fingerprint:\n    strategy: filename\n    extensions: "+extList+"\n")...)
+	if err := os.WriteFile(cfgPath, cfgBytes, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	err = runCheckAssets(&stdout, &stderr)
+	if err == nil {
+		t.Fatalf("expected error on hash mismatch, got nil\nstdout=%s\nstderr=%s", stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stderr.String(), hashed) {
+		t.Fatalf("expected %s in stderr, got %q", hashed, stderr.String())
 	}
 }

@@ -26,6 +26,14 @@ type assetFingerprinter struct {
 	fingerprintPath map[string]string
 }
 
+// NewAssetFingerprinter builds a fingerprinter from cfg and exposes the
+// internals needed by the `gobin check --assets` sub-mode. Callers outside
+// the package should use this constructor rather than the unexported
+// alias.
+func NewAssetFingerprinter(cfg *config.Config) *assetFingerprinter {
+	return newAssetFingerprinter(cfg)
+}
+
 func newAssetFingerprinter(cfg *config.Config) *assetFingerprinter {
 	fp := &assetFingerprinter{
 		strategy:        config.AssetsFingerprintStrategyQuery,

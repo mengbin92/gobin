@@ -110,7 +110,10 @@ const (
 // DefaultAssetsFingerprintExtensions returns the default extensions used for
 // filename-level fingerprinting when the user does not configure their own.
 func DefaultAssetsFingerprintExtensions() []string {
-	return []string{".css", ".js", ".svg", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".woff", ".woff2", ".ttf", ".ico"}
+	// v1.5.0: keep the conservative default but add .mjs and .avif to track
+	// modern module and image formats. Fonts (.woff/.woff2/.ttf/.ico) remain
+	// in the list because they are common cache-bust targets.
+	return []string{".css", ".js", ".mjs", ".svg", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".woff", ".woff2", ".ttf", ".ico"}
 }
 
 // OutputsConfig controls generated site-level artifacts.

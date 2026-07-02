@@ -14,6 +14,7 @@ import (
 )
 
 var checkIncludeDrafts bool
+var checkAssets bool
 
 // CheckCmd validates the site configuration and content without producing
 // any output. Useful for CI gating and pre-deploy verification.
@@ -27,19 +28,27 @@ report any problems. This catches:
 - Markdown / Front Matter parse errors
 - Theme directory and template loading errors
 - Permalink collisions (multiple pages writing to the same output path)
+- (--assets only) Hash mismatches between fingerprinted asset filenames
+  and on-disk content.
 
 The command exits with a non-zero status when any error is detected.
-Use --drafts to include draft posts in the collision check.`,
+Use --drafts to include draft posts in the collision check.
+Use --assets to verify filename-level asset fingerprints after a build.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runCheck(cmd.OutOrStdout(), cmd.ErrOrStderr(), checkIncludeDrafts)
+		return runCheck(cmd.OutOrStdout(), cmd.ErrOrStderr(), checkIncludeDrafts, checkAssets)
 	},
 }
 
 func init() {
 	CheckCmd.Flags().BoolVar(&checkIncludeDrafts, "drafts", false, "Include draft posts when checking for permalink collisions")
+	CheckCmd.Flags().BoolVar(&checkAssets, "assets", false, "Verify fingerprinted asset hashes against on-disk content (requires a prior build)")
 }
 
-func runCheck(stdout, stderr io.Writer, includeDrafts bool) error {
+func runCheck(stdout, stderr io.Writer, includeDrafts, assetsOnly bool) error {
+	if assetsOnly {
+		return runCheckAssets(stdout, stderr)
+	}
+
 	fmt.Fprintln(stdout, "Checking site...")
 	log.Info("site check started", "include_drafts", includeDrafts)
 
@@ -97,4 +106,42 @@ func runCheck(stdout, stderr io.Writer, includeDrafts bool) error {
 	fmt.Fprintln(stdout, "Site check passed.")
 	log.Info("site check passed")
 	return nil
+}
+
+// runCheckAssets verifies the integrity of fingerprinted static assets in
+// the publish directory. It reads the on-disk manifest and re-hashes every
+// fingerprinted file, comparing the result against the hash embedded in its
+// filename.
+//
+// Returns nil when all files are consistent, or fmt.Errorf listing every
+// mismatch when any are found.
+func runCheckAssets(stdout, stderr io.Writer) error {
+	log.Info("asset check started")
+	cfg, err := config.LoadDefault()
+	if err != nil {
+		log.Error("asset check failed: config", "error", err)
+		fmt.Fprintf(stderr, "  [FAIL] config: %v\n", err)
+		return errors.New("asset check failed")
+	}
+	cfg = config.Normalize(cfg)
+
+	fp := generator.NewAssetFingerprinter(cfg)
+	mismatches, verified, err := generator.VerifyAssetHashes(cfg.PublishDir, fp)
+	if err != nil {
+		log.Error("asset check failed: verify", "error", err)
+		fmt.Fprintf(stderr, "  [FAIL] verify: %v\n", err)
+		return errors.New("asset check failed")
+	}
+
+	fmt.Fprintf(stdout, "  [OK]   verified %d fingerprinted asset(s) in %s\n", verified, cfg.PublishDir)
+	if len(mismatches) == 0 {
+		log.Info("asset check passed", "verified", verified)
+		return nil
+	}
+
+	for _, m := range mismatches {
+		log.Error("asset hash mismatch", "path", m.OutputPath, "expected", m.ExpectedHash, "actual", m.ActualHash)
+		fmt.Fprintf(stderr, "  [FAIL] %s\n", m.String())
+	}
+	return fmt.Errorf("found %d asset hash mismatch(es)", len(mismatches))
 }
