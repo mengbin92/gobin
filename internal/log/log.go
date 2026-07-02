@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-
 )
 
 // Level is a string log level that maps onto slog.Level.

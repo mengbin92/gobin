@@ -18,9 +18,9 @@ func TestRewriteHTMLReferences_ReplacesKnownAssetPaths(t *testing.T) {
 </head><body><img src="/img/cover.png"></body></html>`
 
 	rewriteSet := map[string]string{
-		"css/site.css":   "css/site.aaaaaaaaaaaa.css",
-		"js/app.js":      "js/app.bbbbbbbbbbbbbbbb.js",
-		"img/cover.png":  "img/cover.cccccccccccc.png",
+		"css/site.css":  "css/site.aaaaaaaaaaaa.css",
+		"js/app.js":     "js/app.bbbbbbbbbbbbbbbb.js",
+		"img/cover.png": "img/cover.cccccccccccc.png",
 	}
 
 	got, found, replaced := rewriteHTMLReferences(html, buildHTMLRefPattern(keysWithLeadingSlash(rewriteSet)), rewriteSet)
@@ -61,9 +61,9 @@ func TestRewriteHTMLReferences_SkipsExternalURLs(t *testing.T) {
 <script src="//cdn.example.com/lib.js"></script>`
 
 	rewriteSet := map[string]string{
-		"page":      "rewritten-page",
-		"rss.xml":   "rewritten-rss",
-		"lib.js":    "rewritten-lib",
+		"page":    "rewritten-page",
+		"rss.xml": "rewritten-rss",
+		"lib.js":  "rewritten-lib",
 	}
 	got, found, replaced := rewriteHTMLReferences(html, buildHTMLRefPattern(keysWithLeadingSlash(rewriteSet)), rewriteSet)
 	if found != 0 || replaced != 0 {
@@ -204,11 +204,11 @@ func TestExtractEmbeddedHash(t *testing.T) {
 		want   string
 		wantOK bool
 	}{
-		"css/site.aaaaaaaaaaaa.css": {"css/site.aaaaaaaaaaaa.css", "aaaaaaaaaaaa", true},
+		"css/site.aaaaaaaaaaaa.css":  {"css/site.aaaaaaaaaaaa.css", "aaaaaaaaaaaa", true},
 		"img/cover.cccccccccccc.png": {"img/cover.cccccccccccc.png", "cccccccccccc", true},
-		"data/data.json":                {"data/data.json", "", false},
-		"img/cover.tooshort.png":        {"img/cover.tooshort.png", "", false},
-		"img/cover.UPPERCASE.png":       {"img/cover.UPPERCASE.png", "", false},
+		"data/data.json":             {"data/data.json", "", false},
+		"img/cover.tooshort.png":     {"img/cover.tooshort.png", "", false},
+		"img/cover.UPPERCASE.png":    {"img/cover.UPPERCASE.png", "", false},
 	}
 	for path, tc := range cases {
 		t.Run(tc.path, func(t *testing.T) {

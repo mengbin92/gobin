@@ -24,10 +24,10 @@ func AddGlobalFlags(rootCmd *cobra.Command) {
 }
 
 // InitLogging builds the global logger from priority resolution:
-//   1. CLI flag (--verbose / --log-format / --log-file)
-//   2. GOBIN_LOG_LEVEL / GOBIN_LOG_FORMAT / GOBIN_LOG_FILE env vars
-//   3. config.yaml `logging` section
-//   4. built-in default (info / text / stderr)
+//  1. CLI flag (--verbose / --log-format / --log-file)
+//  2. GOBIN_LOG_LEVEL / GOBIN_LOG_FORMAT / GOBIN_LOG_FILE env vars
+//  3. config.yaml `logging` section
+//  4. built-in default (info / text / stderr)
 //
 // The config argument is optional; when nil, only flag + env + default
 // are considered. When the loaded config has a `logging` section with

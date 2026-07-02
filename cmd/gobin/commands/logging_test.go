@@ -103,13 +103,13 @@ func TestOverlayFlagsOnValues_VerboseSetsDebug(t *testing.T) {
 
 func TestInitLogging_PriorityFlagEnvConfigDefault(t *testing.T) {
 	cases := []struct {
-		name     string
-		cfg      *config.Config
-		env      map[string]string
-		verbose  bool
-		format   string
-		logFile  string
-		wantFile string // expected output path (""=stderr)
+		name      string
+		cfg       *config.Config
+		env       map[string]string
+		verbose   bool
+		format    string
+		logFile   string
+		wantFile  string // expected output path (""=stderr)
 		wantLevel string
 	}{
 		{

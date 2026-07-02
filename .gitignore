@@ -47,3 +47,6 @@ public/
 .DS_Store
 
 test/
+
+# Local release artifacts (make release-local output)
+dist/

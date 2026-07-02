@@ -243,9 +243,9 @@ func VerifyAssetHashes(outputDir string, fingerprinter *assetFingerprinter) ([]A
 		// from hashFile). Compare prefix.
 		if actual == "" || !strings.HasPrefix(actual, embedded) {
 			mismatches = append(mismatches, AssetHashMismatch{
-				OutputPath:      manifestPath,
-				ExpectedHash:    embedded,
-				ActualHash:      actual,
+				OutputPath:   manifestPath,
+				ExpectedHash: embedded,
+				ActualHash:   actual,
 			})
 		}
 	}
