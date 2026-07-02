@@ -94,3 +94,11 @@ params:
   showReadingTime: true
   showWordCount: true
   showRelatedPosts: true
+
+# Logging configuration (v1.5.0). Override with --verbose / --log-format /
+# --log-file CLI flags, or with GOBIN_LOG_LEVEL / GOBIN_LOG_FORMAT /
+# GOBIN_LOG_FILE env vars. See docs/guides/logging.md.
+# logging:
+#   level: info   # debug | info | warn | error
+#   format: text  # text | json
+#   file: ""      # empty -> stderr; non-empty -> append-mode file
