@@ -65,10 +65,10 @@ func newTestLogger(buf *bytes.Buffer, format Format, level slog.Level) *slog.Log
 
 func TestParseLevel(t *testing.T) {
 	cases := map[Level]slog.Level{
-		LevelDebug:    slog.LevelDebug,
-		LevelInfo:     slog.LevelInfo,
-		LevelWarn:     slog.LevelWarn,
-		LevelError:    slog.LevelError,
+		LevelDebug:     slog.LevelDebug,
+		LevelInfo:      slog.LevelInfo,
+		LevelWarn:      slog.LevelWarn,
+		LevelError:     slog.LevelError,
 		Level("bogus"): slog.LevelInfo, // unknown -> info
 	}
 	for in, want := range cases {
