@@ -69,8 +69,30 @@ type Config struct {
 	// Static asset pipeline configuration
 	Assets *AssetsConfig `yaml:"assets"`
 
+	// Logging configuration (v1.5.0). When set, configures the default
+	// diagnostic logger. CLI flags and GOBIN_LOG_* env vars override the
+	// values from this section at startup.
+	Logging *LoggingConfig `yaml:"logging"`
+
 	// Extended parameters
 	Params map[string]interface{} `yaml:"params"`
+}
+
+// LoggingConfig configures the default diagnostic logger. v1.5.0.
+//
+// The three fields mirror the v1.4.0 --verbose / --log-format / --log-file
+// CLI flags. Resolution priority (high -> low) is documented in
+// internal/log/log.go: CLI flag > GOBIN_LOG_* env var > config > default.
+type LoggingConfig struct {
+	// Level is the minimum level to emit. One of: debug, info, warn, error.
+	// Unknown values from config or env are treated as errors at startup;
+	// unknown values passed via CLI flag are tolerated (matching v1.4.0).
+	Level string `yaml:"level"`
+	// Format selects the slog handler. One of: text, json.
+	Format string `yaml:"format"`
+	// File is a path. Empty means stderr. Append-mode; parent directory
+	// must exist and be writable when the logger is initialized.
+	File string `yaml:"file"`
 }
 
 // MarkupConfig controls Markdown rendering behavior.
@@ -450,4 +472,24 @@ func LoadDefault() (*Config, error) {
 	}
 
 	return nil, fmt.Errorf("no config file found (tried: %s)", candidates)
+}
+
+// LoadIfPresent returns LoadDefault's result, or (nil, nil) when no
+// config file exists. Use this in global paths (e.g. PersistentPreRun)
+// that need to honor `logging:` config when the user is in a site
+// directory, without forcing every command (like `version`) to require
+// a config to be present.
+func LoadIfPresent() (*Config, error) {
+	cfg, err := LoadDefault()
+	if err == nil {
+		return cfg, nil
+	}
+	if _, statErr := os.Stat("config.yaml"); statErr == nil {
+		// exists but failed to parse -> surface the real error
+		return nil, err
+	}
+	if _, statErr := os.Stat("config.yml"); statErr == nil {
+		return nil, err
+	}
+	return nil, nil
 }

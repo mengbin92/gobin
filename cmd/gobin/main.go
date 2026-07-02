@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/mengbin92/gobin/cmd/gobin/commands"
+	"github.com/mengbin92/gobin/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -35,6 +36,10 @@ func init() {
 
 	commands.AddGlobalFlags(rootCmd)
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
-		commands.InitLogging()
+		cfg, _ := config.LoadIfPresent()
+		if err := commands.InitLogging(cfg); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 	}
 }

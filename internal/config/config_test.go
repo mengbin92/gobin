@@ -612,3 +612,50 @@ social:
 		}
 	}
 }
+
+func TestDecodeLoggingConfig(t *testing.T) {
+	const yamlBody = `
+title: t
+logging:
+  level: debug
+  format: json
+  file: /tmp/gobin.log
+`
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte(yamlBody), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Logging == nil {
+		t.Fatal("expected Logging to be non-nil")
+	}
+	if cfg.Logging.Level != "debug" {
+		t.Fatalf("Level=%q, want debug", cfg.Logging.Level)
+	}
+	if cfg.Logging.Format != "json" {
+		t.Fatalf("Format=%q, want json", cfg.Logging.Format)
+	}
+	if cfg.Logging.File != "/tmp/gobin.log" {
+		t.Fatalf("File=%q, want /tmp/gobin.log", cfg.Logging.File)
+	}
+}
+
+func TestDecodeConfig_WithoutLoggingSection(t *testing.T) {
+	const yamlBody = `
+title: t
+`
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte(yamlBody), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Logging != nil {
+		t.Fatalf("expected Logging to be nil, got %+v", cfg.Logging)
+	}
+}

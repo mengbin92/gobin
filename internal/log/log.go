@@ -1,7 +1,11 @@
 package log
 
 import (
+	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
+
 )
 
 // Level is a string log level that maps onto slog.Level.
@@ -114,3 +118,110 @@ func Debug(msg string, args ...any) { defaultLogger.Debug(msg, args...) }
 func Info(msg string, args ...any)  { defaultLogger.Info(msg, args...) }
 func Warn(msg string, args ...any)  { defaultLogger.Warn(msg, args...) }
 func Error(msg string, args ...any) { defaultLogger.Error(msg, args...) }
+
+// ConfigValues is the resolved logging configuration. It is a leaf type
+// (no struct dependency on the config package) so the log package can
+// accept values from any source without creating an import cycle.
+//
+// The fields mirror config.LoggingConfig. Callers in higher layers read
+// the three fields from the loaded config and pass them here.
+type ConfigValues struct {
+	Level  string
+	Format string
+	File   string
+}
+
+// NewFromValues builds a logger from a ConfigValues. Empty fields are
+// treated as "use the default" so callers can pass partially-populated
+// values from priority resolution.
+//
+// Unlike NewFromCLI, unknown level / format values produce an error
+// rather than silently falling back. This matches the v1.5.0 spec:
+// typos in committed config.yaml are project-level errors, while
+// transient CLI flag typos stay tolerant.
+func NewFromValues(values ConfigValues) (*slog.Logger, error) {
+	opts := Default()
+	if values.Level != "" {
+		if _, err := parseLevelStrict(Level(values.Level)); err != nil {
+			return nil, err
+		}
+		opts.Level = Level(values.Level)
+	}
+	if values.Format != "" {
+		if err := validateFormat(Format(values.Format)); err != nil {
+			return nil, err
+		}
+		opts.Format = Format(values.Format)
+	}
+	if values.File != "" {
+		if err := validateFilePath(values.File); err != nil {
+			return nil, err
+		}
+		opts.Output = values.File
+	}
+	return New(opts), nil
+}
+
+// NewFromEnv reads GOBIN_LOG_LEVEL, GOBIN_LOG_FORMAT, GOBIN_LOG_FILE
+// from the environment and applies them as overrides on top of base.
+// Empty env vars are ignored; empty base fields are ignored too.
+//
+// This is the v1.5.0 entry point used when the user wants env-driven
+// config (e.g. docker compose) without changing config.yaml.
+func NewFromEnv(base ConfigValues) (*slog.Logger, error) {
+	merged := base
+	if v := os.Getenv("GOBIN_LOG_LEVEL"); v != "" {
+		merged.Level = v
+	}
+	if v := os.Getenv("GOBIN_LOG_FORMAT"); v != "" {
+		merged.Format = v
+	}
+	if v := os.Getenv("GOBIN_LOG_FILE"); v != "" {
+		merged.File = v
+	}
+	return NewFromValues(merged)
+}
+
+func parseLevelStrict(l Level) (slog.Level, error) {
+	switch l {
+	case LevelDebug, LevelInfo, LevelWarn, LevelError:
+		return parseLevel(l), nil
+	default:
+		return slog.LevelInfo, fmt.Errorf("invalid logging level %q (want debug|info|warn|error)", string(l))
+	}
+}
+
+func validateFormat(f Format) error {
+	switch f {
+	case FormatText, FormatJSON:
+		return nil
+	default:
+		return fmt.Errorf("invalid logging format %q (want text|json)", string(f))
+	}
+}
+
+func validateFilePath(path string) error {
+	dir := filepath.Dir(path)
+	if dir == "" || dir == "." {
+		return nil
+	}
+	if info, err := os.Stat(dir); err != nil {
+		return fmt.Errorf("log file parent directory %q: %w", dir, err)
+	} else if !info.IsDir() {
+		return fmt.Errorf("log file parent %q is not a directory", dir)
+	}
+	// Test writability with a create-and-close. This catches read-only
+	// mounts and permission issues early instead of failing at first log.
+	if err := probeWritable(path); err != nil {
+		return fmt.Errorf("log file %q not writable: %w", path, err)
+	}
+	return nil
+}
+
+func probeWritable(path string) error {
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	return f.Close()
+}
