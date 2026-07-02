@@ -39,6 +39,16 @@ Gobin 是一个基于 Go 语言开发的静态博客网站生成器，专为追�
 - 更完善的主题系统和开发服务器体验
 - 图片与资源优化
 
+### 进一步阅读
+
+想了解 v1.4.0 引入的几项能力的细节、产物变化与排错思路，看 `docs/guides/`：
+
+- [Shortcodes 使用指南](docs/guides/shortcodes.md)
+- [增量构建使用指南](docs/guides/incremental-build.md)
+- [并行构建使用指南](docs/guides/parallel-build.md)
+- [统一日志系统使用指南](docs/guides/logging.md)
+
+
 ## 技术栈
 
 - **后端生成器**：Go 1.25
@@ -490,7 +500,7 @@ make benchmark
 - [x] 增量构建
 - [x] 并行构建
 - [ ] 指纹资源和更完整的资源管线
-- [ ] 文档持续收口
+- [x] 文档持续收口（v1.4.0：补 `docs/guides/` 下 4 篇用户指南——短代码 / 增量 / 并行 / 日志；P1 实施计划复选框已回填）
 - [x] 示例站点创建
 
 ## 贡献指南

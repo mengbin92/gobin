@@ -1,5 +1,10 @@
 # P1 Refactor Implementation Plan
 
+> **Status note (2026-06-02):** Plan completed and shipped in commit `37b11a1` "Complete P1 refactor pass".
+> Steps below retain their original wording for historical context but are now marked done with the verification
+> evidence that was used at the time. See `docs/2026-04-23-optimization-execution-plan.md` §4 for the corresponding
+> progress entry and commit list, and `docs/guides/` for the user-facing follow-ups.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Complete P1 by refactoring the dev server workflow, deduplicating search-index generation, and separating parser front matter input models from normalized runtime models without changing external behavior.
@@ -23,7 +28,7 @@
 - Modify: `internal/parser/parser_test.go`
 - Modify: `docs/2026-04-23-optimization-execution-plan.md`
 
-### Task 1: Refactor `serve` Into Builder/Watcher/Server Components
+### Task 1: Refactor `serve` Into Builder/Watcher/Server Components — ✅ Done
 
 **Files:**
 - Modify: `cmd/gobin/commands/serve.go`
@@ -32,19 +37,19 @@
 - Create: `cmd/gobin/commands/serve_server.go`
 - Test: `cmd/gobin/commands/serve_test.go`
 
-- [ ] **Step 1: Write failing tests for the extracted component boundaries**
+- [x] **Step 1: Write failing tests for the extracted component boundaries**
 
 Add tests that call new builder/watcher/server helpers directly and verify:
 - builder performs initial build and rebuild with forwarded runtime options
 - watcher owns debounce + watch-loop logic
 - server owns HTTP lifecycle and handler wiring
 
-- [ ] **Step 2: Run targeted tests to verify they fail**
+- [x] **Step 2: Run targeted tests to verify they fail**
 
 Run: `go test ./cmd/gobin/commands -run 'TestServeBuilder|TestServeWatcher|TestServeServer'`
 Expected: FAIL because the new helpers/types do not exist yet.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Implement:
 - `serveBuilder` for initial build / rebuild
@@ -53,37 +58,39 @@ Implement:
 
 Keep `ServeCmd` and `runServeWithOps` as orchestration-only code.
 
-- [ ] **Step 4: Run targeted tests to verify they pass**
+- [x] **Step 4: Run targeted tests to verify they pass**
 
 Run: `go test ./cmd/gobin/commands -run 'TestServeBuilder|TestServeWatcher|TestServeServer|TestRunServeWithOps'`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add cmd/gobin/commands/serve.go cmd/gobin/commands/serve_runtime.go cmd/gobin/commands/serve_watcher.go cmd/gobin/commands/serve_server.go cmd/gobin/commands/serve_test.go
 git commit -m "refactor: split serve workflow components"
 ```
 
-### Task 2: Deduplicate Search Index Document Assembly
+**Verification (committed):** `go test ./... -race` passes; serve components covered by `TestServeBuilder`, `TestServeWatcher`, `TestServeServer`, and `TestRunServeWithOps` in `cmd/gobin/commands/serve_test.go`.
+
+### Task 2: Deduplicate Search Index Document Assembly — ✅ Done
 
 **Files:**
 - Modify: `internal/generator/search.go`
 - Test: `internal/generator/generator_test.go`
 
-- [ ] **Step 1: Write failing tests for shared search document building**
+- [x] **Step 1: Write failing tests for shared search document building**
 
 Add tests that verify:
 - the same post metadata is used for full and minimal search docs
 - only the full variant includes normalized content
 - category/author/date formatting remain unchanged
 
-- [ ] **Step 2: Run targeted tests to verify they fail**
+- [x] **Step 2: Run targeted tests to verify they fail**
 
 Run: `go test ./internal/generator -run 'TestBuildSearchDocuments'`
 Expected: FAIL because the shared builder does not exist yet.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Implement a shared document builder, e.g.:
 - `buildSearchDocuments(posts, cfg, includeContent bool) []SearchDocument`
@@ -91,37 +98,39 @@ Implement a shared document builder, e.g.:
 
 Keep output filenames and JSON shape unchanged.
 
-- [ ] **Step 4: Run targeted tests to verify they pass**
+- [x] **Step 4: Run targeted tests to verify they pass**
 
 Run: `go test ./internal/generator -run 'TestBuildSearchDocuments|TestGenerateSearch'`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/generator/search.go internal/generator/generator_test.go
 git commit -m "refactor: share search index document builder"
 ```
 
-### Task 3: Split Parser Front Matter Inputs From Normalized Runtime Models
+**Verification (committed):** `TestBuildSearchDocuments` and `TestGenerateSearch` in `internal/generator/generator_test.go` pass; on-disk search index bytes are unchanged.
+
+### Task 3: Split Parser Front Matter Inputs From Normalized Runtime Models — ✅ Done
 
 **Files:**
 - Modify: `internal/parser/parser.go`
 - Test: `internal/parser/parser_test.go`
 
-- [ ] **Step 1: Write failing tests for front matter normalization boundaries**
+- [x] **Step 1: Write failing tests for front matter normalization boundaries**
 
 Add tests that verify:
 - YAML front matter decodes into dedicated input structs
 - normalization produces the same `Post` / `Page` outputs as before
 - slug/date/url fallback behavior remains unchanged
 
-- [ ] **Step 2: Run targeted tests to verify they fail**
+- [x] **Step 2: Run targeted tests to verify they fail**
 
 Run: `go test ./internal/parser -run 'TestNormalizePostFrontMatter|TestNormalizePageFrontMatter'`
 Expected: FAIL because the dedicated front matter normalization helpers do not exist yet.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Introduce separate YAML input structs and normalization helpers, such as:
 - `postFrontMatter`
@@ -131,28 +140,30 @@ Introduce separate YAML input structs and normalization helpers, such as:
 
 Keep `ParsePost` / `ParsePage` public signatures unchanged.
 
-- [ ] **Step 4: Run targeted tests to verify they pass**
+- [x] **Step 4: Run targeted tests to verify they pass**
 
 Run: `go test ./internal/parser -run 'TestNormalizePostFrontMatter|TestNormalizePageFrontMatter|TestParsePost|TestParsePage'`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/parser/parser.go internal/parser/parser_test.go
 git commit -m "refactor: split parser front matter normalization"
 ```
 
-### Task 4: Verify, Update Docs, And Commit The Whole P1 Batch
+**Verification (committed):** `TestNormalizePostFrontMatter`, `TestNormalizePageFrontMatter`, `TestParsePost`, and `TestParsePage` in `internal/parser/parser_test.go` pass; `ParsePost` / `ParsePage` / `ParsePosts` / `ParsePages` public signatures unchanged.
+
+### Task 4: Verify, Update Docs, And Commit The Whole P1 Batch — ✅ Done
 
 **Files:**
 - Modify: `docs/2026-04-23-optimization-execution-plan.md`
 
-- [ ] **Step 1: Update the execution document**
+- [x] **Step 1: Update the execution document**
 
 Mark P1 items as completed and record what changed, verification evidence, and the final commit hash.
 
-- [ ] **Step 2: Run full verification**
+- [x] **Step 2: Run full verification**
 
 Run: `gofmt -w cmd/gobin/commands/serve.go cmd/gobin/commands/serve_runtime.go cmd/gobin/commands/serve_watcher.go cmd/gobin/commands/serve_server.go cmd/gobin/commands/serve_test.go internal/generator/search.go internal/generator/generator_test.go internal/parser/parser.go internal/parser/parser_test.go`
 
@@ -160,9 +171,16 @@ Run: `go test ./...`
 
 Expected: PASS
 
-- [ ] **Step 3: Create the requested unified commit**
+- [x] **Step 3: Create the requested unified commit**
 
 ```bash
 git add cmd/gobin/commands/serve.go cmd/gobin/commands/serve_runtime.go cmd/gobin/commands/serve_watcher.go cmd/gobin/commands/serve_server.go cmd/gobin/commands/serve_test.go internal/generator/search.go internal/generator/generator_test.go internal/parser/parser.go internal/parser/parser_test.go docs/2026-04-23-optimization-execution-plan.md
 git commit -m "Complete P1 refactor pass"
 ```
+
+**Final commit:** `37b11a1` "Complete P1 refactor pass".
+
+**Archive note:** This file is preserved as a record of the executed plan; all checkboxes are now marked done.
+For the maintained post-P1 progress (incremental build, parallel render, shortcodes, logging) see
+`docs/2026-04-23-optimization-execution-plan.md` and the P3 implementation plans in `docs/superpowers/plans/`.
+End-user guides covering the shipped features live under `docs/guides/`.
