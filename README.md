@@ -499,8 +499,8 @@ make benchmark
 - [x] CI benchmark 基线
 - [x] 增量构建
 - [x] 并行构建
-- [ ] 指纹资源和更完整的资源管线
-- [x] 文档持续收口（v1.4.0：补 `docs/guides/` 下 4 篇用户指南——短代码 / 增量 / 并行 / 日志；P1 实施计划复选框已回填）
+- [x] 指纹资源和更完整的资源管线（v1.5.0：HTML 引用改写、`gobin check --assets`、默认指纹扩展名纳入 `.mjs` / `.avif`）
+- [x] 文档持续收口（v1.4.0：补 `docs/guides/` 下 4 篇用户指南——短代码 / 增量 / 并行 / 日志；P1 实施计划复选框已回填。v1.5.0：补 `docs/guides/` 下 2 篇——`asset-pipeline.md` / `serve.md` watch 行为；`logging.md` 更新到 config + env）
 - [x] 示例站点创建
 
 ## 贡献指南
