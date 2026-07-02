@@ -411,12 +411,88 @@ func TestRunServeWithOps_WatcherRuntimeRequestsIncremental(t *testing.T) {
 		if !runtime.incremental {
 			t.Fatal("expected watcher runtime to have incremental=true")
 		}
-		if runtime.cleanOutput {
-			t.Fatal("expected watcher runtime to have cleanOutput=false")
-		}
 	case <-time.After(time.Second):
 		t.Fatal("watcher was not started")
 	}
+}
+
+// TestRunServeWithOps_WatcherCleansByDefault pins v1.5.0 behavior: by
+// default, watcher rebuilds request cleanOutput=true so deleting a post
+// or asset removes the corresponding publishDir entry.
+func TestRunServeWithOps_WatcherCleansByDefault(t *testing.T) {
+	prevClean, prevNoClean := serveClean, serveNoCleanOnWatch
+	serveClean = true
+	serveNoCleanOnWatch = false
+	defer func() { serveClean, serveNoCleanOnWatch = prevClean, prevNoClean }()
+
+	runtime := captureWatcherRuntime(t)
+
+	if !runtime.cleanOutput {
+		t.Fatal("expected watcher runtime to have cleanOutput=true by default (v1.5.0)")
+	}
+}
+
+// TestRunServeWithOps_NoCleanOnWatchRestoresV140 asserts the escape hatch:
+// passing --no-clean-on-watch keeps the v1.4.0 behavior of leaving stale
+// output in place.
+func TestRunServeWithOps_NoCleanOnWatchRestoresV140(t *testing.T) {
+	prevClean, prevNoClean := serveClean, serveNoCleanOnWatch
+	serveClean = true
+	serveNoCleanOnWatch = true
+	defer func() { serveClean, serveNoCleanOnWatch = prevClean, prevNoClean }()
+
+	runtime := captureWatcherRuntime(t)
+
+	if runtime.cleanOutput {
+		t.Fatal("expected --no-clean-on-watch to keep cleanOutput=false (v1.4.0 behavior)")
+	}
+}
+
+// TestRunServeWithOps_ServeCleanFalseKeepsStaleOutput asserts the
+// orthogonal path: --clean=false on the one-shot build also keeps stale
+// output across watcher rebuilds. This is the v1.4.0 default for projects
+// that opted out of cleaning.
+func TestRunServeWithOps_ServeCleanFalseKeepsStaleOutput(t *testing.T) {
+	prevClean, prevNoClean := serveClean, serveNoCleanOnWatch
+	serveClean = false
+	serveNoCleanOnWatch = false
+	defer func() { serveClean, serveNoCleanOnWatch = prevClean, prevNoClean }()
+
+	runtime := captureWatcherRuntime(t)
+
+	if runtime.cleanOutput {
+		t.Fatal("expected serveClean=false to keep cleanOutput=false on watcher rebuilds")
+	}
+}
+
+// captureWatcherRuntime drives runServeWithOps and pulls the runtime that
+// the watcher would have received, so multiple tests can assert on its
+// flags without duplicating plumbing.
+func captureWatcherRuntime(t *testing.T) serveRuntime {
+	t.Helper()
+	watchedCh := make(chan serveRuntime, 1)
+
+	err := runServeWithOps(io.Discard, false, true, serveOps{
+		loadSiteInput: func() (*siteBuildInput, error) {
+			return &siteBuildInput{cfg: &config.Config{PublishDir: "public"}}, nil
+		},
+		generateSite: func(*siteBuildInput, string, bool, bool, bool) error { return nil },
+		watchFiles: func(_ context.Context, _ *config.Config, runtime serveRuntime) {
+			watchedCh <- runtime
+		},
+		startServer: func(io.Writer, *config.Config) error { return nil },
+	})
+	if err != nil {
+		t.Fatalf("runServeWithOps failed: %v", err)
+	}
+
+	select {
+	case runtime := <-watchedCh:
+		return runtime
+	case <-time.After(time.Second):
+		t.Fatal("watcher was not started")
+	}
+	return serveRuntime{} // unreachable
 }
 
 func TestRunServeWithOps_BuildFailureStopsBeforeServer(t *testing.T) {
@@ -1305,4 +1381,36 @@ func (r *syncedResponseRecorder) BodyString() string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.body.String()
+}
+
+// TestServeBuilder_WatcherCleanForwardsCleanOutputToGenerator pins the
+// spec 2 contract: when the watcher runtime asks for cleanOutput=true
+// (the v1.5.0 default), the generator's GenerationOptions.CleanOutput
+// must be true so that the manifest-driven stale cleanup runs.
+func TestServeBuilder_WatcherCleanForwardsCleanOutputToGenerator(t *testing.T) {
+	var gotOpts generator.GenerationOptions
+
+	builder := serveBuilder{
+		loadSiteInput: func() (*siteBuildInput, error) {
+			return &siteBuildInput{cfg: &config.Config{PublishDir: "public"}}, nil
+		},
+		generateSiteWithOptionsFn: func(_ *siteBuildInput, opts generator.GenerationOptions) (*generator.GenerationResult, error) {
+			gotOpts = opts
+			return &generator.GenerationResult{}, nil
+		},
+	}
+
+	if _, err := builder.rebuildResult(serveRuntime{
+		cleanOutput: true,
+		incremental: true,
+	}); err != nil {
+		t.Fatalf("rebuildResult: %v", err)
+	}
+
+	if !gotOpts.CleanOutput {
+		t.Fatal("expected CleanOutput=true to be forwarded to generator")
+	}
+	if gotOpts.Incremental {
+		t.Fatal("expected Incremental to be disabled when CleanOutput=true (clean wipes the manifest)")
+	}
 }

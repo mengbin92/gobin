@@ -42,11 +42,12 @@ type debounceCancelFunc func() bool
 type debounceAfterFunc func(time.Duration, func()) debounceCancelFunc
 
 var (
-	servePort   int
-	serveWatch  bool
-	serveDrafts bool
-	serveClean  bool
-	serveReload bool
+	servePort           int
+	serveWatch          bool
+	serveDrafts         bool
+	serveClean          bool
+	serveNoCleanOnWatch bool
+	serveReload         bool
 )
 
 // ServeCmd is the serve command
@@ -56,7 +57,11 @@ var ServeCmd = &cobra.Command{
 	Long: `Start a local development server with optional file watching and automatic rebuild.
 
 The server watches for changes in your content and templates, automatically
-rebuilds the site when files change, and can refresh open pages with LiveReload.`,
+rebuilds the site when files change, and can refresh open pages with LiveReload.
+
+From v1.5.0 the watcher rebuilds align with one-shot builds: deleting a post
+or asset removes the corresponding publishDir entry. Use --no-clean-on-watch
+to restore the v1.4.0 behavior of leaving stale output in place.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runServe(cmd.OutOrStdout(), serveDrafts, serveWatch)
 	},
@@ -68,6 +73,7 @@ func init() {
 	ServeCmd.Flags().BoolVar(&serveDrafts, "drafts", false, "Include draft posts in the output")
 	ServeCmd.Flags().BoolVar(&serveClean, "clean", true, "Clean the output directory before rebuilding")
 	ServeCmd.Flags().BoolVar(&serveReload, "live-reload", true, "Inject a development-only LiveReload client while watching")
+	ServeCmd.Flags().BoolVar(&serveNoCleanOnWatch, "no-clean-on-watch", false, "Skip cleaning the output directory on watcher rebuilds (v1.4.0 behavior; use when another process manages publishDir)")
 }
 
 func runServe(stdout io.Writer, buildDrafts bool, watch bool) error {
@@ -115,10 +121,13 @@ func runServeWithOps(stdout io.Writer, buildDrafts bool, watch bool, ops serveOp
 
 	if watch {
 		runtime.buildDrafts = buildDrafts
-		// Watcher rebuilds always run incremental: serveClean only governs
-		// the initial build. Wiping the output dir on every file save would
-		// throw away the manifest the watcher just primed.
-		runtime.cleanOutput = false
+		// v1.5.0: watcher rebuilds now follow serveClean by default, so
+		// deleting a post or asset removes the corresponding publishDir
+		// entry. --no-clean-on-watch restores the v1.4.0 behavior of
+		// keeping stale output in place (useful when another process
+		// manages publishDir or when running a watcher on top of a slow
+		// shared filesystem).
+		runtime.cleanOutput = serveClean && !serveNoCleanOnWatch
 		runtime.incremental = true
 		runtime.verbose = verbose
 		go ops.watchFiles(watchCtx, cfg, serveRuntime{
