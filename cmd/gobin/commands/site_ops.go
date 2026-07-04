@@ -15,7 +15,18 @@ type siteBuildInput struct {
 	pages []*parser.Page
 }
 
+// loadSiteBuildInput loads the site using the default auto-concurrency for
+// parsing (min(NumCPU, 4)). Callers that need to forward a user-specified
+// --jobs value should use loadSiteBuildInputWithConcurrency instead.
 func loadSiteBuildInput() (*siteBuildInput, error) {
+	return loadSiteBuildInputWithConcurrency(0)
+}
+
+// loadSiteBuildInputWithConcurrency loads the site and parses content with
+// the requested worker count. A concurrency of 0 (or negative) means auto.
+// The worker count is forwarded to both the post and page parallel parsers
+// so that --jobs controls parsing in lockstep with the page-render workers.
+func loadSiteBuildInputWithConcurrency(concurrency int) (*siteBuildInput, error) {
 	cfg, err := config.LoadDefault()
 	if err != nil {
 		return nil, fmt.Errorf("load config: %w", err)
@@ -27,12 +38,12 @@ func loadSiteBuildInput() (*siteBuildInput, error) {
 		return nil, fmt.Errorf("load shortcodes: %w", err)
 	}
 
-	posts, err := parser.ParsePostsWithOptions(cfg.ContentDir, renderOptions)
+	posts, err := parser.ParsePostsWithOptionsConcurrent(cfg.ContentDir, renderOptions, concurrency)
 	if err != nil {
 		return nil, fmt.Errorf("parse posts: %w", err)
 	}
 
-	pages, err := parser.ParsePagesWithOptions(cfg.PageDir, renderOptions)
+	pages, err := parser.ParsePagesWithOptionsConcurrent(cfg.PageDir, renderOptions, concurrency)
 	if err != nil {
 		return nil, fmt.Errorf("parse pages: %w", err)
 	}

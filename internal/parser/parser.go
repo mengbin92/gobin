@@ -2,7 +2,6 @@ package parser
 
 import (
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -237,8 +236,19 @@ func ParsePosts(dir string) ([]*Post, error) {
 	return ParsePostsWithOptions(dir, DefaultRenderOptions())
 }
 
-// ParsePostsWithOptions parses all markdown posts from a directory using render options.
+// ParsePostsWithOptions parses all markdown posts from a directory using render
+// options. Parsing is parallelized with an automatically chosen worker count
+// (min(NumCPU, 4)); results are returned in filepath.WalkDir's lexical order,
+// so output is byte-for-byte identical to a serial parse.
 func ParsePostsWithOptions(dir string, opts RenderOptions) ([]*Post, error) {
+	return ParsePostsWithOptionsConcurrent(dir, opts, 0)
+}
+
+// ParsePostsWithOptionsConcurrent parses all markdown posts from a directory
+// using render options and the requested worker count. A concurrency of 0 (or
+// negative) means auto: min(NumCPU, 4). A value of 1 forces sequential parsing.
+// Results are returned in filepath.WalkDir's lexical order.
+func ParsePostsWithOptionsConcurrent(dir string, opts RenderOptions, concurrency int) ([]*Post, error) {
 	logger := log.GetDefault().With("component", "parser")
 	if dir == "" {
 		return nil, nil
@@ -250,32 +260,14 @@ func ParsePostsWithOptions(dir string, opts RenderOptions) ([]*Post, error) {
 
 	logger.Debug("scanning content directory", "dir", dir)
 
-	var posts []*Post
-
-	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() {
-			return nil
-		}
-
-		ext := strings.ToLower(filepath.Ext(entry.Name()))
-		if ext != ".md" && ext != ".markdown" {
-			return nil
-		}
-
-		post, err := ParsePostWithOptions(path, opts)
-		if err != nil {
-			return fmt.Errorf("failed to parse %s: %w", path, err)
-		}
-		if post != nil {
-			posts = append(posts, post)
-		}
-		return nil
-	})
+	files, err := collectMarkdownFiles(dir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read directory %s: %w", dir, err)
+	}
+
+	posts, err := parsePostFilesConcurrent(files, opts, normalizeParseConcurrency(concurrency))
+	if err != nil {
+		return nil, err
 	}
 
 	logger.Info("posts parsed", "dir", dir, "total", len(posts))
@@ -287,8 +279,19 @@ func ParsePages(dir string) ([]*Page, error) {
 	return ParsePagesWithOptions(dir, DefaultRenderOptions())
 }
 
-// ParsePagesWithOptions parses standalone markdown pages recursively using render options.
+// ParsePagesWithOptions parses standalone markdown pages recursively using
+// render options. Parsing is parallelized with an automatically chosen worker
+// count (min(NumCPU, 4)); results are returned in filepath.WalkDir's lexical
+// order, so output is byte-for-byte identical to a serial parse.
 func ParsePagesWithOptions(dir string, opts RenderOptions) ([]*Page, error) {
+	return ParsePagesWithOptionsConcurrent(dir, opts, 0)
+}
+
+// ParsePagesWithOptionsConcurrent parses standalone markdown pages recursively
+// using render options and the requested worker count. A concurrency of 0 (or
+// negative) means auto: min(NumCPU, 4). A value of 1 forces sequential parsing.
+// Results are returned in filepath.WalkDir's lexical order.
+func ParsePagesWithOptionsConcurrent(dir string, opts RenderOptions, concurrency int) ([]*Page, error) {
 	logger := log.GetDefault().With("component", "parser")
 	if dir == "" {
 		return nil, nil
@@ -300,27 +303,12 @@ func ParsePagesWithOptions(dir string, opts RenderOptions) ([]*Page, error) {
 
 	logger.Debug("scanning page directory", "dir", dir)
 
-	var pages []*Page
-	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() {
-			return nil
-		}
+	files, err := collectMarkdownFiles(dir)
+	if err != nil {
+		return nil, err
+	}
 
-		ext := strings.ToLower(filepath.Ext(entry.Name()))
-		if ext != ".md" && ext != ".markdown" {
-			return nil
-		}
-
-		page, err := ParsePageWithOptions(path, dir, opts)
-		if err != nil {
-			return fmt.Errorf("failed to parse %s: %w", path, err)
-		}
-		pages = append(pages, page)
-		return nil
-	})
+	pages, err := parsePageFilesConcurrent(files, dir, opts, normalizeParseConcurrency(concurrency))
 	if err != nil {
 		return nil, err
 	}

@@ -61,8 +61,8 @@ func runBuild(stdout io.Writer, minify bool, buildDrafts bool, cleanOutput bool,
 		"jobs", jobs,
 	)
 
-	logger.Debug("loading site build input")
-	input, err := loadSiteBuildInput()
+	logger.Debug("loading site build input", "concurrency", jobs)
+	input, err := loadSiteBuildInputWithConcurrency(jobs)
 	if err != nil {
 		logger.Error("failed to load site build input", "error", err)
 		return err

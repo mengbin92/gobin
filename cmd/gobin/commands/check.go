@@ -67,7 +67,7 @@ func runCheck(stdout, stderr io.Writer, includeDrafts, assetsOnly bool) error {
 		fmt.Fprintf(stderr, "  [FAIL] shortcodes: %v\n", err)
 		return errors.New("check failed")
 	}
-	posts, err := parser.ParsePostsWithOptions(cfg.ContentDir, renderOpts)
+	posts, err := parser.ParsePostsWithOptionsConcurrent(cfg.ContentDir, renderOpts, 0)
 	if err != nil {
 		log.Error("check failed: posts", "error", err)
 		fmt.Fprintf(stderr, "  [FAIL] posts: %v\n", err)
@@ -75,7 +75,7 @@ func runCheck(stdout, stderr io.Writer, includeDrafts, assetsOnly bool) error {
 	}
 	fmt.Fprintf(stdout, "  [OK]   parsed %d post(s) from %s\n", len(posts), cfg.ContentDir)
 
-	pages, err := parser.ParsePagesWithOptions(cfg.PageDir, renderOpts)
+	pages, err := parser.ParsePagesWithOptionsConcurrent(cfg.PageDir, renderOpts, 0)
 	if err != nil {
 		log.Error("check failed: pages", "error", err)
 		fmt.Fprintf(stderr, "  [FAIL] pages: %v\n", err)
