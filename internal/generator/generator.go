@@ -27,6 +27,10 @@ type GenerationResult struct {
 	// regardless of whether any rewrites were needed, so callers can
 	// confirm the pass ran.
 	Postprocess PostprocessStats
+	// Images summarizes the v1.7 image-optimization pipeline. It is
+	// populated by the images artifact when Assets.Images.Enabled is
+	// true; the struct is the zero value otherwise.
+	Images ImageStats
 }
 
 // PageRenderStats summarizes rendered page work.

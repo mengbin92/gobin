@@ -659,3 +659,69 @@ title: t
 		t.Fatalf("expected Logging to be nil, got %+v", cfg.Logging)
 	}
 }
+
+func TestNormalize_AssetsImagesDisabledByDefault(t *testing.T) {
+	cfg := &Config{Assets: &AssetsConfig{}}
+	cfg = Normalize(cfg)
+	if cfg.Assets.Images == nil {
+		t.Fatal("Normalize should populate Assets.Images even when disabled")
+	}
+	if cfg.Assets.Images.Enabled {
+		t.Fatal("Assets.Images.Enabled should default to false")
+	}
+}
+
+func TestNormalize_AssetsImagesEnabledFillsDefaults(t *testing.T) {
+	cfg := &Config{Assets: &AssetsConfig{Images: &AssetsImagesConfig{Enabled: true}}}
+	cfg = Normalize(cfg)
+	img := cfg.Assets.Images
+	if !img.Enabled {
+		t.Fatal("Enabled should stay true")
+	}
+	if len(img.Srcset) == 0 {
+		t.Error("Srcset should be filled with defaults")
+	}
+	if img.Sizes == "" {
+		t.Error("Sizes should be filled with default")
+	}
+	if len(img.Formats) == 0 {
+		t.Error("Formats should be filled with defaults")
+	}
+	if img.Quality <= 0 {
+		t.Error("Quality should be filled with default")
+	}
+}
+
+func TestNormalize_AssetsImagesEnabledRespectsUserValues(t *testing.T) {
+	cfg := &Config{Assets: &AssetsConfig{Images: &AssetsImagesConfig{
+		Enabled: true,
+		Srcset:  []int{300, 600},
+		Sizes:   "(max-width: 600px) 100vw, 600px",
+		Formats: []string{"webp"},
+		Quality: 90,
+	}}}
+	cfg = Normalize(cfg)
+	img := cfg.Assets.Images
+	if len(img.Srcset) != 2 || img.Srcset[0] != 300 || img.Srcset[1] != 600 {
+		t.Errorf("Srcset was overwritten: %v", img.Srcset)
+	}
+	if img.Sizes != "(max-width: 600px) 100vw, 600px" {
+		t.Errorf("Sizes was overwritten: %s", img.Sizes)
+	}
+	if len(img.Formats) != 1 || img.Formats[0] != "webp" {
+		t.Errorf("Formats was overwritten: %v", img.Formats)
+	}
+	if img.Quality != 90 {
+		t.Errorf("Quality was overwritten: %d", img.Quality)
+	}
+}
+
+func TestDefaultAssetsImagesConfig(t *testing.T) {
+	d := DefaultAssetsImagesConfig()
+	if d.Enabled {
+		t.Error("default Enabled should be false")
+	}
+	if len(d.Srcset) == 0 || len(d.Formats) == 0 || d.Sizes == "" || d.Quality <= 0 {
+		t.Errorf("default has empty fields: %+v", d)
+	}
+}

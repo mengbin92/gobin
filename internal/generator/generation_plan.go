@@ -28,7 +28,7 @@ func prepareGenerationPlan(posts []*parser.Post, standalonePages []*parser.Page,
 		return nil, err
 	}
 
-	artifactSpecs := buildArtifactSpecs(content.posts, cfg, outputDir, pagePlan.tags, pagePlan.categories)
+	artifactSpecs := buildArtifactSpecs(content.posts, content.standalonePages, cfg, outputDir, pagePlan.tags, pagePlan.categories)
 	plan := assembleGenerationPlan(outputDir, tmpl, pagePlan, artifactSpecs, minify, normalizeConcurrency(concurrency))
 
 	manifest, err := buildManifestForRun(cfg, content.posts, content.standalonePages)

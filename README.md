@@ -28,16 +28,19 @@ Gobin 是一个基于 Go 语言开发的静态博客网站生成器，专为追�
 - `gobin serve` watcher 重建自动启用增量，只重渲染受影响的产物
 - `gobin build --jobs N` 并行页面渲染：多 worker 并发渲染文章/列表/taxonomy 页面，与增量构建正交叠加
 - Hugo 风格短代码（shortcodes）：`{{< name args >}}` / `{{% name args %}}`，内置 `figure` / `youtube` / `gist` / `highlight`，并支持站点与主题自定义
+- v1.6 `gobin build --jobs N` 同时并行 Markdown 解析（`min(NumCPU, 4)`，与渲染共用同一并发度）
+- v1.7 `assets.images` 图片优化管线：自动生成多尺寸变体 + HTML `<picture><source srcset>` 改写（stdlib 后端，jpg/png 完整支持，webp/avif pass-through 留待 v1.8+）
 
 ### 当前限制
-- 多语言、图片优化等能力仍在规划中
-- 并行仅覆盖页面渲染阶段；feed/sitemap/search 等聚合产物与 Markdown 解析仍为串行
+- 多语言、`<img srcset>` 的 WebP/AVIF 编码、图片 LQIP 占位图等仍在规划中
+- v1.7 图片管线默认关闭（`assets.images.enabled: false`），opt-in；启用后端到端构建时间因图片转换增加 ~10-30%
+- v1.7 image pipeline 暂未做内容 hash 跳过（每次 build 重新生成所有变体；下个 patch 补）
 
 ### 规划中
+- WebP / AVIF 编码后端（disintegration/imaging 或 libvips）
 - 更完整的 Jekyll 迁移兼容层
 - 多语言支持
 - 更完善的主题系统和开发服务器体验
-- 图片与资源优化
 
 ### 进一步阅读
 

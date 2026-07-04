@@ -45,6 +45,26 @@ func loadTemplates(cfg *config.Config) (*template.Template, error) {
 		"stylesheetPath": func() string {
 			return detectStylesheetPath(cfg)
 		},
+		// v1.7 image helper. Emits a plain <img src=...> so the
+		// postprocess step can rewrite it to <picture><source srcset>...
+		// once the image pipeline has produced the responsive variants
+		// and the .gobin-images.json manifest is on disk. The alt
+		// argument is required for accessibility; passing an empty
+		// string is allowed but emits alt="".
+		//
+		// The helper intentionally does not pre-compute the variant set
+		// at template-render time. Templates run before the image
+		// artifact, so they cannot know which widths / formats are
+		// available. The postprocess step is the single source of
+		// truth for the rewrite, which keeps the helper simple and
+		// makes the failure mode obvious (no <img src> rewrite = no
+		// variants were produced).
+		"image": func(src string, alt string) template.HTML {
+			if src == "" {
+				return template.HTML("")
+			}
+			return template.HTML(fmt.Sprintf(`<img src=%q alt=%q loading="lazy" decoding="async">`, src, alt))
+		},
 		"render": func(name string, data interface{}) (template.HTML, error) {
 			var buf bytes.Buffer
 			if tmpl == nil {

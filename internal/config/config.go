@@ -103,6 +103,68 @@ type MarkupConfig struct {
 // AssetsConfig controls static asset processing.
 type AssetsConfig struct {
 	Fingerprint *AssetsFingerprintConfig `yaml:"fingerprint"`
+	// Images controls the v1.7 image-optimization pipeline. When nil
+	// (the default) the pipeline is disabled and the build is
+	// byte-for-byte equivalent to v1.6. Setting any field — most
+	// commonly Images.Enabled = true — turns the pipeline on and wires
+	// it into the generator.
+	Images *AssetsImagesConfig `yaml:"images"`
+}
+
+// AssetsImagesConfig controls the image-optimization pipeline introduced
+// in v1.7.
+//
+// When Enabled is true, the generator scans every Markdown post and
+// standalone page for image references (both ![]() bodies and front
+// matter cover / image / thumbnail fields), generates a set of
+// responsive variants per source (one per entry in Srcset, in each
+// format listed in Formats), and rewrites rendered <img src="..."> tags
+// to <picture><source> blocks with srcset / sizes so the browser can
+// pick the smallest variant that fits the viewport.
+//
+// Defaults are chosen to match what Jekyll users coming from the
+// Beautiful Jekyll theme typically expect. Override per-site to tune
+// quality vs. payload, or to add / drop output formats.
+type AssetsImagesConfig struct {
+	// Enabled toggles the pipeline. Defaults to false so v1.7 stays
+	// byte-for-byte equivalent to v1.6 when this section is absent.
+	Enabled bool `yaml:"enabled"`
+	// Srcset lists the widths (in CSS pixels) the pipeline generates.
+	// The source image's own width is always included, and entries larger
+	// than the source are skipped (upscaling never helps). Defaults to
+	// the four most common breakpoints for blog hero / inline images.
+	Srcset []int `yaml:"srcset"`
+	// Sizes is the default `sizes` attribute emitted on <img srcset>.
+	// It controls which entry the browser picks at a given viewport.
+	// Defaults to a Jekyll-compatible rule that fills the viewport
+	// below 800px and caps at 800px otherwise.
+	Sizes string `yaml:"sizes"`
+	// Formats lists the formats the pipeline emits. Each entry is a
+	// canonical extension ("jpg", "png", "webp", ...). The stdlib
+	// backend (always available) re-encodes jpg and png; other formats
+	// are passed through (the source bytes are emitted under the
+	// target filename). Defaults to ["jpg", "png"] so the build works
+	// out of the box on a no-third-party-dependency setup; flip to
+	// ["jpg", "png", "webp"] once a WebP-capable executor is wired in.
+	Formats []string `yaml:"formats"`
+	// Quality is the JPEG encoding quality in the [1, 100] range. It is
+	// passed to the executor's Encode method; only the stdlib backend
+	// honors it today. Defaults to 75 when non-positive.
+	Quality int `yaml:"quality"`
+}
+
+// DefaultAssetsImagesConfig returns a fully populated default
+// AssetsImagesConfig. It is used by Normalize so callers can read
+// Srcset / Sizes / Formats / Quality without nil-checks after the
+// config has been normalized.
+func DefaultAssetsImagesConfig() AssetsImagesConfig {
+	return AssetsImagesConfig{
+		Enabled: false,
+		Srcset:  []int{480, 800, 1200, 1920},
+		Sizes:   "(max-width: 800px) 100vw, 800px",
+		Formats: []string{"jpg", "png"},
+		Quality: 75,
+	}
 }
 
 // AssetsFingerprintConfig controls how assetURL versions static asset URLs.
@@ -252,6 +314,32 @@ func Normalize(cfg *Config) *Config {
 		}
 		if fp.Strategy == AssetsFingerprintStrategyFilename && len(fp.Extensions) == 0 {
 			fp.Extensions = DefaultAssetsFingerprintExtensions()
+		}
+	}
+
+	// v1.7 image optimization pipeline. Normalize fills in defaults so
+	// downstream code can read Assets.Images.Srcset etc. without nil
+	// checks. The pipeline is opt-in: Enabled stays false unless the
+	// user explicitly set it.
+	if cfg.Assets == nil {
+		cfg.Assets = &AssetsConfig{}
+	}
+	if cfg.Assets.Images == nil {
+		cfg.Assets.Images = &AssetsImagesConfig{}
+	}
+	if cfg.Assets.Images.Enabled {
+		def := DefaultAssetsImagesConfig()
+		if len(cfg.Assets.Images.Srcset) == 0 {
+			cfg.Assets.Images.Srcset = def.Srcset
+		}
+		if strings.TrimSpace(cfg.Assets.Images.Sizes) == "" {
+			cfg.Assets.Images.Sizes = def.Sizes
+		}
+		if len(cfg.Assets.Images.Formats) == 0 {
+			cfg.Assets.Images.Formats = def.Formats
+		}
+		if cfg.Assets.Images.Quality <= 0 {
+			cfg.Assets.Images.Quality = def.Quality
 		}
 	}
 

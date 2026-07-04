@@ -19,7 +19,7 @@ type artifactPipeline struct {
 	specs []ArtifactSpec
 }
 
-func buildArtifactSpecs(posts []*parser.Post, cfg *config.Config, outputDir string, tags, categories []string) []ArtifactSpec {
+func buildArtifactSpecs(posts []*parser.Post, standalonePages []*parser.Page, cfg *config.Config, outputDir string, tags, categories []string) []ArtifactSpec {
 	hasAbsoluteBase := hasAbsoluteBaseURL(cfg.BaseURL)
 
 	return []ArtifactSpec{
@@ -77,6 +77,17 @@ func buildArtifactSpecs(posts []*parser.Post, cfg *config.Config, outputDir stri
 			},
 		},
 		{
+			Name:    "images",
+			Enabled: cfg.Assets != nil && cfg.Assets.Images != nil && cfg.Assets.Images.Enabled,
+			RunWithResult: func(result *GenerationResult) error {
+				stats, err := runImagePipeline(posts, standalonePages, cfg, outputDir)
+				if result != nil {
+					result.Images = stats
+				}
+				return err
+			},
+		},
+		{
 			Name:    "postprocess",
 			Enabled: true,
 			RunWithResult: func(result *GenerationResult) error {
@@ -89,9 +100,11 @@ func buildArtifactSpecs(posts []*parser.Post, cfg *config.Config, outputDir stri
 				if err != nil {
 					return err
 				}
+				imageSources := loadImageManifestForPostprocess(outputDir)
 				stats, err := PostprocessHTML(PostprocessOptions{
 					OutputDir:       outputDir,
 					LogicalToOutput: entries,
+					ImageSources:    imageSources,
 				})
 				if result != nil {
 					result.Postprocess = stats

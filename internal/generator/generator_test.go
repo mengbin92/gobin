@@ -1608,7 +1608,7 @@ func TestBuildPageSpecs(t *testing.T) {
 }
 
 func TestBuildArtifactSpecs(t *testing.T) {
-	specs := buildArtifactSpecs(nil, &config.Config{
+	specs := buildArtifactSpecs(nil, nil, &config.Config{
 		BaseURL:         "https://example.com",
 		EnableRobotsTXT: true,
 		Outputs: &config.OutputsConfig{
@@ -1619,8 +1619,8 @@ func TestBuildArtifactSpecs(t *testing.T) {
 		},
 	}, t.TempDir(), []string{"go"}, []string{"tech"})
 
-	if len(specs) != 8 {
-		t.Fatalf("Expected 8 artifact specs, got %d", len(specs))
+	if len(specs) != 9 {
+		t.Fatalf("Expected 9 artifact specs, got %d", len(specs))
 	}
 
 	expected := map[string]bool{
@@ -1632,6 +1632,7 @@ func TestBuildArtifactSpecs(t *testing.T) {
 		"assets":      true,
 		"minify":      false,
 		"postprocess": true,
+		"images":      false, // v1.7: opt-in, default off
 	}
 
 	for _, spec := range specs {
@@ -1646,7 +1647,7 @@ func TestBuildArtifactSpecs(t *testing.T) {
 }
 
 func TestBuildArtifactSpecs_RelativeBaseURLDisablesAbsoluteURLArtifacts(t *testing.T) {
-	specs := buildArtifactSpecs(nil, &config.Config{
+	specs := buildArtifactSpecs(nil, nil, &config.Config{
 		BaseURL:         "/",
 		EnableRobotsTXT: true,
 	}, t.TempDir(), nil, nil)
@@ -1677,10 +1678,13 @@ func TestBuildArtifactSpecs_RelativeBaseURLDisablesAbsoluteURLArtifacts(t *testi
 	if states["minify"] {
 		t.Fatal("Expected minify artifact to remain disabled by default")
 	}
+	if states["images"] {
+		t.Fatal("Expected images artifact to remain disabled when Assets.Images.Enabled is not set")
+	}
 }
 
 func TestWithMinifyArtifactEnabled(t *testing.T) {
-	specs := buildArtifactSpecs(nil, &config.Config{}, t.TempDir(), nil, nil)
+	specs := buildArtifactSpecs(nil, nil, &config.Config{}, t.TempDir(), nil, nil)
 	updated := withMinifyArtifactEnabled(specs, true)
 
 	minifyEnabled := false

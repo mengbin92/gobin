@@ -1,6 +1,9 @@
 {{ define "singleMain" }}
 <article class="post-single">
     <header class="post-header">
+        {{- if .Post.Params.cover }}
+        {{ image .Post.Params.cover .Post.Title }}
+        {{- end }}
         <h1 class="post-title">{{ .Post.Title }}</h1>
         <div class="post-meta">
             <time datetime="{{ .Post.Date.Format "2006-01-02" }}">{{ .Post.Date.Format "2006-01-02" }}</time>

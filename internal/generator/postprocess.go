@@ -31,6 +31,9 @@ type PostprocessStats struct {
 	HTMLFilesChanged    int
 	ReferencesFound     int
 	ReferencesRewritten int
+	// v1.7 image pipeline integration.
+	ImageReferencesFound     int
+	ImageReferencesRewritten int
 }
 
 // PostprocessOptions controls a single postprocess pass.
@@ -41,6 +44,31 @@ type PostprocessOptions struct {
 	// "css/site.abc123.css"). Entries where the two values are equal are
 	// skipped. Only filename-level fingerprinting produces entries.
 	LogicalToOutput map[string]string
+	// ImageSources, when non-empty, enables the v1.7 <img> -> <picture>
+	// rewrite. The map is keyed by the original <img src> path (with a
+	// leading slash) and carries the per-source variant set produced by
+	// the image pipeline. The rewriter emits a <picture> element whose
+	// <source> tags cover each requested format and whose <img> fallback
+	// keeps the same src as the original.
+	ImageSources map[string]ImageSourceRewrite
+}
+
+// ImageSourceRewrite is the per-source data the v1.7 postprocess step
+// needs to emit a <picture> block. Widths is the list of source widths
+// in ascending order; for each width there is one output path per
+// format. Sizes is the `sizes` attribute that goes on the <img> element
+// and on every <source>.
+type ImageSourceRewrite struct {
+	// Widths sorted ascending.
+	Widths []int
+	// Formats sorted alphabetically.
+	Formats []string
+	// Outputs[width][format] = URL path (e.g. "/img/cover-800w.jpg").
+	Outputs map[string]map[string]string
+	// Sizes is the sizes attribute value (e.g.
+	// "(max-width: 800px) 100vw, 800px"). Empty is allowed and the
+	// rewriter omits the attribute.
+	Sizes string
 }
 
 // PostprocessHTML rewrites HTML href / src attributes in rendered output
@@ -60,7 +88,7 @@ func PostprocessHTML(opts PostprocessOptions) (PostprocessStats, error) {
 		}
 		rewriteSet[logical] = output
 	}
-	if len(rewriteSet) == 0 {
+	if len(rewriteSet) == 0 && len(opts.ImageSources) == 0 {
 		logger.Debug("postprocess: no rewrite entries, skipping")
 		return stats, nil
 	}
@@ -77,9 +105,10 @@ func PostprocessHTML(opts PostprocessOptions) (PostprocessStats, error) {
 	})
 
 	pattern := buildHTMLRefPattern(rewriteKeys)
-	if pattern == nil {
-		return stats, nil
-	}
+	// pattern == nil is fine when ImageSources alone are present; the
+	// asset-rewrite block is skipped and the image-rewrite block runs
+	// in the WalkDir below.
+	_ = pattern
 
 	err := filepath.WalkDir(opts.OutputDir, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -99,9 +128,26 @@ func PostprocessHTML(opts PostprocessOptions) (PostprocessStats, error) {
 			return readErr
 		}
 
-		rewritten, found, replaced := rewriteHTMLReferences(string(content), pattern, rewriteSet)
-		stats.ReferencesFound += found
-		stats.ReferencesRewritten += replaced
+		var rewritten string
+		var assetFound, assetReplaced int
+		if pattern != nil {
+			rewritten, assetFound, assetReplaced = rewriteHTMLReferences(string(content), pattern, rewriteSet)
+			stats.ReferencesFound += assetFound
+			stats.ReferencesRewritten += assetReplaced
+		} else {
+			rewritten = string(content)
+		}
+
+		// v1.7: also rewrite <img src="/img/cover.jpg"> to <picture>
+		// when the image pipeline has produced variants for that path.
+		var imgFound, imgReplaced int
+		if len(opts.ImageSources) > 0 {
+			rewritten, imgFound, imgReplaced = rewriteImageReferences(rewritten, opts.ImageSources)
+			stats.ImageReferencesFound += imgFound
+			stats.ImageReferencesRewritten += imgReplaced
+		}
+		found := assetFound + imgFound
+		replaced := assetReplaced + imgReplaced
 
 		if replaced == 0 {
 			return nil
@@ -115,7 +161,8 @@ func PostprocessHTML(opts PostprocessOptions) (PostprocessStats, error) {
 		rel, _ := filepath.Rel(opts.OutputDir, path)
 		logger.Debug("postprocess: rewrote HTML references",
 			"file", rel,
-			"rewrites", replaced,
+			"asset_rewrites", found,
+			"image_rewrites", replaced,
 		)
 		return nil
 	})
@@ -308,4 +355,225 @@ func CategorizeAsset(ext string) assetCategory {
 	default:
 		return categoryOther
 	}
+}
+
+// rewriteImageReferences turns every <img src="..."> in html whose src
+// matches a key in imageSources into a <picture> block with one
+// <source type="image/<format>"> per format and a <img srcset> fallback.
+//
+// The rewriter is deliberately narrow: it only touches <img> elements
+// whose src is one of the keys in imageSources. <a href>, <link
+// rel="alternate">, external URLs, and unlisted <img> tags are left
+// alone so the existing v1.5 asset-rewrite semantics (and its explicit
+// "no-touch" list) carry over.
+//
+// Output shape (one per source width, all formats emitted):
+//
+//	<picture>
+//	  <source type="image/avif" srcset="/img/cover-480w.avif 480w, /img/cover-800w.avif 800w" sizes="...">
+//	  <source type="image/webp" srcset="/img/cover-480w.webp 480w, /img/cover-800w.webp 800w" sizes="...">
+//	  <img src="/img/cover-480w.jpg" srcset="/img/cover-480w.jpg 480w, /img/cover-800w.jpg 800w" sizes="..." loading="lazy" decoding="async">
+//	</picture>
+//
+// When the image has only one format, the rewriter elides the
+// <source> tags and just emits a plain <img srcset> tag (no <picture>
+// wrapper). This keeps the output lean for the common
+// jpg-only-rewrites case.
+func rewriteImageReferences(html string, imageSources map[string]ImageSourceRewrite) (string, int, int) {
+	if len(imageSources) == 0 {
+		return html, 0, 0
+	}
+	// Build a regex of all known <img src="..."> tags. The src value is
+	// group 1. We rely on the caller to have already filtered to
+	// <img>, so we only match that tag.
+	keys := make([]string, 0, len(imageSources))
+	for k := range imageSources {
+		keys = append(keys, k)
+	}
+	// Longest first so e.g. /img/cover.png matches before /img/cover.
+	sort.Slice(keys, func(i, j int) bool { return len(keys[i]) > len(keys[j]) })
+
+	escaped := make([]string, len(keys))
+	for i, k := range keys {
+		escaped[i] = regexp.QuoteMeta(k)
+	}
+	pattern := regexp.MustCompile(`(?is)<img\s+[^>]*?\bsrc\s*=\s*"(` + strings.Join(escaped, "|") + `)"[^>]*?>`)
+
+	matches := pattern.FindAllStringSubmatchIndex(html, -1)
+	if len(matches) == 0 {
+		return html, 0, 0
+	}
+
+	var out strings.Builder
+	out.Grow(len(html) + 128*len(matches))
+	last := 0
+	found := 0
+	replaced := 0
+
+	for _, m := range matches {
+		srcStart, srcEnd := m[2], m[3]
+		tagStart, tagEnd := m[0], m[1]
+		originalTag := html[tagStart:tagEnd]
+		src := html[srcStart:srcEnd]
+		entry := imageSources[src]
+		if len(entry.Outputs) == 0 {
+			continue
+		}
+		found++
+
+		// Build the new tag. The fallback <img> tag reuses the
+		// original tag's other attributes (alt, class, ...) by
+		// stripping the src="..." chunk and appending srcset + sizes.
+		fallback := buildPictureFallback(originalTag, src, entry)
+		if fallback == "" {
+			continue
+		}
+
+		out.WriteString(html[last:tagStart])
+		out.WriteString(fallback)
+		replaced++
+		last = tagEnd
+	}
+	out.WriteString(html[last:])
+	return out.String(), found, replaced
+}
+
+// buildPictureFallback renders a single image element from a v1.7
+// rewrite. When there is only one format the rewriter emits a single
+// <img> tag (no <picture> wrapper); when there are multiple, it emits
+// a <picture> with one <source> per format and an <img> fallback.
+//
+// The "src" of the fallback <img> is the smallest width's <format>
+// variant. That keeps non-source-aware browsers (legacy browsers that
+// ignore <source>) on the smallest, fastest variant, which is the
+// correct progressive-enhancement default.
+func buildPictureFallback(originalTag, src string, entry ImageSourceRewrite) string {
+	widths := entry.Widths
+	if len(widths) == 0 {
+		return ""
+	}
+	formats := entry.Formats
+	if len(formats) == 0 {
+		return ""
+	}
+	// Pick the fallback format as the first format (stable order
+	// because we sort formats alphabetically upstream) and the
+	// fallback width as the largest one (so the fallback has the
+	// best quality if the browser ignores srcset).
+	fallbackFormat := formats[0]
+	fallbackWidth := widths[len(widths)-1]
+	fallbackSrc, ok := entry.Outputs[fmt.Sprintf("%dw", fallbackWidth)][fallbackFormat]
+	if !ok {
+		return ""
+	}
+
+	srcset := buildSrcset(entry, fallbackFormat)
+	sizesAttr := ""
+	if entry.Sizes != "" {
+		sizesAttr = ` sizes="` + entry.Sizes + `"`
+	}
+
+	// Strip src="..." from the original tag so we can reuse its
+	// other attributes (alt, class, id, loading, decoding, ...).
+	stripped := stripSrcAttr(originalTag, src)
+
+	if len(formats) == 1 {
+		// Single-format fast path: <img src="<smallest variant>"
+		// srcset="..." sizes="..." loading="lazy" decoding="async">.
+		// The src points at the smallest variant so non-srcset-aware
+		// browsers stay on the cheapest download.
+		var single strings.Builder
+		single.WriteString(stripped)
+		single.WriteString(` src="`)
+		single.WriteString(fallbackSrc)
+		single.WriteString(`"`)
+		single.WriteString(` srcset="`)
+		single.WriteString(srcset)
+		single.WriteString(`"`)
+		if sizesAttr != "" {
+			single.WriteString(sizesAttr)
+		}
+		single.WriteString(` loading="lazy" decoding="async">`)
+		return single.String()
+	}
+
+	// Multi-format path: build a <picture> with one <source> per
+	// format and an <img> fallback. The <source> tags are ordered
+	// by format alphabetically (matches entry.Formats).
+	var picture strings.Builder
+	picture.WriteString("<picture>")
+	for _, f := range formats {
+		// Build a per-format srcset.
+		psrcset := buildSrcset(entry, f)
+		if psrcset == "" {
+			continue
+		}
+		picture.WriteString(`<source type="image/`)
+		picture.WriteString(f)
+		picture.WriteString(`" srcset="`)
+		picture.WriteString(psrcset)
+		picture.WriteString(`"`)
+		if sizesAttr != "" {
+			picture.WriteString(sizesAttr)
+		}
+		picture.WriteString(`>`)
+	}
+	// Fallback <img>: keep the original src (smallest variant of
+	// the first format) so the element is well-formed.
+	picture.WriteString(stripped)
+	picture.WriteString(` src="`)
+	picture.WriteString(fallbackSrc)
+	picture.WriteString(`"`)
+	picture.WriteString(` srcset="`)
+	picture.WriteString(srcset)
+	picture.WriteString(`"`)
+	if sizesAttr != "" {
+		picture.WriteString(sizesAttr)
+	}
+	picture.WriteString(` loading="lazy" decoding="async">`)
+	picture.WriteString("</picture>")
+	return picture.String()
+}
+
+// buildSrcset renders a `srcset` attribute value for a given format.
+// Format: "<url> <width>w, <url> <width>w, ..." (width descriptor).
+func buildSrcset(entry ImageSourceRewrite, format string) string {
+	parts := make([]string, 0, len(entry.Widths))
+	for _, w := range entry.Widths {
+		key := fmt.Sprintf("%dw", w)
+		outs, ok := entry.Outputs[key]
+		if !ok {
+			continue
+		}
+		path, ok := outs[format]
+		if !ok {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf(`%s %dw`, path, w))
+	}
+	return strings.Join(parts, ", ")
+}
+
+// stripSrcAttr removes the first src="..." attribute (with the value
+// passed in) from an <img> tag, returning the rest of the tag's
+// attributes without the trailing `>`. Callers are responsible for
+// closing the tag (`>`) once they have appended the rewritten
+// attributes. The value is matched exactly so the rewriter does not
+// accidentally strip a sibling attribute that happens to contain the
+// same URL.
+func stripSrcAttr(tag, src string) string {
+	needle := `src="` + src + `"`
+	idx := strings.Index(tag, needle)
+	if idx < 0 {
+		// Already stripped or not present. Strip the trailing > so the
+		// returned fragment is uniformly a list of attributes.
+		return strings.TrimRight(tag, ">")
+	}
+	before := tag[:idx]
+	after := tag[idx+len(needle):]
+	// after may start with `>` (when src was the last attribute) or
+	// with ` ...>` (when there were trailing attributes). Trim both.
+	after = strings.TrimLeft(after, " ")
+	after = strings.TrimPrefix(after, ">")
+	return strings.TrimRight(before, " ") + " " + after
 }
