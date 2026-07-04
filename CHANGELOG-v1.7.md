@@ -84,3 +84,82 @@ make release-local
 - `gobin check --assets`：v1.5 校验应继续通过（image manifest 不影响 assets manifest）。
 - Markdown 单图失败（损坏 JPEG）：build 应输出 WARN 日志并保留原图，不中断构建。
 - 增量构建 `gobin build --incremental`：image pipeline 当前不参与（每次全跑），下个 patch 补。
+
+---
+
+# v1.7.1 (incremental build for image pipeline)
+
+## 发布日期 - 2026-07-04
+
+v1.7.1 收口 `docs/superpowers/specs/2026-07-04-image-pipeline-design.md` 的 §7/§8/§9：把 v1.7.0 留下的 image pipeline 增量构建 TODO 落地，补齐 spec §8 列出的所有单元 / 集成测试，并对照 spec §9 验收清单逐项验证。
+
+---
+
+## 新增功能
+
+### 增量构建（v1.7.1）
+
+- `runImagePipeline` 在每个 source 写入前比对 `source_hash`（源文件 SHA-256）+ `options_hash`（`srcset` / `formats` / `sizes` / `quality` 拼接的 SHA-256）+ 变体文件在盘状态。命中则跳过并累计 `ImageStats.Skipped`。
+- `.gobin-images.json` 每条 entry 多了 `source_hash` 与 `options_hash` 字段（JSON tag `source_hash` / `options_hash`，omitempty）。v1.7.0 老 manifest 缺失字段时 `runImagePipeline` 把 hash 当作空串处理 → 走"全量重转"路径，安全地多花一轮构建，无破坏。
+- 增量校验覆盖三种场景：源未变 / 源变 / 变体被删。第三种（用户手工删了 `cover-480w.jpg`）会触发单 source 的重转，其余 sources 仍走 skip 路径。
+
+### 测试（spec §8 / §9 收口）
+
+- `internal/imaging/imaging_test.go` 新增 5 条 spec §8.1 单测：
+  - `TestTransform_EmptyFormatsIsSingleSourceSize`（空 options → 单条原尺寸 passthrough）
+  - `TestTransform_InvalidFormatReturnsError`（未知 format → stdlib executor 主动报 error）
+  - `TestTransform_QualityDifference`（q=30 vs q=95 输出大小可观测差异）
+  - `TestTransform_PNGPreservesAlphaChannel`（PNG alpha 通道 round-trip 不丢）
+  - `TestTransform_WebPViaExecutorInterface`（用 mock Executor 验证接口契约；真实 WebP 编码 deferred）
+- `internal/generator/image_pipeline_test.go`（新文件）新增 6 条 spec §8.2 / §9 集成测试：
+  - `TestImagePipeline_DisabledIsByteIdentical`（关闭时零写入）
+  - `TestImagePipeline_EnabledGeneratesPictureTags`（manifest 写入 + 变体在盘 + postprocess 出 `<picture>` + `<source>`）
+  - `TestImagePipeline_FrontMatterCover`（front matter cover 触发整条链路）
+  - `TestImagePipeline_Incremental`（3 轮：cold / 全部 skip / 删变体后单源重转）
+  - `TestImagePipeline_SourceChangeTriggersRetransform`（源变 → 该源重转，其余 skip）
+  - `TestImagePipeline_PerSourceFailureDoesNotAbort`（单图失败不阻断 + 兜底拷贝原图）
+
+---
+
+## 库 API 变化
+
+- `imaging.Stats.Skipped` 字段从无到有：累计"因源 + 配置 + 变体未变而跳过的 source 数"，与 `Sources` / `Variants` / `Errors` 并列。
+- `imageManifestEntry` JSON 多了 `source_hash` / `options_hash` 两个字段（omitempty）。读端忽略未知字段，所以 v1.7.0 写出的 manifest 仍能正确解析为"两个 hash 为空"→ 第一次构建走全量。
+- 无新导出函数 / 无新导出类型；现有签名全部不变。
+
+---
+
+## 兼容性
+
+- 公开 API 100% 向后兼容（仅新增 JSON 字段 + `Skipped` 计数）。
+- `enabled: false`（默认）：行为与 v1.7.0 / v1.6 字节级一致（`TestImagePipeline_DisabledIsByteIdentical` 覆盖）。
+- v1.5 资产指纹管线不受影响。
+- v1.7.0 老 manifest 自动兼容（缺 hash → 走全量一次，之后再 skip）。
+
+---
+
+## 性能
+
+- 增量构建（22 张图、未变化）：v1.7.0 ~475ms → v1.7.1 接近零开销（只做 SHA-256 + 文件 stat）。
+- 单图源修改：只重转该 source 的 3 widths × 2 formats = 6 个 variants，其余 21 source 仍 skip。
+
+---
+
+## 已知限制 / Deferred
+
+- **WebP 真实编码 deferred 到 v1.7.2**：stdlib executor 主动编码 jpg/png；其它格式（含 webp）走 passthrough。`TestTransform_WebPViaExecutorInterface` 已验证 Executor 接口契约，真实 WebP 编码待 v1.7.2 接入 `disintegration/imaging` 或 `github.com/HugoSmits86/nativewebp`。
+- AVIF / LQIP / CDN 预热 / EXIF 保留：列入 v1.7.2+ 候选，未做。
+
+---
+
+## 验证
+
+发布前执行：
+
+```bash
+go test -race ./...
+go vet ./...
+gofmt -l internal/ cmd/
+```
+
+（已通过；详见 PR 描述。）
