@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/mengbin92/gobin/internal/config"
@@ -23,12 +24,14 @@ type ImageStats struct {
 	// Sources is the count of distinct source images discovered across
 	// posts and pages (after dedup).
 	Sources int
-	// Variants is the count of output files written to publishDir.
-	// It includes passthrough variants (same format, same size).
+	// Variants is the count of output files written to publishDir on
+	// this run. It excludes sources that were skipped because their
+	// on-disk variants were already up-to-date (see Skipped).
 	Variants int
-	// Skipped counts sources that were already up-to-date on disk
-	// (matched content hash from the previous run). v1.7 ships
-	// passthrough-write semantics; v1.7.1 may add hash-based skips.
+	// Skipped counts sources that were already up-to-date on disk:
+	// the source content hash, the transform options hash, and every
+	// expected variant file all matched the previous run. v1.7.1
+	// addition; v1.7.0 passthrough-wrote every variant on every build.
 	Skipped int
 	// Errors counts per-source transform failures. The build does not
 	// abort on a single image failure; it logs a warning and falls
@@ -56,6 +59,13 @@ type ImageStats struct {
 //     parser.ExtractPostImageRefs returns them as-is; we filter here.
 //   - Sources that resolve outside the site root (path traversal
 //     attempts) are skipped to keep the build sandbox safe.
+//
+// v1.7.1 incremental: the manifest records a source-content hash and
+// a transform-options hash per entry. When both match the previous
+// run AND every expected variant file is still on disk, the source
+// is skipped (counted in ImageStats.Skipped). This makes subsequent
+// builds much cheaper when posts/pages change but their referenced
+// images do not.
 func runImagePipeline(posts []*parser.Post, standalonePages []*parser.Page, cfg *config.Config, outputDir string) (ImageStats, error) {
 	var stats ImageStats
 
@@ -67,6 +77,13 @@ func runImagePipeline(posts []*parser.Post, standalonePages []*parser.Page, cfg 
 	// Discover sources across posts and pages, dedup by (resolved, path)
 	// so the same image referenced from N pages is transformed once.
 	refs := collectAllImageRefs(posts, standalonePages)
+
+	// Load the previous manifest so we can skip sources whose on-disk
+	// variants are still up-to-date. A missing or invalid manifest
+	// disables the skip path (we still write a fresh one); the
+	// build is never blocked on the manifest.
+	prevManifest, _ := loadImageManifest(outputDir)
+	optsHash := hashTransformOptions(imgCfg)
 
 	exec := imaging.NewStdlibExecutor()
 	manifest := make(imageManifest, len(refs))
@@ -84,6 +101,18 @@ func runImagePipeline(posts []*parser.Post, standalonePages []*parser.Page, cfg 
 			stats.Errors++
 			continue
 		}
+		srcHash := hashContent(srcBytes)
+
+		// Incremental skip: if the previous run saw the same source
+		// bytes and the same transform options, and every variant
+		// file the previous run wrote is still on disk, reuse it.
+		if prev, ok := prevManifest[ref.Ref]; ok && prev.SourceHash == srcHash && prev.OptionsHash == optsHash {
+			if allVariantsOnDisk(ref.Ref, prev.Outputs, outputDir) {
+				manifest[ref.Ref] = prev
+				stats.Skipped++
+				continue
+			}
+		}
 
 		variants, err := imaging.Transform(srcBytes, filepath.Ext(srcPath), imaging.TransformOptions{
 			Widths:  imgCfg.Srcset,
@@ -99,10 +128,12 @@ func runImagePipeline(posts []*parser.Post, standalonePages []*parser.Page, cfg 
 		}
 
 		entry := imageManifestEntry{
-			Widths:  []int{},
-			Formats: []string{},
-			Outputs: map[string]map[string]string{},
-			Sizes:   imgCfg.Sizes,
+			Widths:      []int{},
+			Formats:     []string{},
+			Outputs:     map[string]map[string]string{},
+			Sizes:       imgCfg.Sizes,
+			SourceHash:  srcHash,
+			OptionsHash: optsHash,
 		}
 		widthsSet := map[int]bool{}
 		formatsSet := map[string]bool{}
@@ -172,6 +203,28 @@ func writeImageManifest(outputDir string, m imageManifest) error {
 		return err
 	}
 	return os.WriteFile(filepath.Join(outputDir, imageManifestName), append(buf, "\n"...), 0644)
+}
+
+// loadImageManifest reads the on-disk image manifest so runImagePipeline
+// can apply the v1.7.1 incremental skip. A missing or invalid manifest
+// returns a nil map (and a nil error) so the caller can treat the build
+// as a cold run without an explicit branch on the error.
+//
+// Exposed as a package-private helper because only runImagePipeline
+// needs the full entry shape (SourceHash, OptionsHash). The
+// postprocess-side helper loadImageManifestForPostprocess is a
+// separate function with a stricter schema check.
+func loadImageManifest(outputDir string) (imageManifest, error) {
+	path := filepath.Join(outputDir, imageManifestName)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var m imageManifest
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // collectAllImageRefs aggregates image references from posts and pages
@@ -265,13 +318,76 @@ func copyOriginalToOutput(src []byte, ref, outputDir string) error {
 	return os.WriteFile(out, src, 0644)
 }
 
-// hashContent is exposed for future incremental-skip work; v1.7
-// passthrough-writes every variant on every build. Kept here so the
-// helper has a clear home and we don't introduce a second SHA helper
-// when v1.7.1 lands.
+// allVariantsOnDisk checks that every (width, format) -> URL entry
+// from a previous manifest has a corresponding file on disk under
+// outputDir. It is the second half of the incremental skip: even if
+// the source hash and options hash match, a variant that the user
+// has manually deleted should trigger a re-transform.
+func allVariantsOnDisk(ref string, outputs map[string]map[string]string, outputDir string) bool {
+	for _, byFormat := range outputs {
+		for _, urlPath := range byFormat {
+			diskPath, err := urlPathToDiskPath(urlPath, outputDir)
+			if err != nil {
+				return false
+			}
+			if _, err := os.Stat(diskPath); err != nil {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// urlPathToDiskPath reverses the URL → disk conversion done in
+// runImagePipeline: "/img/cover-480w.jpg" under outputDir becomes
+// "<outputDir>/img/cover-480w.jpg" on the local filesystem.
+func urlPathToDiskPath(urlPath, outputDir string) (string, error) {
+	if !strings.HasPrefix(urlPath, "/") {
+		return "", fmt.Errorf("manifest url not absolute: %s", urlPath)
+	}
+	rel := strings.TrimPrefix(urlPath, "/")
+	return filepath.Join(outputDir, filepath.FromSlash(rel)), nil
+}
+
+// hashContent returns the lowercase hex SHA-256 of b. It is the
+// "source bytes haven't changed" half of the incremental skip key.
 func hashContent(b []byte) string {
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])
+}
+
+// hashTransformOptions returns a stable hash of the image pipeline's
+// effective configuration. It is the "options haven't changed" half
+// of the incremental skip key. Widths, Formats, Sizes, and Quality
+// all participate; a user who tweaks any of them invalidates the
+// skip and forces a re-transform.
+func hashTransformOptions(imgCfg *config.AssetsImagesConfig) string {
+	if imgCfg == nil {
+		return ""
+	}
+	parts := []string{
+		"srcset=" + joinInts(imgCfg.Srcset),
+		"formats=" + strings.Join(imgCfg.Formats, ","),
+		"sizes=" + imgCfg.Sizes,
+		"quality=" + strconv.Itoa(imgCfg.Quality),
+	}
+	sum := sha256.Sum256([]byte(strings.Join(parts, "|")))
+	return hex.EncodeToString(sum[:])
+}
+
+// joinInts renders []int as a stable, sorted "n,n,n" string. We sort
+// here (instead of relying on the caller) so two configs that differ
+// only in srcset order produce the same hash. The pipeline already
+// de-duplicates and sorts widths at run time; this keeps the hash
+// consistent with what Transform actually saw.
+func joinInts(xs []int) string {
+	cp := append([]int(nil), xs...)
+	sort.Ints(cp)
+	strs := make([]string, len(cp))
+	for i, n := range cp {
+		strs[i] = strconv.Itoa(n)
+	}
+	return strings.Join(strs, ",")
 }
 
 // imageManifestName is the on-disk filename of the v1.7 image manifest.
@@ -290,7 +406,9 @@ func hashContent(b []byte) string {
 //	      "800w": {"jpg": "/img/cover-800w.jpg", "png": "/img/cover-800w.png"},
 //	      "1200w": {"jpg": "/img/cover-1200w.jpg", "png": "/img/cover-1200w.png"}
 //	    },
-//	    "sizes": "(max-width: 800px) 100vw, 800px"
+//	    "sizes": "(max-width: 800px) 100vw, 800px",
+//	    "source_hash": "<sha256>",
+//	    "options_hash": "<sha256>"
 //	  }
 //	}
 const imageManifestName = ".gobin-images.json"
@@ -298,11 +416,20 @@ const imageManifestName = ".gobin-images.json"
 // imageManifestEntry is one source image's variant set. Field tags
 // match the on-disk JSON shape so callers can decode without a custom
 // unmarshaler.
+//
+// SourceHash and OptionsHash are the v1.7.1 incremental-skip keys.
+// Older manifests (written by v1.7.0, which did not record the
+// hashes) decode cleanly with empty strings, and runImagePipeline
+// treats a missing hash as "always re-transform" — a safe default
+// that costs one extra build cycle when crossing from v1.7.0 to
+// v1.7.1.
 type imageManifestEntry struct {
-	Widths  []int                        `json:"widths"`
-	Formats []string                     `json:"formats"`
-	Outputs map[string]map[string]string `json:"outputs"`
-	Sizes   string                       `json:"sizes"`
+	Widths      []int                        `json:"widths"`
+	Formats     []string                     `json:"formats"`
+	Outputs     map[string]map[string]string `json:"outputs"`
+	Sizes       string                       `json:"sizes"`
+	SourceHash  string                       `json:"source_hash,omitempty"`
+	OptionsHash string                       `json:"options_hash,omitempty"`
 }
 
 // imageManifest is the top-level manifest document. Keys are logical
