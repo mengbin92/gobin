@@ -372,23 +372,26 @@ func TestTransform_EmptyFormatsIsSingleSourceSize(t *testing.T) {
 // TestTransform_InvalidFormatReturnsError verifies the spec §8.1
 // behavior: an explicitly requested format the executor cannot encode
 // must surface as an error rather than a silent passthrough. The
-// stdlib executor is the only production executor today, and it
-// supports jpg/png only; asking it to encode webp must fail loudly.
+// StdlibExecutor (the zero-third-party-dependency backend) supports
+// jpg/png only; asking it to encode a genuinely unknown format must
+// fail loudly. Note: since v1.7.2 the default executor (WebPExecutor)
+// does handle "webp", so this test uses StdlibExecutor explicitly and
+// a format no executor supports ("bogus").
 func TestTransform_InvalidFormatReturnsError(t *testing.T) {
 	src := makeTestJpeg(t, 800, 600)
 	_, err := Transform(src, ".jpg", TransformOptions{
 		Widths:  []int{400}, // forces re-encode (width differs from source)
-		Formats: []string{"webp"},
+		Formats: []string{"bogus"},
 	}, NewStdlibExecutor())
 	if err == nil {
 		t.Fatal("expected error for unsupported format, got nil")
 	}
 	// The error should mention either "encode" or the format name so
-	// the user can act on it (install a WebP-capable executor, or drop
-	// the format from config).
+	// the user can act on it (drop the format from config, or wire in a
+	// custom executor that supports it).
 	msg := err.Error()
-	if !strings.Contains(msg, "encode") && !strings.Contains(msg, "webp") {
-		t.Errorf("error should mention encode or webp, got: %v", err)
+	if !strings.Contains(msg, "encode") && !strings.Contains(msg, "bogus") {
+		t.Errorf("error should mention encode or bogus, got: %v", err)
 	}
 }
 
@@ -485,16 +488,16 @@ func TestTransform_PNGPreservesAlphaChannel(t *testing.T) {
 }
 
 // webpStubExecutor is a fake executor used to drive the WebP code
-// path through Transform without depending on an actual WebP encoder.
-// It "encodes" webp by emitting a deterministic sentinel byte slice
-// (so the test can prove the Encode call happened and the bytes
-// reached the output variant). The decode step delegates to
+// path through Transform without depending on the actual nativewebp
+// library. It "encodes" webp by emitting a deterministic sentinel byte
+// slice so the test can prove the Encode call happened and the bytes
+// reached the output variant. The decode step delegates to
 // StdlibExecutor so the source must still be a real jpeg/png.
 //
-// This test is the spec §8.1 hook for WebP: when a real WebP-capable
-// executor (disintegration/imaging, libvips) is added, the same test
-// will exercise the real encoder — the contract (the Executor
-// interface) is what we are committing to here.
+// This test validates the Executor interface contract (a custom
+// executor that reports webp support is invoked and its output reaches
+// the variant slice). The real WebP encoding path is covered by
+// TestTransform_WebPRealEncoding below.
 type webpStubExecutor struct {
 	StdlibExecutor
 	webpCalls int
@@ -503,7 +506,7 @@ type webpStubExecutor struct {
 func (w *webpStubExecutor) Encode(dst io.Writer, img image.Image, ext string, quality int) error {
 	if ext == ".webp" {
 		w.webpCalls++
-		// Sentinel: 4 bytes that no real image encoder will emit.
+		// Sentinel: 5 bytes that no real image encoder will emit.
 		_, err := dst.Write([]byte("WEBP!"))
 		return err
 	}
@@ -512,11 +515,7 @@ func (w *webpStubExecutor) Encode(dst io.Writer, img image.Image, ext string, qu
 
 // TestTransform_WebPViaExecutorInterface verifies the spec §8.1
 // hook: a custom executor that supports webp gets called and its
-// output reaches the variant slice. The spec's full WebP
-// acceptance criterion ("WebP 转换正确，浏览器能加载") is met when
-// such an executor is wired in (e.g. disintegration/imaging or
-// HugoSmits86/nativewebp); the StdlibExecutor's webp passthrough
-// is the v1.7 default until then.
+// output reaches the variant slice.
 func TestTransform_WebPViaExecutorInterface(t *testing.T) {
 	src := makeTestJpeg(t, 1600, 1200)
 	exec := &webpStubExecutor{}
@@ -547,5 +546,211 @@ func TestTransform_WebPViaExecutorInterface(t *testing.T) {
 	}
 	if exec.webpCalls != 1 {
 		t.Errorf("expected 1 webp Encode call, got %d", exec.webpCalls)
+	}
+}
+
+// makeTestWebP encodes an in-memory image to real WebP bytes via
+// nativewebp so WebP-source tests don't depend on the filesystem.
+func makeTestWebP(t *testing.T, w, h int) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			img.SetRGBA(x, y, color.RGBA{
+				R: uint8(x * 255 / w),
+				G: uint8(y * 255 / h),
+				B: uint8((x + y) * 128 / (w + h)),
+				A: 255,
+			})
+		}
+	}
+	var buf bytes.Buffer
+	if err := webpNativeEncode(&buf, img, 75); err != nil {
+		t.Fatalf("encode test webp: %v", err)
+	}
+	return buf.Bytes()
+}
+
+// webpNativeEncode is a test-local thin wrapper around nativewebp.Encode
+// so the test file can construct WebP fixtures without importing the
+// third-party package directly (keeps the import block tidy).
+func webpNativeEncode(w io.Writer, img image.Image, quality int) error {
+	return newWebPEncoderForTest()(w, img, quality)
+}
+
+// TestTransform_WebPRealEncoding is the v1.7.2 spec §9 acceptance test:
+// "WebP 转换正确，浏览器能加载". It uses the real WebPExecutor (backed
+// by nativewebp) to produce a WebP variant from a JPEG source and
+// asserts:
+//  1. The variant is non-empty.
+//  2. The bytes decode as a WebP image (round-trip), with the expected
+//     dimensions.
+//  3. The first 4 bytes are "RIFF" (the WebP container signature every
+//     browser checks) and bytes 8-11 are "WEBP".
+func TestTransform_WebPRealEncoding(t *testing.T) {
+	src := makeTestJpeg(t, 1600, 1200)
+
+	variants, err := Transform(src, ".jpg", TransformOptions{
+		Widths:  []int{800},
+		Formats: []string{"webp"},
+		Quality: 75,
+	}, NewWebPExecutor())
+	if err != nil {
+		t.Fatalf("Transform: %v", err)
+	}
+	if len(variants) != 1 {
+		t.Fatalf("expected 1 webp variant, got %d", len(variants))
+	}
+	v := variants[0]
+	if v.Format != "webp" {
+		t.Fatalf("expected format=webp, got %s", v.Format)
+	}
+	if len(v.Bytes) == 0 {
+		t.Fatal("webp variant bytes are empty")
+	}
+	// WebP container signature: "RIFF....WEBP"
+	if len(v.Bytes) < 12 {
+		t.Fatalf("webp output too short (%d bytes) to contain RIFF header", len(v.Bytes))
+	}
+	if string(v.Bytes[0:4]) != "RIFF" {
+		t.Errorf("expected RIFF signature, got %q", v.Bytes[0:4])
+	}
+	if string(v.Bytes[8:12]) != "WEBP" {
+		t.Errorf("expected WEBP fourcc, got %q", v.Bytes[8:12])
+	}
+	// Round-trip: the encoded bytes must decode back to an image with
+	// the expected width.
+	dec, err := webpNativeDecode(v.Bytes)
+	if err != nil {
+		t.Fatalf("round-trip decode webp: %v", err)
+	}
+	if dec.Bounds().Dx() != 800 {
+		t.Errorf("expected decoded width=800, got %d", dec.Bounds().Dx())
+	}
+}
+
+// TestTransform_WebPMixedSrcset verifies that a single source can emit
+// both a WebP and a JPEG variant in one Transform call (progressive
+// enhancement: <source type=image/webp> + <img> JPEG fallback). Both
+// variants must be real, decodable bytes.
+func TestTransform_WebPMixedSrcset(t *testing.T) {
+	src := makeTestJpeg(t, 1200, 900)
+
+	variants, err := Transform(src, ".jpg", TransformOptions{
+		Widths:  []int{800},
+		Formats: []string{"webp", "jpg"},
+		Quality: 80,
+	}, NewWebPExecutor())
+	if err != nil {
+		t.Fatalf("Transform: %v", err)
+	}
+	if len(variants) != 2 {
+		t.Fatalf("expected 2 variants (webp+jpg), got %d", len(variants))
+	}
+	// Sorted by format alphabetically: jpg, webp.
+	if variants[0].Format != "jpg" || variants[1].Format != "webp" {
+		t.Fatalf("expected [jpg, webp], got [%s, %s]", variants[0].Format, variants[1].Format)
+	}
+	// JPEG must be decodable.
+	if _, err := jpeg.Decode(bytes.NewReader(variants[0].Bytes)); err != nil {
+		t.Errorf("jpg variant not decodable: %v", err)
+	}
+	// WebP must be decodable.
+	if _, err := webpNativeDecode(variants[1].Bytes); err != nil {
+		t.Errorf("webp variant not decodable: %v", err)
+	}
+}
+
+// TestTransform_WebPFromWebPSource verifies that a .webp source image is
+// decoded by WebPExecutor.Decode and can be re-encoded to a smaller WebP
+// variant (downscale). This covers the front-matter cover case where the
+// source itself is WebP.
+func TestTransform_WebPFromWebPSource(t *testing.T) {
+	src := makeTestWebP(t, 1600, 1200)
+
+	variants, err := Transform(src, ".webp", TransformOptions{
+		Widths:  []int{800},
+		Formats: []string{"webp"},
+	}, NewWebPExecutor())
+	if err != nil {
+		t.Fatalf("Transform: %v", err)
+	}
+	if len(variants) != 1 {
+		t.Fatalf("expected 1 variant, got %d", len(variants))
+	}
+	v := variants[0]
+	if v.Format != "webp" {
+		t.Fatalf("expected format=webp, got %s", v.Format)
+	}
+	if v.Width != 800 {
+		t.Errorf("expected width=800, got %d", v.Width)
+	}
+	dec, err := webpNativeDecode(v.Bytes)
+	if err != nil {
+		t.Fatalf("round-trip decode: %v", err)
+	}
+	if dec.Bounds().Dx() != 800 {
+		t.Errorf("decoded width=%d, want 800", dec.Bounds().Dx())
+	}
+}
+
+// TestTransform_WebPAlphaPreserved verifies that a PNG source with an
+// alpha channel, encoded to WebP, preserves transparency on round-trip
+// decode. VP8L is lossless and supports alpha natively.
+func TestTransform_WebPAlphaPreserved(t *testing.T) {
+	const w, h = 200, 200
+	img := image.NewNRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			if x < w/2 {
+				img.Set(x, y, color.NRGBA{R: 255, A: 255})
+			} else {
+				img.Set(x, y, color.NRGBA{G: 255, A: 0})
+			}
+		}
+	}
+	var srcBuf bytes.Buffer
+	if err := png.Encode(&srcBuf, img); err != nil {
+		t.Fatalf("encode src png: %v", err)
+	}
+
+	variants, err := Transform(srcBuf.Bytes(), ".png", TransformOptions{
+		Widths:  []int{100},
+		Formats: []string{"webp"},
+	}, NewWebPExecutor())
+	if err != nil {
+		t.Fatalf("Transform: %v", err)
+	}
+	if len(variants) != 1 {
+		t.Fatalf("expected 1 variant, got %d", len(variants))
+	}
+	dec, err := webpNativeDecode(variants[0].Bytes)
+	if err != nil {
+		t.Fatalf("round-trip decode: %v", err)
+	}
+	b := dec.Bounds()
+	_, _, _, aRight := dec.At(b.Dx()-1, b.Dy()-1).RGBA()
+	if aRight != 0 {
+		t.Errorf("expected alpha=0 at transparent corner after webp round-trip, got %d", aRight)
+	}
+}
+
+// TestNewDefaultExecutorIsWebPCapable verifies that the default executor
+// returned by NewDefaultExecutor (used by the image pipeline) can encode
+// WebP — i.e. formats: ["webp"] works out of the box in v1.7.2.
+func TestNewDefaultExecutorIsWebPCapable(t *testing.T) {
+	src := makeTestJpeg(t, 400, 300)
+	variants, err := Transform(src, ".jpg", TransformOptions{
+		Widths:  []int{200},
+		Formats: []string{"webp"},
+	}, NewDefaultExecutor())
+	if err != nil {
+		t.Fatalf("Transform with default executor: %v", err)
+	}
+	if len(variants) != 1 || variants[0].Format != "webp" {
+		t.Fatalf("expected 1 webp variant, got %+v", variants)
+	}
+	if string(variants[0].Bytes[0:4]) != "RIFF" {
+		t.Errorf("default executor did not produce real webp bytes")
 	}
 }

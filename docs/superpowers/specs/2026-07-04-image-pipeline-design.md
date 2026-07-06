@@ -1,8 +1,8 @@
 # 图片优化管线 — 实现规格 (Spec)
 
 > 日期：2026-07-04
-> 状态：**已实现**（v1.7.1 patch；v1.7.0 baseline）
-> 范围：v1.7.0 baseline + v1.7.1 增量构建
+> 状态：**已实现**（v1.7.2 WebP 真实编码；v1.7.1 patch；v1.7.0 baseline）
+> 范围：v1.7.0 baseline + v1.7.1 增量构建 + v1.7.2 WebP 真实编码
 > 承接：v1.7 规划报告（基于真实博客 22 张图、7.09 MB baseline）
 
 ## 1. 问题
@@ -57,7 +57,7 @@ assets:
     # cache: true               # 默认 true：基于源文件 hash 跳过
 ```
 
-> **实现期调整说明**：v1.7.0 默认 `formats: [jpg, png]`（stdlib executor 实编码 jpg/png；其它格式由 Transform 走 passthrough 路径）。WebP 编码依赖 `disintegration/imaging` 或同等的 cgo 库，留待 v1.7.2 接入第三方 Executor 后由用户显式开启。
+> **实现期调整说明**：v1.7.0 默认 `formats: [jpg, png]`（stdlib executor 实编码 jpg/png）。v1.7.2 起 `NewDefaultExecutor` 改用 `WebPExecutor`（`nativewebp`，纯 Go VP8L lossless），`formats: ["webp"]` 可产出真实 WebP 字节；config 默认仍 `[jpg, png]` 以保持与 v1.7.1 行为一致，用户按需加 `"webp"`。lossy WebP / AVIF 留 v1.8+。
 
 ## 5. 架构：新增 `internal/imaging` 包
 
@@ -178,9 +178,10 @@ funcs["image"] = func(src string) template.HTML {
   - 验证：`TestImagePipeline_DisabledIsByteIdentical`
 - [x] 启用后，Markdown `![alt](path)` 和 front matter `cover:` 生成的 HTML 都含 `<picture>` 块
   - 验证：`TestImagePipeline_EnabledGeneratesPictureTags` + `TestImagePipeline_FrontMatterCover`
-- [ ] **WebP 转换正确，浏览器能加载** — **Deferred to v1.7.2**
-  - v1.7.0 / v1.7.1 现状：stdlib executor 主动编码仅 jpg/png；其它格式（含 webp）走 passthrough。`TestTransform_WebPViaExecutorInterface` 已验证 Executor 接口契约；真实 WebP 编码路径待 v1.7.2 接入 disintegration/imaging 或同等的 cgo 库后开启
-  - 跟踪 issue：v1.7.2 WebP-capable Executor 接入（已列入 §10）
+- [x] **WebP 转换正确，浏览器能加载** — **v1.7.2 已实现**
+  - v1.7.2 接入 `github.com/HugoSmits86/nativewebp`（纯 Go，零 cgo），新增 `WebPExecutor`（VP8L lossless 编码 + x/image/webp 解码），`NewDefaultExecutor` 改用 `WebPExecutor`，image pipeline 默认 webp-capable
+  - 验证：`TestTransform_WebPRealEncoding`（RIFF/WEBP 签名 + round-trip 解码 + 尺寸）+ `TestTransform_WebPMixedSrcset`（webp+jpg 混合）+ `TestTransform_WebPFromWebPSource`（webp 源）+ `TestTransform_WebPAlphaPreserved`（alpha round-trip）+ `TestNewDefaultExecutorIsWebPCapable`（默认 executor 真实编码）
+  - `TestTransform_WebPViaExecutorInterface` 保留为 Executor 接口契约测试（mock）；`TestTransform_InvalidFormatReturnsError` 改用 StdlibExecutor + "bogus" 格式
 - [x] 真实 22 张图启用后总大小下降 ≥ 30%
   - v1.7.0 CHANGELOG 实测：`head/arduino.jpg` 649KB → 480w 30KB（-95%），`head/server.jpg` 477KB → 480w 30KB（-94%）
   - 满足 ≥30% 目标
@@ -195,11 +196,12 @@ funcs["image"] = func(src string) template.HTML {
 - [x] gofmt / go vet 通过
   - 见 `Makefile` 验证脚本
 - [x] 文档：`docs/guides/image-pipeline.md` + 本 spec + README 更新
-  - 跟踪：v1.7.1 patch 同步更新本 spec + `CHANGELOG-v1.7.md`；`docs/guides/image-pipeline.md` 由 docs 子任务编写
+  - 跟踪：v1.7.1 patch 同步更新本 spec + `CHANGELOG-v1.7.md`；v1.7.2 patch 勾选 WebP 验收项 + 更新 `docs/guides/image-pipeline.md` §6/§7/§8 + README + `CHANGELOG-v1.7.2`
 
-## 10. 范围外（v1.7.2+ 候选）
+## 10. 范围外（v1.8+ 候选）
 
-- **WebP-capable Executor**：基于 `disintegration/imaging` 或 `github.com/HugoSmits86/nativewebp`（纯 Go）；接入后 `TestTransform_WebPViaExecutorInterface` 替换为真实编码测试
+- ~~**WebP-capable Executor**~~：**v1.7.2 已实现**（`github.com/HugoSmits86/nativewebp`，纯 Go VP8L lossless；`TestTransform_WebPRealEncoding` 等真实编码测试已接入）
+- **lossy WebP**：当前后端仅 VP8L lossless，体积偏大于 lossy WebP；需 libvips 或 disintegration/imaging 的 lossy 路径，列入 v1.8+
 - AVIF 格式（需 cgo + libvips）
 - LQIP / blurhash 占位图
 - 视频海报 / OG image 自动生成
@@ -212,9 +214,10 @@ funcs["image"] = func(src string) template.HTML {
 | 项 | 原 spec | 实际实现 | 原因 |
 |---|---|---|---|
 | 图片处理库 | `disintegration/imaging` | stdlib + `imaging.Executor` interface | 零 cgo、零第三方图像库依赖；Executor 接口保留升级路径 |
-| 默认 `formats` | `[webp]` | `[jpg, png]` | stdlib executor 实际可编码 jpg/png；webp 走 passthrough 直至 v1.7.2 接入 |
+| 默认 `formats` | `[webp]` | `[jpg, png]`（config 默认） | stdlib executor 实际可编码 jpg/png；v1.7.2 起 `NewDefaultExecutor` 改用 `WebPExecutor`，`formats: ["webp"]` 可产出真实 WebP，但 config 默认仍 `[jpg, png]` 以保持与 v1.7.1 行为一致 |
 | `imaging.Output` 命名 | `Output` | `Variant` | 与 image 生态命名习惯一致 |
 | `Transform` 签名 | `(src, srcExt, opts) ([]Output, error)` | `(src, srcExt, opts, exec Executor) ([]Variant, error)` | 显式暴露 Executor，让调用方注入 disintegration / libvips 实现 |
 | 增量构建 | spec 列为"基于源文件 hash 跳过"（待实现） | v1.7.1 patch 已实现（`source_hash` + `options_hash` + 变体文件在盘校验） | 补齐 v1.7.0 留下的 TODO；与 v1.5 资产指纹同思路 |
 | `imagePipeline` artifact 命名 | `imagePipeline` | `images` artifact（`buildArtifactSpecs` 中 Name="images"） | 与现有 `feed` / `sitemap` / `search` / `assets` / `postprocess` 命名风格一致 |
 | 模板 `image` helper | spec 列出 | 默认 `single.html` 用 `{{- if .Post.Params.cover }}` block 渲染；`image` helper 作为可选 API 保留 | 零侵入默认模板；用户不调 helper 也能拿到 cover 优化 |
+| WebP 编码后端 | spec 原案 `disintegration/imaging` | v1.7.2 接入 `github.com/HugoSmits86/nativewebp`（纯 Go，零 cgo，VP8L lossless） | 零 cgo 跨平台构建；Executor 接口已就位，替换无侵入；lossy WebP 留 v1.8 |

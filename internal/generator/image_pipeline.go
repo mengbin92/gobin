@@ -85,7 +85,7 @@ func runImagePipeline(posts []*parser.Post, standalonePages []*parser.Page, cfg 
 	prevManifest, _ := loadImageManifest(outputDir)
 	optsHash := hashTransformOptions(imgCfg)
 
-	exec := imaging.NewStdlibExecutor()
+	exec := imaging.NewDefaultExecutor()
 	manifest := make(imageManifest, len(refs))
 
 	for _, ref := range refs {
