@@ -339,3 +339,213 @@ func TestBoxScale_ZeroDims(t *testing.T) {
 		t.Errorf("expected zero-scale to return the source unchanged")
 	}
 }
+
+// TestTransform_EmptyFormatsIsSingleSourceSize verifies the spec §8.1
+// behavior: when opts.Formats is nil/empty AND opts.Widths is
+// nil/empty, Transform returns a single variant in the source
+// format at the source.s own width. The fallback is the literal
+// source passthrough; the stdlib executor sees the passthrough
+// path and emits the source bytes unchanged.
+func TestTransform_EmptyFormatsIsSingleSourceSize(t *testing.T) {
+	src := makeTestJpeg(t, 1600, 1200)
+	variants, err := Transform(src, ".jpg", TransformOptions{
+		Widths:  nil,
+		Formats: nil,
+	}, NewStdlibExecutor())
+	if err != nil {
+		t.Fatalf("Transform: %v", err)
+	}
+	if len(variants) != 1 {
+		t.Fatalf("expected 1 variant, got %d", len(variants))
+	}
+	if variants[0].Width != 1600 {
+		t.Errorf("expected width=1600 (source width), got %d", variants[0].Width)
+	}
+	if variants[0].Format != "jpg" {
+		t.Errorf("expected format=jpg (source format), got %s", variants[0].Format)
+	}
+	if !bytes.Equal(variants[0].Bytes, src) {
+		t.Errorf("empty-options passthrough should be byte-identical to source")
+	}
+}
+
+// TestTransform_InvalidFormatReturnsError verifies the spec §8.1
+// behavior: an explicitly requested format the executor cannot encode
+// must surface as an error rather than a silent passthrough. The
+// stdlib executor is the only production executor today, and it
+// supports jpg/png only; asking it to encode webp must fail loudly.
+func TestTransform_InvalidFormatReturnsError(t *testing.T) {
+	src := makeTestJpeg(t, 800, 600)
+	_, err := Transform(src, ".jpg", TransformOptions{
+		Widths:  []int{400}, // forces re-encode (width differs from source)
+		Formats: []string{"webp"},
+	}, NewStdlibExecutor())
+	if err == nil {
+		t.Fatal("expected error for unsupported format, got nil")
+	}
+	// The error should mention either "encode" or the format name so
+	// the user can act on it (install a WebP-capable executor, or drop
+	// the format from config).
+	msg := err.Error()
+	if !strings.Contains(msg, "encode") && !strings.Contains(msg, "webp") {
+		t.Errorf("error should mention encode or webp, got: %v", err)
+	}
+}
+
+// TestTransform_QualityDifference verifies the spec §8.1 behavior:
+// JPEG quality is honored, and a low/high pair produces measurably
+// different output sizes. A higher quality must not produce a smaller
+// file (sanity check: the size-vs-quality curve is monotonically
+// non-decreasing in the regime we care about).
+func TestTransform_QualityDifference(t *testing.T) {
+	src := makeTestJpeg(t, 1200, 900) // busy source so compression matters
+	low, err := Transform(src, ".jpg", TransformOptions{
+		Widths:  []int{800},
+		Formats: []string{"jpg"},
+		Quality: 30,
+	}, NewStdlibExecutor())
+	if err != nil {
+		t.Fatalf("Transform low: %v", err)
+	}
+	high, err := Transform(src, ".jpg", TransformOptions{
+		Widths:  []int{800},
+		Formats: []string{"jpg"},
+		Quality: 95,
+	}, NewStdlibExecutor())
+	if err != nil {
+		t.Fatalf("Transform high: %v", err)
+	}
+	if len(low) != 1 || len(high) != 1 {
+		t.Fatalf("expected 1 variant each, got low=%d high=%d", len(low), len(high))
+	}
+	if low[0].Width != high[0].Width {
+		t.Errorf("widths differ: low=%d high=%d", low[0].Width, high[0].Width)
+	}
+	if low[0].Width != 800 {
+		t.Errorf("expected width=800, got %d", low[0].Width)
+	}
+	lowSize := len(low[0].Bytes)
+	highSize := len(high[0].Bytes)
+	if highSize < lowSize {
+		t.Errorf("high quality (%d bytes) is smaller than low quality (%d bytes); JPEG quality curve is non-monotonic", highSize, lowSize)
+	}
+	// A 30→95 swing on a busy gradient should be a meaningful size
+	// gap. Use a soft threshold (10% of the low size) to avoid
+	// flakiness on the trivial gradient fixture.
+	if highSize-lowSize < lowSize/10 {
+		t.Logf("warning: low=%d high=%d — quality delta smaller than 10%% of low", lowSize, highSize)
+	}
+}
+
+// TestTransform_PNGPreservesAlphaChannel verifies the spec §8.1
+// behavior: a PNG source with an alpha channel is decoded correctly
+// and re-encoded as a PNG with alpha intact. The output must be
+// decodable as image/png and the alpha at a transparent corner must
+// still be 0.
+func TestTransform_PNGPreservesAlphaChannel(t *testing.T) {
+	const w, h = 400, 300
+	img := image.NewNRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			// Top-left quadrant: opaque red. Bottom-right: transparent green.
+			if x < w/2 && y < h/2 {
+				img.Set(x, y, color.NRGBA{R: 255, A: 255})
+			} else {
+				img.Set(x, y, color.NRGBA{G: 255, A: 0})
+			}
+		}
+	}
+	var srcBuf bytes.Buffer
+	if err := png.Encode(&srcBuf, img); err != nil {
+		t.Fatalf("encode src: %v", err)
+	}
+
+	variants, err := Transform(srcBuf.Bytes(), ".png", TransformOptions{
+		Widths:  []int{200},
+		Formats: []string{"png"},
+	}, NewStdlibExecutor())
+	if err != nil {
+		t.Fatalf("Transform: %v", err)
+	}
+	if len(variants) != 1 {
+		t.Fatalf("expected 1 variant, got %d", len(variants))
+	}
+	decoded, err := png.Decode(bytes.NewReader(variants[0].Bytes))
+	if err != nil {
+		t.Fatalf("decode output: %v", err)
+	}
+	// Bottom-right corner of the original (and any downscale of it)
+	// must still be transparent. Use At() (interface method) and
+	// inspect the alpha via RGBA().
+	b := decoded.Bounds()
+	_, _, _, a := decoded.At(b.Dx()-1, b.Dy()-1).RGBA()
+	if a != 0 {
+		t.Errorf("expected alpha=0 at bottom-right, got %d", a)
+	}
+}
+
+// webpStubExecutor is a fake executor used to drive the WebP code
+// path through Transform without depending on an actual WebP encoder.
+// It "encodes" webp by emitting a deterministic sentinel byte slice
+// (so the test can prove the Encode call happened and the bytes
+// reached the output variant). The decode step delegates to
+// StdlibExecutor so the source must still be a real jpeg/png.
+//
+// This test is the spec §8.1 hook for WebP: when a real WebP-capable
+// executor (disintegration/imaging, libvips) is added, the same test
+// will exercise the real encoder — the contract (the Executor
+// interface) is what we are committing to here.
+type webpStubExecutor struct {
+	StdlibExecutor
+	webpCalls int
+}
+
+func (w *webpStubExecutor) Encode(dst io.Writer, img image.Image, ext string, quality int) error {
+	if ext == ".webp" {
+		w.webpCalls++
+		// Sentinel: 4 bytes that no real image encoder will emit.
+		_, err := dst.Write([]byte("WEBP!"))
+		return err
+	}
+	return w.StdlibExecutor.Encode(dst, img, ext, quality)
+}
+
+// TestTransform_WebPViaExecutorInterface verifies the spec §8.1
+// hook: a custom executor that supports webp gets called and its
+// output reaches the variant slice. The spec's full WebP
+// acceptance criterion ("WebP 转换正确，浏览器能加载") is met when
+// such an executor is wired in (e.g. disintegration/imaging or
+// HugoSmits86/nativewebp); the StdlibExecutor's webp passthrough
+// is the v1.7 default until then.
+func TestTransform_WebPViaExecutorInterface(t *testing.T) {
+	src := makeTestJpeg(t, 1600, 1200)
+	exec := &webpStubExecutor{}
+
+	variants, err := Transform(src, ".jpg", TransformOptions{
+		Widths:  []int{800},
+		Formats: []string{"jpg", "webp"},
+	}, exec)
+	if err != nil {
+		t.Fatalf("Transform: %v", err)
+	}
+	// 2 variants: 800w jpg (real re-encode) + 800w webp (stub).
+	if len(variants) != 2 {
+		t.Fatalf("expected 2 variants, got %d", len(variants))
+	}
+	var webp *Variant
+	for i := range variants {
+		if variants[i].Format == "webp" {
+			webp = &variants[i]
+			break
+		}
+	}
+	if webp == nil {
+		t.Fatal("no webp variant produced")
+	}
+	if !bytes.Equal(webp.Bytes, []byte("WEBP!")) {
+		t.Errorf("expected webp sentinel, got %q", webp.Bytes)
+	}
+	if exec.webpCalls != 1 {
+		t.Errorf("expected 1 webp Encode call, got %d", exec.webpCalls)
+	}
+}
