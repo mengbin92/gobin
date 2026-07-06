@@ -1,6 +1,6 @@
 # 图片优化管线使用指南
 
-> Gobin v1.7.0 起随 `assets.images` 发布。本指南说明怎么启用管线、可调的参数、产物形状与排错思路。
+> Gobin v1.7.0 起随 `assets.images` 发布；v1.7.1 增量构建；v1.7.2 WebP 真实编码。本指南说明怎么启用管线、可调的参数、产物形状与排错思路。
 
 ## 1. 解决什么问题
 
@@ -99,13 +99,13 @@ HTML 产物（多格式）：
 
 `quality` 字段对应 JPEG 编码质量（1-100）；PNG 不受影响（PNG 是无损格式）。Q=75 是经验值，视觉无感且体积下降 ~30%；Q=85 适合对清晰度要求高的摄影站。
 
-## 6. 局限性（v1.7）
+## 6. 局限性（v1.7.2）
 
-- **WebP 编码**：stdlib 后端不支持。`formats: [webp]` 当前退化为 pass-through（不重编码，只复制原图到目标文件名）。等下次引入 `disintegration/imaging` 或 `bimg` 后会真正产出 WebP 变体。
-- **AVIF**：同上，v1.7 不支持，列入 v1.8+ 候选。
-- **增量构建**：当前每个 build 都重新生成所有变体（passthrough-write）；下个 patch 接入"源文件内容 hash 跳过"机制。
-- **LQUIP / blurhash 占位图**：未做。
-- **EXIF 保留**：当前重编码会丢失 EXIF（goldmark + stdlib jpeg 不保留元数据）；如需保留需在 v1.8 用 libvips 路径。
+- **WebP 编码**：v1.7.2 起支持。默认 executor（`WebPExecutor`）基于 `github.com/HugoSmits86/nativewebp`（纯 Go，零 cgo）产出 VP8L lossless WebP。`formats: ["webp"]` 会真正重编码为浏览器可加载的 WebP 字节。lossy WebP 仍列入 v1.8+（需 libvips）。
+- **AVIF**：v1.7 / v1.7.2 不支持，列入 v1.8+ 候选（需 cgo + libvips）。
+- **增量构建**：v1.7.1 起已接入"源文件内容 hash + 配置 hash 跳过"机制，未变化时接近零开销。
+- **LQIP / blurhash 占位图**：未做。
+- **EXIF 保留**：当前重编码会丢失 EXIF（goldmark + stdlib jpeg / nativewebp 不保留元数据）；如需保留需在 v1.8 用 libvips 路径。
 
 ## 7. 排错
 
@@ -114,7 +114,6 @@ HTML 产物（多格式）：
 | `<picture>` 没出现在 HTML | cover / image 字段名拼错；或 `assets.images.enabled` 没设 | 改 front matter key 为 `cover` / `image` / `thumbnail` / `hero`；或 config 加 `enabled: true` |
 | 变体没生成 | 路径引用是外链（`http://` / `//cdn`）；或路径包含 `..` 逃出 `staticDir` | 改用 `/img/...` 形式；或把外部资源下载到本地 |
 | 启用后体积没下降 | 站点没有 `<img>` 引用（front matter 缺图、正文无图）；或图已经被 base template 调但 `image` helper 没渲染 | 用 `gobin check` + `--verbose` 看 `ImageStats.Sources` 是不是 0；用 `gobin check --assets` 验证产物存在 |
-| `formats: [webp]` 启用后体积没变 | stdlib 后端 pass-through，WebP 没重编码 | 列入 v1.8+ WebP 后端；当前仅占位 |
 
 ## 8. 进阶：库 API
 
@@ -123,10 +122,13 @@ HTML 产物（多格式）：
 ```go
 import "github.com/mengbin92/gobin/internal/imaging"
 
-exec := imaging.NewStdlibExecutor()
+// NewDefaultExecutor returns a WebPExecutor (v1.7.2): real WebP encode
+// via nativewebp + jpg/png via stdlib. Use NewStdlibExecutor() if you
+// need the zero-third-party-dependency backend (no WebP encode).
+exec := imaging.NewDefaultExecutor()
 variants, err := imaging.Transform(src, ".jpg", imaging.TransformOptions{
     Widths:  []int{480, 800, 1200},
-    Formats: []string{"jpg", "png"},
+    Formats: []string{"jpg", "png", "webp"},
     Quality: 80,
 }, exec)
 ```

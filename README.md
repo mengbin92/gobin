@@ -29,15 +29,17 @@ Gobin 是一个基于 Go 语言开发的静态博客网站生成器，专为追�
 - `gobin build --jobs N` 并行页面渲染：多 worker 并发渲染文章/列表/taxonomy 页面，与增量构建正交叠加
 - Hugo 风格短代码（shortcodes）：`{{< name args >}}` / `{{% name args %}}`，内置 `figure` / `youtube` / `gist` / `highlight`，并支持站点与主题自定义
 - v1.6 `gobin build --jobs N` 同时并行 Markdown 解析（`min(NumCPU, 4)`，与渲染共用同一并发度）
-- v1.7 `assets.images` 图片优化管线：自动生成多尺寸变体 + HTML `<picture><source srcset>` 改写（stdlib 后端，jpg/png 完整支持，webp/avif pass-through 留待 v1.8+）
+- v1.7 `assets.images` 图片优化管线：自动生成多尺寸变体 + HTML `<picture><source srcset>` 改写（jpg/png 完整支持）
+- v1.7.1 image pipeline 增量构建：按源文件 hash + 配置 hash 跳过未变化的变体，未变化时接近零开销
+- v1.7.2 WebP 真实编码：基于 `github.com/HugoSmits86/nativewebp`（纯 Go，零 cgo）的 `WebPExecutor`，`formats: ["webp"]` 现在产出浏览器可加载的真实 WebP 字节
 
 ### 当前限制
-- 多语言、`<img srcset>` 的 WebP/AVIF 编码、图片 LQIP 占位图等仍在规划中
+- 多语言、AVIF 编码、图片 LQIP 占位图等仍在规划中
 - v1.7 图片管线默认关闭（`assets.images.enabled: false`），opt-in；启用后端到端构建时间因图片转换增加 ~10-30%
-- v1.7 image pipeline 暂未做内容 hash 跳过（每次 build 重新生成所有变体；下个 patch 补）
+- v1.7.2 WebP 编码为 VP8L lossless（`nativewebp` 后端），体积偏大于 lossy WebP；AVIF / lossy WebP / LQIP / EXIF 保留列入 v1.8+ 候选
 
 ### 规划中
-- WebP / AVIF 编码后端（disintegration/imaging 或 libvips）
+- AVIF / lossy WebP 编码后端（libvips）
 - 更完整的 Jekyll 迁移兼容层
 - 多语言支持
 - 更完善的主题系统和开发服务器体验
@@ -491,7 +493,7 @@ make benchmark
 - [x] SEO 基础产物（Sitemap、Feed、robots.txt、canonical 数据）
 - [x] 评论和分析模板占位
 - [ ] 多语言支持
-- [ ] 图片优化
+- [x] 图片优化（v1.7 多尺寸 + `<picture srcset>`；v1.7.1 增量构建；v1.7.2 WebP 真实编码）
 
 ### 第四阶段：测试与优化（1-2周）
 
