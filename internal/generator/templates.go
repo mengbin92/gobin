@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/mengbin92/gobin/internal/config"
+	"github.com/mengbin92/gobin/internal/log"
 	"github.com/mengbin92/gobin/internal/parser"
 )
 
@@ -124,6 +125,7 @@ func loadTemplates(cfg *config.Config) (*template.Template, error) {
 
 	tmpl = template.New("").Funcs(funcMap)
 
+	// Collect Gobin-native templates (templates/ + theme layouts/).
 	var templateFiles []string
 	for _, path := range getTemplatePaths(cfg) {
 		if _, err := os.Stat(path); err == nil {
@@ -131,16 +133,46 @@ func loadTemplates(cfg *config.Config) (*template.Template, error) {
 		}
 	}
 
-	if len(templateFiles) == 0 {
+	// v1.8 Jekyll compatibility: also count _layouts/ + _includes/.
+	// A pure Jekyll site may have only _layouts/ with no templates/ at all.
+	hasLayouts, _ := dirHasHTMLFiles("_layouts")
+	hasIncludes, _ := dirHasHTMLFiles("_includes")
+
+	if len(templateFiles) == 0 && !hasLayouts && !hasIncludes {
 		return nil, fmt.Errorf("no templates found")
 	}
 
-	tmpl, err = tmpl.ParseFiles(templateFiles...)
+	if len(templateFiles) > 0 {
+		tmpl, err = tmpl.ParseFiles(templateFiles...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse templates: %w", err)
+		}
+	}
+
+	// Register _layouts/*.html and _includes/*.html by their basename
+	// (file name without extension), so a post with `layout: post`
+	// resolves to the "_layouts/post.html" template without requiring
+	// a {{ define }} block.
+	tmpl, err = registerLayoutsAndIncludes(tmpl, cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse templates: %w", err)
+		return nil, fmt.Errorf("failed to parse layouts/includes: %w", err)
 	}
 
 	return tmpl, nil
+}
+
+// dirHasHTMLFiles reports whether dir exists and contains at least one .html file.
+func dirHasHTMLFiles(dir string) (bool, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false, nil
+	}
+	for _, e := range entries {
+		if !e.IsDir() && strings.EqualFold(filepath.Ext(e.Name()), ".html") {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func getTemplatePaths(cfg *config.Config) []string {
@@ -271,4 +303,60 @@ func hasAbsoluteBaseURL(base string) bool {
 		return false
 	}
 	return parsed.IsAbs() && parsed.Host != ""
+}
+
+// registerLayoutsAndIncludes scans the Jekyll-style _layouts/ and
+// _includes/ directories at the site root and registers each .html file
+// as a named template whose name is the file basename without extension
+// (e.g. _layouts/post.html -> "post"). This lets front matter `layout:
+// post` resolve to the file without a {{ define }} wrapper.
+//
+// A file that already declares a {{ define "X" }} is parsed with its
+// defined name AND its basename, so both `{{ template "post" . }}` and
+// `{{ template "X" . }}` work. If a basename collides with an existing
+// template name, the existing template wins (ParseGlob/Parse returns an
+// error on duplicate, so we skip re-registering names already present).
+func registerLayoutsAndIncludes(tmpl *template.Template, cfg *config.Config) (*template.Template, error) {
+	logger := log.GetDefault().With("component", "templates")
+	dirs := []string{"_layouts", "_includes"}
+	for _, dir := range dirs {
+		if _, err := os.Stat(dir); err != nil {
+			continue
+		}
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.EqualFold(filepath.Ext(entry.Name()), ".html") {
+				continue
+			}
+			name := strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name()))
+			if tmpl.Lookup(name) != nil {
+				// Already registered (e.g. via templates/ {{ define }}).
+				// Keep the existing definition to avoid surprises.
+				continue
+			}
+			full := filepath.Join(dir, entry.Name())
+			data, err := os.ReadFile(full)
+			if err != nil {
+				return nil, err
+			}
+			nt := tmpl.New(name)
+			if _, err := nt.Parse(string(data)); err != nil {
+				// Gracefully skip files that fail to parse. This typically
+				// means the file still contains Jekyll/Liquid syntax
+				// (e.g. {{ site.x }}, {% if %}) that hasn't been migrated
+				// to Go template syntax yet. Skipping is preferable to
+				// failing the entire build — the user will migrate
+				// includes one at a time.
+				logger.Warn("skipping unparseable layout/include (likely unmigrated Liquid)",
+					"file", full, "template", name, "error", err)
+				// Remove the partially-created empty template so Lookup
+				// doesn't return a nameless definition.
+				continue
+			}
+		}
+	}
+	return tmpl, nil
 }
