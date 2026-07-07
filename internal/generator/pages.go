@@ -27,8 +27,17 @@ func buildStandalonePageSpecs(standalonePages []*parser.Page, cfg *config.Config
 	for _, page := range standalonePages {
 		normalizeRenderedContent(cfg, &page.Content, &page.ContentHTML)
 		outputPath := standalonePageOutputPath(page.URL)
+		// v1.8: front matter `layout:` selects a _layouts/<layout>.html
+		// template first; pagePage/singlePage are fallbacks
+		// (resolveTemplateName skips candidates that don't exist).
+		var pageCandidates []string
+		if page.Layout != "" {
+			pageCandidates = []string{page.Layout, "pagePage", "singlePage"}
+		} else {
+			pageCandidates = []string{"pagePage", "singlePage"}
+		}
 		pages = append(pages, PageSpec{
-			TemplateCandidates: []string{"pagePage", "singlePage"},
+			TemplateCandidates: pageCandidates,
 			OutputPath:         outputPath,
 			Title:              page.Title,
 			Data: StandalonePageData{
@@ -41,6 +50,7 @@ func buildStandalonePageSpecs(standalonePages []*parser.Page, cfg *config.Config
 					HeaderTemplate: "headerNested",
 					FooterTemplate: "footerNested",
 					MainTemplate:   "pageMain",
+					Content:        template.HTML(page.ContentHTML),
 				},
 				Page: page,
 			},
@@ -148,8 +158,17 @@ func buildPostPageSpecs(posts []*parser.Post, cfg *config.Config) []PageSpec {
 			nextPost = posts[i-1]
 		}
 
+		// v1.8: front matter `layout:` selects a _layouts/<layout>.html
+		// template first; singlePage is the backward-compatible fallback
+		// (resolveTemplateName skips candidates that don't exist).
+		var layoutCandidates []string
+		if post.Layout != "" {
+			layoutCandidates = []string{post.Layout, "singlePage"}
+		} else {
+			layoutCandidates = []string{"singlePage"}
+		}
 		pages = append(pages, PageSpec{
-			TemplateCandidates: []string{"singlePage"},
+			TemplateCandidates: layoutCandidates,
 			OutputPath:         postPath,
 			Title:              post.Title,
 			Data: SinglePageData{
@@ -162,6 +181,7 @@ func buildPostPageSpecs(posts []*parser.Post, cfg *config.Config) []PageSpec {
 					HeaderTemplate: "headerNested",
 					FooterTemplate: "footerNested",
 					MainTemplate:   "singleMain",
+					Content:        template.HTML(post.ContentHTML),
 				},
 				Post:     post,
 				PrevPost: prevPost,
