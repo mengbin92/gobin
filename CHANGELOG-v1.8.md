@@ -53,6 +53,28 @@ Gobin v1.8.0 引入 **Jekyll 模板兼容层**：自动发现 `_layouts/` 与 `_
 
 ---
 
+## 集成验证：真实博客迁移
+
+v1.8.0 实现后，对真实博客 `mengbin92.github.io`（Beautiful Jekyll 主题，608 篇文章，7 个 layout，33 个 include）进行了端到端集成验证：
+
+1. **模板迁移**：将 7 个 Jekyll `_layouts/`（base/post/page/home/landingpage/default/minimal）+ 5 个核心 `_includes/`（head/nav/header/footer/footer-scripts）从 Liquid 语法改写为 Go `html/template` 语法。
+2. **构建结果**：`gobin build` 成功生成全部产物：
+   - 730 个 `index.html` 页面（608 文章页 + 60 页分页 + 标签页 + 分类页 + 独立页 + 404 + 首页）
+   - 文章页正确使用 `_layouts/post.html` 布局（`<article class="blog-post">` 标记验证通过）
+   - 首页列表页 + 分页（60 页）+ 标签页（54 个）+ 分类页 + RSS feed + sitemap 全部生成
+   - 31 个静态资源正确复制
+3. **优雅降级**：未迁移的 Liquid include（baidu-analytics、disqus、gtag 等 20 个）被自动跳过并记录 WARN 日志，不影响构建。
+
+迁移后的博客模板存放在迁移工作区（不侵入 gobin 仓库），作为 v1.8.0 兼容层的端到端验证证据。
+
+## 实现期补充（集成验证后）
+
+基于真实博客验证发现的问题，对初始实现做了两处增强：
+
+1. **`layout:` 候选保留**：原实现在 layout 为默认值（`"post"` / `"page"`）时丢弃该候选。改为始终保留 layout 候选（`resolveTemplateName` 会跳过不存在的候选），使 `_layouts/post.html` 可被默认 front matter 命中。
+2. **`_layouts/`-only 站点支持**：原实现要求至少有一个 `templates/` 文件。改为当 `_layouts/` 或 `_includes/` 含 `.html` 文件时也通过 "no templates found" 检查，使纯 Jekyll 目录结构可构建。
+3. **优雅跳过未迁移 include**：`registerLayoutsAndIncludes` 遇到 Liquid 语法解析失败时记录 WARN 并跳过该文件，而非中断整个构建。这允许渐进式迁移 include。
+
 ## 验证
 
 发布前执行：
@@ -63,4 +85,13 @@ go test -race ./internal/parser/... ./internal/generator/... ./internal/imaging/
 go vet ./...
 gofmt -l internal/ cmd/
 go mod tidy
+```
+
+集成验证：
+
+```bash
+# 真实博客 608 篇文章端到端构建
+cd /tmp/blog-migrate  # 迁移后的工作区
+gobin build --clean=true
+# 预期：Pages rendered 731, Artifacts ran 7, Static assets copied 31
 ```

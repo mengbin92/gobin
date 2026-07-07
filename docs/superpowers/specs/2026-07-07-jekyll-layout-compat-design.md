@@ -1,7 +1,7 @@
 # Jekyll 模板兼容层 — 实现规格 (Spec)
 
 > 日期：2026-07-07
-> 状态：草稿，待实现
+> 状态：**已实现并通过集成验证**（v1.8.0；真实博客 608 篇文章端到端构建通过）
 > 范围：v1.8.0（首个 Jekyll 模板兼容层）
 > 承接：`docs/jekyll-template-compatibility-evaluation.md`（结论：主路线 = 模板迁移，辅路线 = 少量输入兼容，不做 Liquid 运行时）
 

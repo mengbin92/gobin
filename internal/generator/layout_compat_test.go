@@ -146,10 +146,10 @@ func TestPostLayout_DefaultPostFallsBackToSinglePage(t *testing.T) {
 	cfg := &config.Config{Title: "T"}
 	specs := buildPostPageSpecs([]*parser.Post{post}, cfg)
 	got := specs[0].TemplateCandidates
-	// When layout is the default "post" and there is no matching template,
-	// candidates must fall back to singlePage so rendering succeeds.
-	if len(got) != 1 || got[0] != "singlePage" {
-		t.Fatalf("expected fallback to [singlePage], got %v", got)
+	// "post" is kept as a candidate; resolveTemplateName skips it
+	// (no _layouts/post.html exists) and falls back to singlePage.
+	if len(got) != 2 || got[0] != "post" || got[1] != "singlePage" {
+		t.Fatalf("expected candidates [post singlePage], got %v", got)
 	}
 }
 
