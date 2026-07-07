@@ -140,6 +140,17 @@ func loadTemplates(cfg *config.Config) (*template.Template, error) {
 		return nil, fmt.Errorf("failed to parse templates: %w", err)
 	}
 
+	// v1.8 Jekyll compatibility: register _layouts/*.html and
+	// _includes/*.html by their basename (file name without extension),
+	// so a post with `layout: post` resolves to the "_layouts/post.html"
+	// template without requiring a {{ define }} block. Files that DO
+	// contain {{ define }} blocks are parsed normally and both names
+	// (basename + any defined name) remain available.
+	tmpl, err = registerLayoutsAndIncludes(tmpl, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse layouts/includes: %w", err)
+	}
+
 	return tmpl, nil
 }
 
@@ -271,4 +282,49 @@ func hasAbsoluteBaseURL(base string) bool {
 		return false
 	}
 	return parsed.IsAbs() && parsed.Host != ""
+}
+
+// registerLayoutsAndIncludes scans the Jekyll-style _layouts/ and
+// _includes/ directories at the site root and registers each .html file
+// as a named template whose name is the file basename without extension
+// (e.g. _layouts/post.html -> "post"). This lets front matter `layout:
+// post` resolve to the file without a {{ define }} wrapper.
+//
+// A file that already declares a {{ define "X" }} is parsed with its
+// defined name AND its basename, so both `{{ template "post" . }}` and
+// `{{ template "X" . }}` work. If a basename collides with an existing
+// template name, the existing template wins (ParseGlob/Parse returns an
+// error on duplicate, so we skip re-registering names already present).
+func registerLayoutsAndIncludes(tmpl *template.Template, cfg *config.Config) (*template.Template, error) {
+	dirs := []string{"_layouts", "_includes"}
+	for _, dir := range dirs {
+		if _, err := os.Stat(dir); err != nil {
+			continue
+		}
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.EqualFold(filepath.Ext(entry.Name()), ".html") {
+				continue
+			}
+			name := strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name()))
+			if tmpl.Lookup(name) != nil {
+				// Already registered (e.g. via templates/ {{ define }}).
+				// Keep the existing definition to avoid surprises.
+				continue
+			}
+			full := filepath.Join(dir, entry.Name())
+			data, err := os.ReadFile(full)
+			if err != nil {
+				return nil, err
+			}
+			nt := tmpl.New(name)
+			if _, err := nt.Parse(string(data)); err != nil {
+				return nil, fmt.Errorf("parse %s: %w", full, err)
+			}
+		}
+	}
+	return tmpl, nil
 }

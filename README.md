@@ -32,6 +32,7 @@ Gobin 是一个基于 Go 语言开发的静态博客网站生成器，专为追�
 - v1.7 `assets.images` 图片优化管线：自动生成多尺寸变体 + HTML `<picture><source srcset>` 改写（jpg/png 完整支持）
 - v1.7.1 image pipeline 增量构建：按源文件 hash + 配置 hash 跳过未变化的变体，未变化时接近零开销
 - v1.7.2 WebP 真实编码：基于 `github.com/HugoSmits86/nativewebp`（纯 Go，零 cgo）的 `WebPExecutor`，`formats: ["webp"]` 现在产出浏览器可加载的真实 WebP 字节
+- v1.8 Jekyll 模板兼容层：自动发现 `_layouts/` / `_includes/`，front matter `layout:` 驱动模板选择，`{{ .Content }}` 正文注入（对应 Jekyll `{{ content }}`）；模板语法仍为 Go `html/template`，不引入 Liquid
 
 ### 当前限制
 - 多语言、AVIF 编码、图片 LQIP 占位图等仍在规划中
@@ -40,7 +41,7 @@ Gobin 是一个基于 Go 语言开发的静态博客网站生成器，专为追�
 
 ### 规划中
 - AVIF / lossy WebP 编码后端（libvips）
-- 更完整的 Jekyll 迁移兼容层
+- Liquid 语法自动翻译（`{% include %}` / `{% assign %}` / 过滤器管道）
 - 多语言支持
 - 更完善的主题系统和开发服务器体验
 
@@ -52,6 +53,7 @@ Gobin 是一个基于 Go 语言开发的静态博客网站生成器，专为追�
 - [增量构建使用指南](docs/guides/incremental-build.md)
 - [并行构建使用指南](docs/guides/parallel-build.md)
 - [统一日志系统使用指南](docs/guides/logging.md)
+- [Jekyll 模板迁移指南](docs/guides/jekyll-layout.md)
 
 
 ## 技术栈
@@ -494,6 +496,7 @@ make benchmark
 - [x] 评论和分析模板占位
 - [ ] 多语言支持
 - [x] 图片优化（v1.7 多尺寸 + `<picture srcset>`；v1.7.1 增量构建；v1.7.2 WebP 真实编码）
+- [x] Jekyll 模板兼容层（v1.8 `_layouts/` + `_includes/` + `layout:` + `{{ .Content }}`）
 
 ### 第四阶段：测试与优化（1-2周）
 
