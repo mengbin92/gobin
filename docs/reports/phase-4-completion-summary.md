@@ -87,7 +87,7 @@ Gobin 项目第四阶段（测试与优化）已圆满完成。本阶段的工�
 
 ### 4. 文档完善 ✅
 
-#### 测试覆盖报告 (`docs/test-coverage-report.md`)
+#### 测试覆盖报告 (`docs/reports/test-coverage-report.md`)
 
 完整的测试文档，包含：
 - 当前测试布局
@@ -143,7 +143,7 @@ example-site/
 
 本阶段不再在总结文档中维护手工覆盖率数字，避免随代码演进快速过期。
 
-当前以 `docs/test-coverage-report.md` 中的“测试布局 + 风险结论”为准。
+当前以 `docs/reports/test-coverage-report.md` 中的“测试布局 + 风险结论”为准。
 
 ---
 
@@ -190,7 +190,7 @@ example-site/
 
 ### 创建的文档
 
-1. **Test Coverage Report** (`docs/test-coverage-report.md`)
+1. **Test Coverage Report** (`docs/reports/test-coverage-report.md`)
    - 23 页详细文档
    - 包含所有测试覆盖统计
    - 性能基准测试结果
@@ -230,7 +230,7 @@ example-site/
 - [x] `internal/config/config_test.go` (250+ 行测试代码)
 - [x] `internal/generator/generator_test.go` (400+ 行测试代码)
 - [x] 补充命令层与模块层测试，覆盖默认构建、脚手架生成和开发服务器关键行为
-- [x] `docs/test-coverage-report.md` (完整测试报告)
+- [x] `docs/reports/test-coverage-report.md` (完整测试报告)
 - [x] `example-site/` (完整示例站点)
 
 ### 文档交付物

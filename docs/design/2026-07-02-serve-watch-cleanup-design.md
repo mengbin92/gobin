@@ -3,7 +3,7 @@
 > 日期：2026-07-02（修订 1）
 > 状态：草稿，待 review
 > 范围：v1.5.0
-> 承接：`docs/2026-04-23-optimization-execution-plan.md` §5（2026-06-01）记录的"非回归条目"
+> 承接：`docs/plans/2026-04-23-optimization-execution-plan.md` §5（2026-06-01）记录的"非回归条目"
 
 ## 0. 修订说明
 

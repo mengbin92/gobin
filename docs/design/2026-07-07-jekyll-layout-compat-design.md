@@ -3,7 +3,7 @@
 > 日期：2026-07-07
 > 状态：**已实现并通过集成验证**（v1.8.0；真实博客 608 篇文章端到端构建通过）
 > 范围：v1.8.0（首个 Jekyll 模板兼容层）
-> 承接：`docs/jekyll-template-compatibility-evaluation.md`（结论：主路线 = 模板迁移，辅路线 = 少量输入兼容，不做 Liquid 运行时）
+> 承接：`docs/design/jekyll-template-compatibility-evaluation.md`（结论：主路线 = 模板迁移，辅路线 = 少量输入兼容，不做 Liquid 运行时）
 
 ## 1. 问题
 
@@ -101,4 +101,4 @@ basename 注册使用 `New(name).Parse`：无论文件是否含 `{{ define }}`�
 ## 8. 文档
 
 - `docs/guides/jekyll-layout.md`：迁移指南（目录约定、`{{ content }}` → `{{ .Content }}`、`{% include x %}` → `{{ template "x" . }}` 对照表）。
-- `CHANGELOG-v1.8.md`、`README.md` 更新。
+- `docs/releases/CHANGELOG-v1.8.md`、`README.md` 更新。

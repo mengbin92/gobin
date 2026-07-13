@@ -101,7 +101,7 @@ gobin build --jobs 1
 | 100 | 1.99 ms | 1.32 ms | 1.51x |
 | 500 | 11.68 ms | 7.27 ms | 1.61x |
 
-详细基准与画像见 `docs/superpowers/specs/2026-07-04-parallel-parse-design.md`。
+详细基准与画像见 `docs/design/2026-07-04-parallel-parse-design.md`。
 
 ### 6. 库 API 变化
 
@@ -121,7 +121,7 @@ func ParsePagesWithOptionsConcurrent(dir string, opts RenderOptions, concurrency
 ## 文档
 
 - `docs/guides/parallel-build.md` 已更新：v1.6 起 `--jobs` 同时作用于解析阶段；新增并发安全说明；新增 610 篇端到端基准数据。
-- `docs/superpowers/specs/2026-07-04-parallel-parse-design.md` 是本次变更的设计文档（170 行），包含画像数据、并发安全分析、验收标准。
+- `docs/design/2026-07-04-parallel-parse-design.md` 是本次变更的设计文档（170 行），包含画像数据、并发安全分析、验收标准。
 
 ---
 

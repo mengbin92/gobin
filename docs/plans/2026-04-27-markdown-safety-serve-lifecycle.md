@@ -427,14 +427,14 @@ Expected: exit 0.
 
 - [ ] **Step 5: Update optimization record if appropriate**
 
-If the code work is completed, update `docs/2026-04-23-optimization-execution-plan.md` with a 2026-04-27 P2 progress note for Markdown safety and serve lifecycle coverage.
+If the code work is completed, update `docs/plans/2026-04-23-optimization-execution-plan.md` with a 2026-04-27 P2 progress note for Markdown safety and serve lifecycle coverage.
 
 - [ ] **Step 6: Final commit**
 
 If Task 5 or verification documentation changed after prior commits:
 
 ```bash
-git add docs/2026-04-23-optimization-execution-plan.md
+git add docs/plans/2026-04-23-optimization-execution-plan.md
 git commit -m "Record P2 optimization progress"
 ```
 

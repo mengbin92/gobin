@@ -53,15 +53,15 @@
 
 1. 增量构建
    - 状态：已完成
-   - 说明：`gobin build --incremental` 通过 `<publishDir>/.gobin-build.json` manifest 跟踪 source / build_env 指纹，跳过未变化的单文章页、列表、taxonomy 与 feed/sitemap/search/aliases/robots 聚合产物。详见 `docs/2026-05-21-incremental-build-design.md`。`gobin serve` 已自动启用增量。
-   - 后续：`serve` 亚秒级 partial rebuild（已完成）——watcher 按变化文件集只重新解析变化文件，其余从会话级缓存复用，结构性变更回退全量。详见 `docs/2026-05-21-incremental-build-design.md` §11。
+   - 说明：`gobin build --incremental` 通过 `<publishDir>/.gobin-build.json` manifest 跟踪 source / build_env 指纹，跳过未变化的单文章页、列表、taxonomy 与 feed/sitemap/search/aliases/robots 聚合产物。详见 `docs/design/2026-05-21-incremental-build-design.md`。`gobin serve` 已自动启用增量。
+   - 后续：`serve` 亚秒级 partial rebuild（已完成）——watcher 按变化文件集只重新解析变化文件，其余从会话级缓存复用，结构性变更回退全量。详见 `docs/design/2026-05-21-incremental-build-design.md` §11。
 2. 并行构建
    - 状态：已完成
    - 说明：`gobin build --jobs N` 并行页面渲染，`--jobs 0`（默认）= `min(NumCPU, 4)`。
 3. 多语言
 4. 短代码
    - 状态：已完成
-   - 说明：Hugo 风格短代码，支持 `{{< >}}`（原始 HTML，经 sentinel 绕过 Markdown 转义）与 `{{% %}}`（再经 Markdown 渲染）及配对 `.Inner`；内置 `figure` / `youtube` / `gist` / `highlight`，可由 `templates/shortcodes` 与主题 `layouts/shortcodes` 覆盖；未知短代码中断构建。短代码位于已被 env hash 的目录树内，增量 / serve 自动失效，无需额外接线。详见 `CHANGELOG-v1.4.md`。
+   - 说明：Hugo 风格短代码，支持 `{{< >}}`（原始 HTML，经 sentinel 绕过 Markdown 转义）与 `{{% %}}`（再经 Markdown 渲染）及配对 `.Inner`；内置 `figure` / `youtube` / `gist` / `highlight`，可由 `templates/shortcodes` 与主题 `layouts/shortcodes` 覆盖；未知短代码中断构建。短代码位于已被 env hash 的目录树内，增量 / serve 自动失效，无需额外接线。详见 `docs/releases/CHANGELOG-v1.4.md`。
 5. 图片优化
 
 ## 3. P0 执行拆分

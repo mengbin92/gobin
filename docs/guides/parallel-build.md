@@ -85,7 +85,7 @@ BenchmarkBuildFull_Concurrency/posts=500/jobs=0   ~89 ms
 2. 对比 `jobs=1` 与 `jobs=4`（或你设的 N）的 ns/op。
 3. 如果差距 < 5%，说明你的瓶颈不在渲染阶段——检查是否走到了磁盘 I/O 慢盘、是否启用了 `--minify`、是否走了 `--incremental` 的退化路径。
 
-**v1.6 起** `--jobs` 同时作用于解析阶段。同一 610 篇真实博客端到端（clean build）：**305 ms → 207 ms（约 1.47x）**。HTML/资产产物字节级一致；仅 feed/sitemap 时间戳差异。详见 `docs/superpowers/specs/2026-07-04-parallel-parse-design.md`。
+**v1.6 起** `--jobs` 同时作用于解析阶段。同一 610 篇真实博客端到端（clean build）：**305 ms → 207 ms（约 1.47x）**。HTML/资产产物字节级一致；仅 feed/sitemap 时间戳差异。详见 `docs/design/2026-07-04-parallel-parse-design.md`。
 
 ## 7. 与 race detector
 

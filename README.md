@@ -47,13 +47,18 @@ Gobin 是一个基于 Go 语言开发的静态博客网站生成器，专为追�
 
 ### 进一步阅读
 
-想了解 v1.4.0 引入的几项能力的细节、产物变化与排错思路，看 `docs/guides/`：
+完整文档索引见 [docs/README.md](docs/README.md)。功能使用指南见 `docs/guides/`：
 
 - [Shortcodes 使用指南](docs/guides/shortcodes.md)
 - [增量构建使用指南](docs/guides/incremental-build.md)
 - [并行构建使用指南](docs/guides/parallel-build.md)
 - [统一日志系统使用指南](docs/guides/logging.md)
+- [资源管线使用指南](docs/guides/asset-pipeline.md)
+- [serve watch 行为指南](docs/guides/serve.md)
+- [图片优化管线指南](docs/guides/image-pipeline.md)
 - [Jekyll 模板迁移指南](docs/guides/jekyll-layout.md)
+
+版本发布说明与更新日志见 `docs/releases/`，构建与发布流程见 [docs/releases/build-and-release-guide.md](docs/releases/build-and-release-guide.md)。
 
 
 ## 技术栈
@@ -309,6 +314,11 @@ gobin/
 ├── assets/             # 默认静态资源
 ├── themes/             # 主题目录
 ├── docs/               # 文档
+│   ├── releases/        # 发布说明、更新日志、构建发布指南
+│   ├── guides/          # 功能使用指南
+│   ├── design/          # 设计文档（specs）
+│   ├── plans/           # 实施计划（plans）
+│   └── reports/         # 测试报告、阶段总结
 ├── examples/           # 示例站点
 └── scripts/            # 迁移和工具脚本
 ```

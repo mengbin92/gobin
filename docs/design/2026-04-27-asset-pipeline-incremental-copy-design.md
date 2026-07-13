@@ -130,7 +130,7 @@ Update README near `--clean=false`:
 - unchanged static assets are skipped during non-clean rebuilds
 - stale output files are not removed unless the build cleans the output directory
 
-Update `docs/2026-04-23-optimization-execution-plan.md` with a P2 resource pipeline v1 progress note.
+Update `docs/plans/2026-04-23-optimization-execution-plan.md` with a P2 resource pipeline v1 progress note.
 
 ## Acceptance Criteria
 

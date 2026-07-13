@@ -84,9 +84,9 @@ jobs:
           TAG="${GITHUB_REF_NAME}"
           VERSION="${TAG#v}"
           CANDIDATES=(
-            "RELEASE-NOTES-v${VERSION}.md"
-            "RELEASE-NOTES-${VERSION}.md"
-            "RELEASE-NOTES.md"
+            "docs/releases/RELEASE-NOTES-v${VERSION}.md"
+            "docs/releases/RELEASE-NOTES-${VERSION}.md"
+            "docs/releases/RELEASE-NOTES.md"
           )
 
           for file in "${CANDIDATES[@]}"; do

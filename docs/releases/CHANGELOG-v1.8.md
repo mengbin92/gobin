@@ -19,8 +19,8 @@ Gobin v1.8.0 引入 **Jekyll 模板兼容层**：自动发现 `_layouts/` 与 `_
 
 ### 设计依据
 
-- 承接 `docs/jekyll-template-compatibility-evaluation.md`（结论：主路线 = 模板迁移，辅路线 = 少量输入兼容，不做 Liquid 运行时）。
-- 详细规格：`docs/superpowers/specs/2026-07-07-jekyll-layout-compat-design.md`。
+- 承接 `docs/design/jekyll-template-compatibility-evaluation.md`（结论：主路线 = 模板迁移，辅路线 = 少量输入兼容，不做 Liquid 运行时）。
+- 详细规格：`docs/design/2026-07-07-jekyll-layout-compat-design.md`。
 - 迁移指南：`docs/guides/jekyll-layout.md`。
 
 ---

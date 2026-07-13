@@ -2,7 +2,7 @@
 
 ## 发布日期 - 2026-07-04
 
-Gobin v1.7.1 是 v1.7.0 图片优化管线的 patch 版本，收口 `docs/superpowers/specs/2026-07-04-image-pipeline-design.md` 的 §7/§8/§9：把 v1.7.0 留下的 image pipeline 增量构建 TODO 落地，补齐 spec §8 列出的全部单元 / 集成测试，并对照 spec §9 验收清单逐项验证。**真实 22 张图未变化时增量构建从 ~475ms 降到接近零开销**（只做 SHA-256 + 文件 stat），单图源修改时只重转该 source 的变体，其余 source 全部跳过。
+Gobin v1.7.1 是 v1.7.0 图片优化管线的 patch 版本，收口 `docs/design/2026-07-04-image-pipeline-design.md` 的 §7/§8/§9：把 v1.7.0 留下的 image pipeline 增量构建 TODO 落地，补齐 spec §8 列出的全部单元 / 集成测试，并对照 spec §9 验收清单逐项验证。**真实 22 张图未变化时增量构建从 ~475ms 降到接近零开销**（只做 SHA-256 + 文件 stat），单图源修改时只重转该 source 的变体，其余 source 全部跳过。
 
 ---
 

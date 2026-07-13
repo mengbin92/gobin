@@ -91,7 +91,7 @@ make release-local
 
 ## 发布日期 - 2026-07-04
 
-v1.7.1 收口 `docs/superpowers/specs/2026-07-04-image-pipeline-design.md` 的 §7/§8/§9：把 v1.7.0 留下的 image pipeline 增量构建 TODO 落地，补齐 spec §8 列出的所有单元 / 集成测试，并对照 spec §9 验收清单逐项验证。
+v1.7.1 收口 `docs/design/2026-07-04-image-pipeline-design.md` 的 §7/§8/§9：把 v1.7.0 留下的 image pipeline 增量构建 TODO 落地，补齐 spec §8 列出的所有单元 / 集成测试，并对照 spec §9 验收清单逐项验证。
 
 ---
 

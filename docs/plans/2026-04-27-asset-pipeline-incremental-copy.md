@@ -15,7 +15,7 @@
 - Modify `internal/generator/assets.go`: add static asset copy plan, freshness decision, executor, and result counts.
 - Modify `internal/generator/generator_test.go`: add focused tests near existing asset tests.
 - Modify `README.md`: document static asset skip behavior for non-clean builds.
-- Modify `docs/2026-04-23-optimization-execution-plan.md`: record P2 resource pipeline v1 progress.
+- Modify `docs/plans/2026-04-23-optimization-execution-plan.md`: record P2 resource pipeline v1 progress.
 
 ## Task 1: Plan Unchanged Assets As Skip
 
@@ -322,7 +322,7 @@ git commit -m "Skip unchanged static assets during copy"
 
 **Files:**
 - Modify: `README.md`
-- Modify: `docs/2026-04-23-optimization-execution-plan.md`
+- Modify: `docs/plans/2026-04-23-optimization-execution-plan.md`
 
 - [ ] **Step 1: Update README**
 
@@ -344,7 +344,7 @@ Add a 2026-04-27 P2 note:
 - [ ] **Step 3: Commit docs**
 
 ```bash
-git add README.md docs/2026-04-23-optimization-execution-plan.md
+git add README.md docs/plans/2026-04-23-optimization-execution-plan.md
 git commit -m "Document static asset copy optimization"
 ```
 

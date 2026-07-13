@@ -94,15 +94,15 @@ go install github.com/mengbin92/gobin/cmd/gobin@latest
 ## 📖 文档
 
 ### 项目文档
-- [用户指南](README.md) - 完整的使用说明
-- [示例站点](example-site/) - 可运行的完整示例
-- [技术方案](static-blog-technical-proposal.md) - 技术架构说明
-- [测试报告](docs/test-coverage-report.md) - 测试覆盖详情
+- [用户指南](../../README.md) - 完整的使用说明
+- [示例站点](../../example-site/) - 可运行的完整示例
+- 技术方案（已归档） - 技术架构说明
+- [测试报告](../reports/test-coverage-report.md) - 测试覆盖详情
 
 ### 部署文档
-- [GitHub Pages 部署](README.md#github-pages-部署)
-- [Vercel 部署](README.md#vercel-部署)
-- [Netlify 部署](README.md#netlify-部署)
+- [GitHub Pages 部署](../../README.md#github-pages-部署)
+- [Vercel 部署](../../README.md#vercel-部署)
+- [Netlify 部署](../../README.md#netlify-部署)
 
 ---
 
@@ -131,7 +131,7 @@ gobin build
 gobin serve
 ```
 
-完整迁移指南请查看 [迁移文档](README.md#从-jekyll-迁移)。
+完整迁移指南请查看 [迁移文档](../../README.md#从-jekyll-迁移)。
 
 ---
 
@@ -221,7 +221,7 @@ gobin serve
 
 ### 获取帮助
 如遇到问题：
-1. 查看 [FAQ](README.md#常见问题)
+1. 查看 [FAQ](../../README.md#常见问题)
 2. 提交 [GitHub Issue](https://github.com/mengbin92/gobin/issues)
 3. 在 [Discussions](https://github.com/mengbin92/gobin/discussions) 中提问
 
@@ -234,7 +234,7 @@ gobin serve
 ### 参与贡献
 欢迎贡献代码、文档或建议！
 
-查看 [CONTRIBUTING.md](CONTRIBUTING.md) 了解如何贡献。
+查看项目根目录的 README 了解如何贡献。
 
 ---
 
@@ -273,7 +273,7 @@ gobin serve
 
 ## 📝 许可证
 
-MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
+MIT 许可证 - 详见 [LICENSE](../../LICENSE) 文件
 
 ---
 

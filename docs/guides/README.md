@@ -12,12 +12,12 @@
 | [serve watch 行为指南](./serve.md) | 站点作者 | v1.5.0+ |
 | [图片优化管线指南](./image-pipeline.md) | 站点作者 / 性能调优 | v1.7.0+ |
 
-> 设计文档（specs）与实施计划（plans）放在 `docs/superpowers/` 和 `docs/` 根目录。
+> 设计文档（specs）与实施计划（plans）分别放在 `docs/design/` 和 `docs/plans/`。
 > 用户指南是**面向使用**的，说明"什么时候用、产物怎么变、怎么排错"；设计文档说明"为什么这样设计、边界在哪"。
 
 ## 关联阅读
 
-- 增量构建的设计稿：`docs/2026-05-21-incremental-build-design.md`
-- 并行构建的实施记录：`docs/2026-04-23-optimization-execution-plan.md` §5（2026-06-01 条目）
-- 短代码的实施记录：`docs/2026-04-23-optimization-execution-plan.md` §5 / `CHANGELOG-v1.4.md`
-- 统一日志的规格与实施计划：`docs/superpowers/specs/2026-06-02-logging-system-design.md` / `docs/superpowers/plans/2026-06-02-logging-system.md`
+- 增量构建的设计稿：`docs/design/2026-05-21-incremental-build-design.md`
+- 并行构建的实施记录：`docs/plans/2026-04-23-optimization-execution-plan.md` §5（2026-06-01 条目）
+- 短代码的实施记录：`docs/plans/2026-04-23-optimization-execution-plan.md` §5 / `docs/releases/CHANGELOG-v1.4.md`
+- 统一日志的规格与实施计划：`docs/design/2026-06-02-logging-system-design.md` / `docs/plans/2026-06-02-logging-system.md`

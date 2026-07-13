@@ -2,7 +2,7 @@
 
 > **Status note (2026-06-02):** Plan completed and shipped in commit `37b11a1` "Complete P1 refactor pass".
 > Steps below retain their original wording for historical context but are now marked done with the verification
-> evidence that was used at the time. See `docs/2026-04-23-optimization-execution-plan.md` §4 for the corresponding
+> evidence that was used at the time. See `docs/plans/2026-04-23-optimization-execution-plan.md` §4 for the corresponding
 > progress entry and commit list, and `docs/guides/` for the user-facing follow-ups.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -26,7 +26,7 @@
 - Modify: `internal/generator/generator_test.go`
 - Modify: `internal/parser/parser.go`
 - Modify: `internal/parser/parser_test.go`
-- Modify: `docs/2026-04-23-optimization-execution-plan.md`
+- Modify: `docs/plans/2026-04-23-optimization-execution-plan.md`
 
 ### Task 1: Refactor `serve` Into Builder/Watcher/Server Components — ✅ Done
 
@@ -157,7 +157,7 @@ git commit -m "refactor: split parser front matter normalization"
 ### Task 4: Verify, Update Docs, And Commit The Whole P1 Batch — ✅ Done
 
 **Files:**
-- Modify: `docs/2026-04-23-optimization-execution-plan.md`
+- Modify: `docs/plans/2026-04-23-optimization-execution-plan.md`
 
 - [x] **Step 1: Update the execution document**
 
@@ -174,7 +174,7 @@ Expected: PASS
 - [x] **Step 3: Create the requested unified commit**
 
 ```bash
-git add cmd/gobin/commands/serve.go cmd/gobin/commands/serve_runtime.go cmd/gobin/commands/serve_watcher.go cmd/gobin/commands/serve_server.go cmd/gobin/commands/serve_test.go internal/generator/search.go internal/generator/generator_test.go internal/parser/parser.go internal/parser/parser_test.go docs/2026-04-23-optimization-execution-plan.md
+git add cmd/gobin/commands/serve.go cmd/gobin/commands/serve_runtime.go cmd/gobin/commands/serve_watcher.go cmd/gobin/commands/serve_server.go cmd/gobin/commands/serve_test.go internal/generator/search.go internal/generator/generator_test.go internal/parser/parser.go internal/parser/parser_test.go docs/plans/2026-04-23-optimization-execution-plan.md
 git commit -m "Complete P1 refactor pass"
 ```
 
@@ -182,5 +182,5 @@ git commit -m "Complete P1 refactor pass"
 
 **Archive note:** This file is preserved as a record of the executed plan; all checkboxes are now marked done.
 For the maintained post-P1 progress (incremental build, parallel render, shortcodes, logging) see
-`docs/2026-04-23-optimization-execution-plan.md` and the P3 implementation plans in `docs/superpowers/plans/`.
+`docs/plans/2026-04-23-optimization-execution-plan.md` and the P3 implementation plans in `docs/plans/`.
 End-user guides covering the shipped features live under `docs/guides/`.

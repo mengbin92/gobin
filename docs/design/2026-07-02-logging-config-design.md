@@ -3,7 +3,7 @@
 > 日期：2026-07-02
 > 状态：草稿，待 review
 > 范围：v1.5.0
-> 承接：`docs/superpowers/specs/2026-06-02-logging-system-design.md` "明确排除（Phase 4，不在本期）"
+> 承接：`docs/design/2026-06-02-logging-system-design.md` "明确排除（Phase 4，不在本期）"
 
 ## 1. 目标
 

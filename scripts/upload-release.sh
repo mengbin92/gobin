@@ -19,7 +19,7 @@ VERSION=${TAG#v}
 RELEASE_NOTES=""
 echo "[run] Uploading binaries for release ${TAG}..."
 
-for file in "RELEASE-NOTES-v${VERSION}.md" "RELEASE-NOTES-${VERSION}.md" "RELEASE-NOTES.md"; do
+for file in "docs/releases/RELEASE-NOTES-v${VERSION}.md" "docs/releases/RELEASE-NOTES-${VERSION}.md" "docs/releases/RELEASE-NOTES.md"; do
     if [ -f "$file" ]; then
         RELEASE_NOTES=$file
         break

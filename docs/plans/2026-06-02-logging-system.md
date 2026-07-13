@@ -1253,8 +1253,8 @@ Expected: `1`（全局 flag 唯一来源，serve 无重复定义；验收标准 
 
 ```bash
 cd ~/vscode/mengbin/gobin
-# 在 docs/superpowers/specs/2026-06-02-logging-system-design.md 顶部把 "状态：已批准，待实现" 改为 "状态：已实现 (2026-06-02)"
-git add docs/superpowers/specs/2026-06-02-logging-system-design.md
+# 在 docs/design/2026-06-02-logging-system-design.md 顶部把 "状态：已批准，待实现" 改为 "状态：已实现 (2026-06-02)"
+git add docs/design/2026-06-02-logging-system-design.md
 git commit -m "docs(logging): mark logging system spec as implemented"
 ```
 

@@ -138,15 +138,15 @@ gh auth login
 # 创建 Release
 gh release create v1.2.0 \
   --title "Gobin v1.2.0" \
-  --notes-file RELEASE-NOTES-v1.2.0.md \
+  --notes-file docs/releases/RELEASE-NOTES-v1.2.0.md \
   dist/*.tar.gz dist/*.zip dist/SHA256SUMS
 ```
 
-发布说明文件建议按 tag 命名，例如 `RELEASE-NOTES-v1.2.0.md`。自动发布工作流会按顺序查找：
+发布说明文件建议按 tag 命名，例如 `docs/releases/RELEASE-NOTES-v1.2.0.md`。自动发布工作流会按顺序查找：
 
-- `RELEASE-NOTES-v1.2.0.md`
-- `RELEASE-NOTES-1.2.0.md`
-- `RELEASE-NOTES.md`
+- `docs/releases/RELEASE-NOTES-v1.2.0.md`
+- `docs/releases/RELEASE-NOTES-1.2.0.md`
+- `docs/releases/RELEASE-NOTES.md`
 
 ##### 选项 B：通过 GitHub Web 界面
 
@@ -267,8 +267,8 @@ docker buildx build \
 - [ ] 代码已提交并推送到远程
 - [ ] 配置了 Docker Hub secrets: `DOCKERHUB_USERNAME`、`DOCKERHUB_TOKEN`
 - [ ] 创建了版本标签: `git tag v1.2.0`
-- [ ] 编写了发布说明（例如 `RELEASE-NOTES-v1.2.0.md`）
-- [ ] 更新了 CHANGELOG
+- [ ] 编写了发布说明（例如 `docs/releases/RELEASE-NOTES-v1.2.0.md`）
+- [ ] 更新了 CHANGELOG（`docs/releases/CHANGELOG-vX.Y.Z.md`）
 
 ### 发布时检查
 
@@ -377,7 +377,7 @@ sha256sum gobin-* > checksums.txt
 - `.github/workflows/release.yml` - GitHub Actions 工作流
 - `scripts/build-all.sh` - 本地构建脚本
 - `scripts/upload-release.sh` - 上传脚本
-- `RELEASE-NOTES-vX.Y.Z.md` - 发布说明模板
+- `docs/releases/RELEASE-NOTES-vX.Y.Z.md` - 发布说明模板
 
 ---
 

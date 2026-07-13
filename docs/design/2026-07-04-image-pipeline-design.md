@@ -196,7 +196,7 @@ funcs["image"] = func(src string) template.HTML {
 - [x] gofmt / go vet 通过
   - 见 `Makefile` 验证脚本
 - [x] 文档：`docs/guides/image-pipeline.md` + 本 spec + README 更新
-  - 跟踪：v1.7.1 patch 同步更新本 spec + `CHANGELOG-v1.7.md`；v1.7.2 patch 勾选 WebP 验收项 + 更新 `docs/guides/image-pipeline.md` §6/§7/§8 + README + `CHANGELOG-v1.7.2`
+  - 跟踪：v1.7.1 patch 同步更新本 spec + `docs/releases/CHANGELOG-v1.7.md`；v1.7.2 patch 勾选 WebP 验收项 + 更新 `docs/guides/image-pipeline.md` §6/§7/§8 + README + `docs/releases/CHANGELOG-v1.7.2`
 
 ## 10. 范围外（v1.8+ 候选）
 
