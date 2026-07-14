@@ -85,6 +85,8 @@ func TestWatchPaths_DefaultAndTheme(t *testing.T) {
 		"pages",
 		"assets",
 		"templates",
+		"_layouts",
+		"_includes",
 		filepath.Join("themes", "official-website", "layouts"),
 		filepath.Join("themes", "official-website", "assets"),
 	}

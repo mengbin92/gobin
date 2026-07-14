@@ -23,7 +23,7 @@
 - **发布说明**：`releases/RELEASE-NOTES-vX.Y.Z.md`
 - **更新日志**：`releases/CHANGELOG-vX.Y.md`
 
-最新发布版本：[v1.7.2 发布说明](./releases/RELEASE-NOTES-v1.7.2.md) ｜ [v1.8.0 更新日志草稿](./releases/CHANGELOG-v1.8.md)
+最新发布版本：[v1.8.1 发布说明](./releases/RELEASE-NOTES-v1.8.1.md) ｜ [v1.8 更新日志](./releases/CHANGELOG-v1.8.md)
 
 ### 开发文档
 

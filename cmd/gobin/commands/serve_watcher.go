@@ -236,6 +236,8 @@ func watchPaths(cfg *config.Config) []string {
 		cfg.PageDir,
 		cfg.StaticDir,
 		"templates",
+		"_layouts",
+		"_includes",
 	}
 
 	if cfg.Theme != "" {

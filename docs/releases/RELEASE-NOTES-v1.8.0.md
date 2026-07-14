@@ -1,6 +1,6 @@
 # Gobin v1.8.0 发布说明
 
-## 发布日期 - 2026-07-07
+## 发布日期 - 2026-07-08
 
 Gobin v1.8.0 引入 **Jekyll 模板兼容层**：自动发现 `_layouts/` 与 `_includes/` 目录，用 front matter 的 `layout:` 字段驱动模板选择，并提供 `{{ .Content }}` 正文注入点。模板语法仍是 Go `html/template`（不引入 Liquid 解释器），但目录结构与布局概念与 Jekyll 对齐，迁移成本大幅降低。
 
@@ -128,7 +128,7 @@ type Page struct { Layout string }
 - 无 `_layouts/` / `_includes/` 的站点：注册步骤找不到文件，行为与 v1.7.2 完全一致。
 - `layout` 字段为默认值（`"post"` / `"page"`）且无对应布局模板：候选回退到 `singlePage` / `pagePage`，行为与 v1.7.2 一致。
 - golden 测试不改动（使用默认模板，无 `_layouts/`）。
-- 增量构建 manifest 不受影响（模板文件变化由 templates/ 目录 hash 跟踪）。
+- `templates/` 和主题模板变化会使增量构建失效；根目录 `_layouts/` / `_includes/` 的变更跟踪缺口已在 v1.8.1 修复。
 - v1.7.2 WebP 管线不受影响。
 
 ---

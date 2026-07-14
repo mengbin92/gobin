@@ -51,6 +51,9 @@ func classifyChange(path string, cfg *config.Config) changeKind {
 	if isWithin(clean, "templates") {
 		return changeStructural
 	}
+	if isWithin(clean, "_layouts") || isWithin(clean, "_includes") {
+		return changeStructural
+	}
 	if cfg.Theme != "" && cfg.ThemesDir != "" {
 		if isWithin(clean, filepath.Join(cfg.ThemesDir, cfg.Theme)) {
 			return changeStructural

@@ -60,7 +60,7 @@ Gobin 在 `publishDir/.gobin-build.json`（manifest 文件）里记录两类指�
 manifest 里还有第三个维度——**env hash**。它覆盖：
 
 - `config.yaml` 全部字段
-- 主题目录与 `templates/` 目录的文件清单 + 关键内容指纹
+- 主题目录、`templates/`、`_layouts/` 与 `_includes/` 目录的文件清单 + 内容指纹
 - 渲染选项（`RenderOptions`、短代码 registry hash）
 
 只要 env hash 变化，Gobin 直接走全量构建，**不会**尝试用旧 manifest 做"分批跳过"。这避免了"模板改了但 manifest 没感知导致产物与模板脱节"的灾难。
@@ -68,7 +68,7 @@ manifest 里还有第三个维度——**env hash**。它覆盖：
 具体会让 env hash 失配的常见改动：
 
 - 改 `config.yaml` 任何字段（包括 SEO、permalink、pagination）。
-- 改 `templates/` 或主题 `layouts/` 下的任何模板文件。
+- 改 `templates/`、`_layouts/`、`_includes/` 或主题 `layouts/` 下的任何模板文件。
 - 新增 / 删除 / 重命名主题或短代码模板。
 - 改 `markup.allowUnsafeHTML` 或 `markup.highlight` 配置。
 - 升级 Gobin 本身（manifest version 不一致也会被忽略）。

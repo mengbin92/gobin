@@ -1,6 +1,6 @@
 # Jekyll 模板迁移指南
 
-> v1.8.0 起，Gobin 接受 Jekyll 风格的 `_layouts/` 与 `_includes/` 目录，并用 front matter 的 `layout:` 字段驱动模板选择。模板语法仍是 Go `html/template`（不是 Liquid），但目录结构与概念与 Jekyll 对齐，迁移成本大幅降低。
+> v1.8.0 起，Gobin 接受 Jekyll 风格的 `_layouts/` 与 `_includes/` 目录，并用 front matter 的 `layout:` 字段驱动模板选择。v1.8.1 起，这两个目录的变化会正确触发增量构建失效和 `serve --watch` 重建。模板语法仍是 Go `html/template`（不是 Liquid），但目录结构与概念与 Jekyll 对齐，迁移成本大幅降低。
 
 ## 1. 能做什么 / 不能做什么
 

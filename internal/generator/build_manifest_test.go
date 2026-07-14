@@ -217,6 +217,40 @@ func TestComputeBuildEnvHash_ChangesWithShortcode(t *testing.T) {
 	}
 }
 
+func TestComputeBuildEnvHash_ChangesWithJekyllTemplateDirectories(t *testing.T) {
+	for _, dir := range []string{"_layouts", "_includes"} {
+		t.Run(dir, func(t *testing.T) {
+			siteDir := t.TempDir()
+			templatePath := filepath.Join(siteDir, dir, "entry.html")
+			mustWriteFile(t, templatePath, `v1 {{ .Title }}`)
+
+			oldWd, _ := os.Getwd()
+			if err := os.Chdir(siteDir); err != nil {
+				t.Fatalf("chdir: %v", err)
+			}
+			defer os.Chdir(oldWd)
+
+			cfg := config.Normalize(&config.Config{Title: "A"})
+			opts := parser.DefaultRenderOptions()
+
+			before, err := computeBuildEnvHash(cfg, opts)
+			if err != nil {
+				t.Fatalf("before hash failed: %v", err)
+			}
+
+			mustWriteFile(t, templatePath, `v2 {{ .Title }}`)
+
+			after, err := computeBuildEnvHash(cfg, opts)
+			if err != nil {
+				t.Fatalf("after hash failed: %v", err)
+			}
+			if before == after {
+				t.Fatalf("expected %s change to invalidate build env hash", dir)
+			}
+		})
+	}
+}
+
 func TestGenerate_WritesBuildManifest(t *testing.T) {
 	tmpDir := t.TempDir()
 	siteDir := filepath.Join(tmpDir, "site")

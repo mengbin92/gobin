@@ -176,6 +176,84 @@ func TestGenerate_Incremental_BuildEnvHashMismatchForcesFullRender(t *testing.T)
 	}
 }
 
+func TestGenerate_Incremental_JekyllTemplateChangesForceRender(t *testing.T) {
+	tests := []struct {
+		name       string
+		changedDir string
+		before     string
+		after      string
+		want       string
+	}{
+		{
+			name:       "layout",
+			changedDir: "_layouts",
+			before:     `<article>layout-v1 {{ template "badge" . }} {{ .Content }}</article>`,
+			after:      `<article>layout-v2 {{ template "badge" . }} {{ .Content }}</article>`,
+			want:       "layout-v2",
+		},
+		{
+			name:       "include",
+			changedDir: "_includes",
+			before:     `<span>include-v1</span>`,
+			after:      `<span>include-v2</span>`,
+			want:       "include-v2",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			siteDir := filepath.Join(tmpDir, "site")
+			outputDir := filepath.Join(siteDir, "public")
+			postPath := filepath.Join(siteDir, "_posts", "2026-01-01-hello.md")
+			mustWriteFile(t, postPath, "post body")
+			writeIncrementalGoldenTemplates(t, siteDir)
+
+			layoutPath := filepath.Join(siteDir, "_layouts", "custom.html")
+			includePath := filepath.Join(siteDir, "_includes", "badge.html")
+			mustWriteFile(t, layoutPath, `<article>layout-v1 {{ template "badge" . }} {{ .Content }}</article>`)
+			mustWriteFile(t, includePath, `<span>include-v1</span>`)
+
+			changedPath := filepath.Join(siteDir, tc.changedDir, map[string]string{
+				"_layouts":  "custom.html",
+				"_includes": "badge.html",
+			}[tc.changedDir])
+			mustWriteFile(t, changedPath, tc.before)
+
+			oldWd, _ := os.Getwd()
+			if err := os.Chdir(siteDir); err != nil {
+				t.Fatalf("chdir: %v", err)
+			}
+			defer os.Chdir(oldWd)
+
+			post := &parser.Post{
+				Title:       "Hello",
+				Slug:        "hello",
+				URL:         "/hello/",
+				Layout:      "custom",
+				FilePath:    postPath,
+				ContentHTML: "<p>body</p>",
+			}
+			cfg := incrementalCfg()
+			_ = runIncrementalGenerate(t, []*parser.Post{post}, cfg, outputDir, false)
+
+			mustWriteFile(t, changedPath, tc.after)
+			result := runIncrementalGenerate(t, []*parser.Post{post}, cfg, outputDir, true)
+			if result.Pages.Rendered == 0 {
+				t.Fatalf("expected %s change to force page rendering", tc.changedDir)
+			}
+
+			output, err := os.ReadFile(filepath.Join(outputDir, "hello", "index.html"))
+			if err != nil {
+				t.Fatalf("read rendered post: %v", err)
+			}
+			if !strings.Contains(string(output), tc.want) {
+				t.Fatalf("expected rendered post to contain %q, got %q", tc.want, output)
+			}
+		})
+	}
+}
+
 func TestGenerate_Incremental_UnchangedSiteSkipsListAndAggregates(t *testing.T) {
 	tmpDir := t.TempDir()
 	siteDir := filepath.Join(tmpDir, "site")

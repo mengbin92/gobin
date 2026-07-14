@@ -1,6 +1,25 @@
-# Gobin v1.8.0 更新日志
+# Gobin v1.8 更新日志
 
-## 发布日期 - 2026-07-07（草稿）
+## v1.8.1 - 2026-07-14
+
+v1.8.1 修复 Jekyll 兼容模板的变更跟踪。v1.8.0 已能加载站点根目录的 `_layouts/` 与 `_includes/`，但这两个目录没有进入增量构建环境哈希和开发服务器 watcher，导致模板单独变化时可能继续使用旧产物或不触发自动重建。
+
+### 修复
+
+- `_layouts/` 与 `_includes/` 纳入 `build_env_hash`；新增、删除或修改其中的文件都会使旧增量 manifest 失效并重新渲染页面。
+- `gobin serve --watch` 注册 `_layouts/` 与 `_includes/`，目录内变化按结构性变更处理。
+- 新增布局和 include 分别修改后的增量构建集成测试，验证文章页面会重新渲染并包含最新模板内容。
+- 新增 watcher 路径、变化分类和环境哈希回归测试。
+
+### 兼容性
+
+- 配置、模板语法和公开 Go API 均无变化。
+- 没有 `_layouts/` / `_includes/` 的站点行为保持不变。
+- 旧 manifest 会因环境哈希变化自动失效，无需手工删除。
+
+---
+
+## v1.8.0 - 2026-07-08
 
 Gobin v1.8.0 引入 **Jekyll 模板兼容层**：自动发现 `_layouts/` 与 `_includes/` 目录，用 front matter 的 `layout:` 字段驱动模板选择，并提供 `{{ .Content }}` 正文注入点。模板语法仍是 Go `html/template`（不引入 Liquid 解释器），但目录结构与布局概念与 Jekyll 对齐，迁移成本大幅降低。
 
@@ -40,7 +59,7 @@ Gobin v1.8.0 引入 **Jekyll 模板兼容层**：自动发现 `_layouts/` 与 `_
 - 无 `_layouts/` / `_includes/` 的站点：注册步骤找不到文件，行为与 v1.7.2 完全一致。
 - `layout` 字段为默认值（`"post"` / `"page"`）且无对应布局模板：候选回退到 `singlePage` / `pagePage`，行为与 v1.7.2 一致。
 - golden 测试不改动（使用默认模板，无 `_layouts/`）。
-- 增量构建 manifest 不受影响（模板文件变化由 templates/ 目录 hash 跟踪，逻辑不变）。
+- `templates/` 和主题模板变化会使增量构建失效；根目录 `_layouts/` / `_includes/` 的变更跟踪缺口已在 v1.8.1 修复。
 
 ---
 

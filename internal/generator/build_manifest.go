@@ -137,15 +137,16 @@ func hashBytes(data []byte) string {
 
 // computeBuildEnvHash captures every input outside of individual content
 // files that can change rendered output: config fields, render options,
-// template files (site + theme), and active theme assets. A change to any of
-// these forces the next build to ignore the previous manifest.
+// template files (site + theme + Jekyll-compatible directories), and active
+// theme assets. A change to any of these forces the next build to ignore the
+// previous manifest.
 //
 // Shortcode templates need no dedicated hashing: site shortcodes live under
 // templates/shortcodes and theme shortcodes under <theme>/layouts/shortcodes,
 // so they are already covered by the "templates" and theme directory trees
 // below. Editing a shortcode therefore invalidates the manifest as expected.
 func computeBuildEnvHash(cfg *config.Config, opts parser.RenderOptions) (string, error) {
-	parts := make([]string, 0, 8)
+	parts := make([]string, 0, 10)
 
 	cfgBytes, err := json.Marshal(cfg)
 	if err != nil {
@@ -164,6 +165,14 @@ func computeBuildEnvHash(cfg *config.Config, opts parser.RenderOptions) (string,
 		return "", fmt.Errorf("hash templates: %w", err)
 	}
 	parts = append(parts, "templates="+tmplHash)
+
+	for _, dir := range []string{"_layouts", "_includes"} {
+		dirHash, err := hashDirectoryTree(dir)
+		if err != nil {
+			return "", fmt.Errorf("hash %s: %w", dir, err)
+		}
+		parts = append(parts, dir+"="+dirHash)
+	}
 
 	if cfg != nil && cfg.Theme != "" && cfg.ThemesDir != "" {
 		themeDir := filepath.Join(cfg.ThemesDir, cfg.Theme)

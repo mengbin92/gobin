@@ -31,6 +31,8 @@ func TestClassifyChange(t *testing.T) {
 		{"config yml underscore", "_config.yml", changeStructural},
 		{"template", filepath.Join("templates", "_default", "single.html"), changeStructural},
 		{"site shortcode", filepath.Join("templates", "shortcodes", "figure.html"), changeStructural},
+		{"jekyll layout", filepath.Join("_layouts", "post.html"), changeStructural},
+		{"jekyll include", filepath.Join("_includes", "header.html"), changeStructural},
 		{"theme layout", filepath.Join("themes", "mytheme", "layouts", "x.html"), changeStructural},
 		{"theme shortcode", filepath.Join("themes", "mytheme", "layouts", "shortcodes", "figure.html"), changeStructural},
 		{"non-md under content", filepath.Join("_posts", "data.json"), changeStructural},

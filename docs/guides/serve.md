@@ -45,7 +45,7 @@ gobin serve --watch --no-clean-on-watch
 只要任一条件成立，watcher 会从 partial rebuild 退回全量 + cleanOutput：
 
 - `config.yaml` / `config.yml` / `_config.yml` / `_config.yaml` 变化
-- `templates/` 或主题 `<theme>/` 下任何文件变化
+- `templates/`、`_layouts/`、`_includes/` 或主题 `<theme>/` 下任何文件变化
 - 短代码模板变化
 - 任何 `.md` / `.markdown` 文件被删 / 重命名
 - 任何静态资源被删 / 重命名
