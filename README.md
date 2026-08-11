@@ -34,6 +34,7 @@ Gobin 是一个基于 Go 语言开发的静态博客网站生成器，专为追�
 - v1.7.2 WebP 真实编码：基于 `github.com/HugoSmits86/nativewebp`（纯 Go，零 cgo）的 `WebPExecutor`，`formats: ["webp"]` 现在产出浏览器可加载的真实 WebP 字节
 - v1.8 Jekyll 模板兼容层：自动发现 `_layouts/` / `_includes/`，front matter `layout:` 驱动模板选择，`{{ .Content }}` 正文注入（对应 Jekyll `{{ content }}`）；模板语法仍为 Go `html/template`，不引入 Liquid
 - v1.8.1 Jekyll 模板变更跟踪修复：`_layouts/` / `_includes/` 纳入增量构建环境哈希和 `serve --watch` 监听
+- v1.8.2 多静态资源目录 `staticDirs`：`img/` / `images/` 等一并复制进 `publishDir`，`serve --watch` 监听全部静态目录
 
 ### 当前限制
 - 多语言、AVIF 编码、图片 LQIP 占位图等仍在规划中
@@ -58,6 +59,7 @@ Gobin 是一个基于 Go 语言开发的静态博客网站生成器，专为追�
 - [serve watch 行为指南](docs/guides/serve.md)
 - [图片优化管线指南](docs/guides/image-pipeline.md)
 - [Jekyll 模板迁移指南](docs/guides/jekyll-layout.md)
+- [多静态资源目录指南](docs/guides/static-dirs.md)
 
 版本发布说明与更新日志见 `docs/releases/`，构建与发布流程见 [docs/releases/build-and-release-guide.md](docs/releases/build-and-release-guide.md)。
 
