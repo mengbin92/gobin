@@ -73,8 +73,14 @@ func classifyChange(path string, cfg *config.Config) changeKind {
 		}
 		return changeStructural
 	}
-	if isWithin(clean, cfg.StaticDir) {
-		return changeStatic
+	staticDirs := cfg.StaticDirs
+	if len(staticDirs) == 0 {
+		staticDirs = []string{cfg.StaticDir}
+	}
+	for _, dir := range staticDirs {
+		if isWithin(clean, dir) {
+			return changeStatic
+		}
 	}
 
 	// Anything we cannot place is treated as structural so a full reload keeps

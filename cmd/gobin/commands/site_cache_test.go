@@ -16,7 +16,7 @@ import (
 )
 
 func TestClassifyChange(t *testing.T) {
-	cfg := config.Normalize(&config.Config{Theme: "mytheme"})
+	cfg := config.Normalize(&config.Config{Theme: "mytheme", StaticDirs: []string{"assets", "img", "images"}})
 
 	cases := []struct {
 		name string
@@ -27,6 +27,8 @@ func TestClassifyChange(t *testing.T) {
 		{"content markdown ext", filepath.Join("_posts", "x.markdown"), changeContent},
 		{"standalone page", filepath.Join("pages", "about.md"), changePage},
 		{"static asset", filepath.Join("assets", "css", "style.css"), changeStatic},
+		{"extra static dir img", filepath.Join("img", "2024-05-01", "a.png"), changeStatic},
+		{"extra static dir images", filepath.Join("images", "RabbitMQ", "b.png"), changeStatic},
 		{"config yaml", "config.yaml", changeStructural},
 		{"config yml underscore", "_config.yml", changeStructural},
 		{"template", filepath.Join("templates", "_default", "single.html"), changeStructural},
