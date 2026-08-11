@@ -53,3 +53,14 @@ grep -rohE '../(img|images)/[^)"]*' _posts | sort -u
 | `public/img/` 缺文件 | 根目录 `img/` 未加入 `staticDirs` | 把 `img` 加进 `staticDirs` |
 | 图片被摊平到 `public/` 根而不是 `public/img/` | 把 `img` 放在了 `staticDirs` 第一项 | 把主目录 `assets` 放第一项，`img`/`images` 放后面 |
 | 帖子里的 `../img/...` 渲染后 404 | `staticDirs` 未包含对应目录，或路径不符 | 确认目录名与输出前缀一致 |
+
+
+## 6. 标签 slug 化说明（迁移自 Jekyll 注意事项）
+
+Taxonomy（tags/categories）的 URL 由 `textutil.Slug` 生成，会把 `.` 等非 URL 安全字符去掉。例如源标签 `web3.js` 会生成目录 `public/tags/web3js/`。
+
+- 标签页的 `<title>` / `<h1>` 和帖子内链接的**显示文字仍保留原始值 `web3.js`**。
+- 搜索索引（`search-index.json`）里也保留原始标签 `web3.js`。
+- 只有 URL 路径是 slug 化形式（`/tags/web3js/`），与 Hugo 等主流 SSG 行为一致。
+
+这是有意为之：若为保留 `.` 修改全局 slug 规则，会连带改变含点号的**帖子标题** URL（如 `sync.WaitGroup`、`x.509`、`boot.iso`），影响面过大。迁移时如对旧标签 URL 有强一致要求，可在站点里对标签做显式重命名，而不是依赖 slug 规则。
