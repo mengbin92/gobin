@@ -11,6 +11,7 @@
 | [资源管线使用指南](./asset-pipeline.md) | 站点作者 / CI 维护者 | v1.5.0+ |
 | [serve watch 行为指南](./serve.md) | 站点作者 | v1.5.0+ |
 | [图片优化管线指南](./image-pipeline.md) | 站点作者 / 性能调优 | v1.7.0+ |
+| [多静态资源目录指南](./static-dirs.md) | 站点作者 / 迁移自 Jekyll | v1.8.2+ |
 
 > 设计文档（specs）与实施计划（plans）分别放在 `docs/design/` 和 `docs/plans/`。
 > 用户指南是**面向使用**的，说明"什么时候用、产物怎么变、怎么排错"；设计文档说明"为什么这样设计、边界在哪"。

@@ -71,6 +71,7 @@ func TestWatchPaths_DefaultAndTheme(t *testing.T) {
 	cfg := &config.Config{
 		ContentDir: "content",
 		StaticDir:  "assets",
+		StaticDirs: []string{"assets", "img", "images"},
 		ThemesDir:  "themes",
 		Theme:      "official-website",
 	}
@@ -84,6 +85,8 @@ func TestWatchPaths_DefaultAndTheme(t *testing.T) {
 		"content",
 		"pages",
 		"assets",
+		"img",
+		"images",
 		"templates",
 		"_layouts",
 		"_includes",

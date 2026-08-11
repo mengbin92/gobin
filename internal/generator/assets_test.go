@@ -353,3 +353,71 @@ func TestAssetURLResolver_FilenameStrategy_PrefixesBaseURLPath(t *testing.T) {
 		t.Fatalf("expected base-path-prefixed fingerprinted URL %q, got %q", want, got)
 	}
 }
+
+func TestCollectStaticAssetFiles_MultipleStaticDirs(t *testing.T) {
+	tmpDir := t.TempDir()
+	assetsDir := filepath.Join(tmpDir, "assets")
+	imgDir := filepath.Join(tmpDir, "img")
+	imagesDir := filepath.Join(tmpDir, "images")
+
+	mustWriteFile(t, filepath.Join(assetsDir, "css", "main.css"), "body {}")
+	mustWriteFile(t, filepath.Join(imgDir, "cover.jpg"), "img")
+	mustWriteFile(t, filepath.Join(imagesDir, "banner.png"), "images")
+
+	cfg := &config.Config{
+		StaticDir:  "assets",
+		StaticDirs: []string{assetsDir, imgDir, imagesDir},
+	}
+	assets, err := collectStaticAssetFiles(cfg)
+	if err != nil {
+		t.Fatalf("collectStaticAssetFiles failed: %v", err)
+	}
+
+	got := map[string]string{}
+	for _, a := range assets {
+		got[a.OutputPath] = a.SourcePath
+	}
+	for _, want := range []string{
+		filepath.Join("css", "main.css"),
+		filepath.Join("img", "cover.jpg"),
+		filepath.Join("images", "banner.png"),
+	} {
+		if _, ok := got[want]; !ok {
+			t.Errorf("expected asset %q to be collected, got %#v", want, got)
+		}
+	}
+	// Additional static dirs keep their directory name as the output prefix.
+	if got[filepath.Join("img", "cover.jpg")] != filepath.Join(imgDir, "cover.jpg") {
+		t.Errorf("img asset source mismatch: %#v", got)
+	}
+	if got[filepath.Join("images", "banner.png")] != filepath.Join(imagesDir, "banner.png") {
+		t.Errorf("images asset source mismatch: %#v", got)
+	}
+}
+
+func TestCopyStaticAssets_MultipleStaticDirs(t *testing.T) {
+	tmpDir := t.TempDir()
+	outputDir := filepath.Join(tmpDir, "public")
+	assetsDir := filepath.Join(tmpDir, "assets")
+	imgDir := filepath.Join(tmpDir, "img")
+
+	mustWriteFile(t, filepath.Join(assetsDir, "css", "main.css"), "body {}")
+	mustWriteFile(t, filepath.Join(imgDir, "cover.jpg"), "img")
+
+	cfg := &config.Config{
+		StaticDir:  "assets",
+		StaticDirs: []string{assetsDir, imgDir},
+	}
+	if _, err := copyStaticAssetsWithResult(cfg, outputDir); err != nil {
+		t.Fatalf("copyStaticAssetsWithResult failed: %v", err)
+	}
+
+	for _, rel := range []string{
+		filepath.Join("css", "main.css"),
+		filepath.Join("img", "cover.jpg"),
+	} {
+		if _, err := os.Stat(filepath.Join(outputDir, rel)); err != nil {
+			t.Errorf("expected copied asset %q, got err=%v", rel, err)
+		}
+	}
+}

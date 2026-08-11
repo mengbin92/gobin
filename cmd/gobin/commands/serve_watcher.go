@@ -227,6 +227,10 @@ func newDebounceScheduler(delay time.Duration, afterFunc debounceAfterFunc) func
 func watchPaths(cfg *config.Config) []string {
 	cfg = config.Normalize(cfg)
 
+	staticDirs := cfg.StaticDirs
+	if len(staticDirs) == 0 {
+		staticDirs = []string{cfg.StaticDir}
+	}
 	paths := []string{
 		"config.yaml",
 		"config.yml",
@@ -234,11 +238,13 @@ func watchPaths(cfg *config.Config) []string {
 		"_config.yaml",
 		cfg.ContentDir,
 		cfg.PageDir,
-		cfg.StaticDir,
+	}
+	paths = append(paths, staticDirs...)
+	paths = append(paths,
 		"templates",
 		"_layouts",
 		"_includes",
-	}
+	)
 
 	if cfg.Theme != "" {
 		paths = append(paths,

@@ -725,3 +725,37 @@ func TestDefaultAssetsImagesConfig(t *testing.T) {
 		t.Errorf("default has empty fields: %+v", d)
 	}
 }
+
+func TestLoadConfig_StaticDirs(t *testing.T) {
+	tmpDir := t.TempDir()
+	configContent := `title: Test
+staticDir: assets
+staticDirs:
+  - assets
+  - img
+  - images
+contentDir: _posts
+pageDir: pages
+publishDir: public
+`
+	path := filepath.Join(tmpDir, "config.yaml")
+	if err := os.WriteFile(path, []byte(configContent), 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if len(cfg.StaticDirs) != 3 {
+		t.Fatalf("expected 3 staticDirs, got %d: %#v", len(cfg.StaticDirs), cfg.StaticDirs)
+	}
+	want := []string{"assets", "img", "images"}
+	for i, v := range want {
+		if cfg.StaticDirs[i] != v {
+			t.Errorf("expected staticDirs[%d]=%q, got %q", i, v, cfg.StaticDirs[i])
+		}
+	}
+	if cfg.StaticDir != "assets" {
+		t.Errorf("expected primary StaticDir 'assets', got %q", cfg.StaticDir)
+	}
+}

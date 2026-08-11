@@ -189,6 +189,11 @@ baseURL: https://example.github.io
 # 目录配置
 contentDir: _posts
 staticDir: assets
+# 可选：一起复制到 publishDir 的额外静态目录（保留目录名，如 img -> public/img）
+# staticDirs:
+#   - assets
+#   - img
+#   - images
 publishDir: public
 
 # 分页配置

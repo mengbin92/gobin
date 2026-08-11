@@ -1,5 +1,11 @@
 # Gobin v1.8 更新日志
 
+## v1.8.2 - 待定
+
+v1.8.2 新增多静态资源目录 `staticDirs` 支持，把根目录 `img/`、`images/` 等一并复制进 `publishDir`，解决从 Jekyll 迁移的站点图片丢失问题。额外目录保留目录名输出（`img/a.png` → `public/img/a.png`），第一项摊平到站点根。`serve --watch` 监听所有 `staticDirs`。未配置时行为与 v1.8.1 一致。
+
+---
+
 ## v1.8.1 - 2026-07-14
 
 v1.8.1 修复 Jekyll 兼容模板的变更跟踪。v1.8.0 已能加载站点根目录的 `_layouts/` 与 `_includes/`，但这两个目录没有进入增量构建环境哈希和开发服务器 watcher，导致模板单独变化时可能继续使用旧产物或不触发自动重建。

@@ -351,6 +351,12 @@ func collectStaticAssetFiles(cfg *config.Config) ([]staticAssetFile, error) {
 
 	type assetSource struct {
 		rootDir string
+		// prefix is preserved in the output path. The primary static dir
+		// (and the theme asset dir) ship their contents to the site root,
+		// so prefix is empty. Additional staticDirs (e.g. img, images)
+		// keep their directory name as the output prefix so that
+		// img/cover.jpg -> public/img/cover.jpg.
+		prefix string
 	}
 
 	sources := make([]assetSource, 0, 2)
@@ -363,10 +369,20 @@ func collectStaticAssetFiles(cfg *config.Config) ([]staticAssetFile, error) {
 		}
 	}
 
-	if _, err := os.Stat(cfg.StaticDir); err == nil {
-		sources = append(sources, assetSource{rootDir: cfg.StaticDir})
-	} else if err != nil && !os.IsNotExist(err) {
-		return nil, fmt.Errorf("stat static assets: %w", err)
+	staticDirs := cfg.StaticDirs
+	if len(staticDirs) == 0 {
+		staticDirs = []string{cfg.StaticDir}
+	}
+	for i, staticDir := range staticDirs {
+		if _, err := os.Stat(staticDir); err == nil {
+			prefix := ""
+			if i > 0 {
+				prefix = filepath.Base(staticDir)
+			}
+			sources = append(sources, assetSource{rootDir: staticDir, prefix: prefix})
+		} else if err != nil && !os.IsNotExist(err) {
+			return nil, fmt.Errorf("stat static assets %q: %w", staticDir, err)
+		}
 	}
 
 	overlay := make(map[string]staticAssetFile)
@@ -387,6 +403,9 @@ func collectStaticAssetFiles(cfg *config.Config) ([]staticAssetFile, error) {
 			}
 
 			outputPath := filepath.Clean(relPath)
+			if source.prefix != "" {
+				outputPath = filepath.Join(source.prefix, outputPath)
+			}
 			if _, seen := overlay[outputPath]; !seen {
 				order = append(order, outputPath)
 			}

@@ -21,11 +21,12 @@ type Config struct {
 	Timezone     string `yaml:"timezone"`
 
 	// Directory configuration
-	ContentDir string `yaml:"contentDir"`
-	PageDir    string `yaml:"pageDir"`
-	StaticDir  string `yaml:"staticDir"`
-	PublishDir string `yaml:"publishDir"`
-	ThemesDir  string `yaml:"themesDir"`
+	ContentDir string   `yaml:"contentDir"`
+	PageDir    string   `yaml:"pageDir"`
+	StaticDir  string   `yaml:"staticDir"`
+	StaticDirs []string `yaml:"staticDirs"`
+	PublishDir string   `yaml:"publishDir"`
+	ThemesDir  string   `yaml:"themesDir"`
 
 	// Theme configuration
 	Theme string `yaml:"theme"`
@@ -486,6 +487,10 @@ func validateOutputDirConflicts(cfg *Config) error {
 		"contentDir": normalizeConfigPath(cfg.ContentDir),
 		"pageDir":    normalizeConfigPath(cfg.PageDir),
 		"staticDir":  normalizeConfigPath(cfg.StaticDir),
+	}
+
+	for i, staticDir := range cfg.StaticDirs {
+		inputs[fmt.Sprintf("staticDirs[%d]", i)] = normalizeConfigPath(staticDir)
 	}
 
 	for name, path := range inputs {
