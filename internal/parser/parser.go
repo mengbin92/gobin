@@ -12,6 +12,7 @@ import (
 	"github.com/mengbin92/gobin/internal/shortcode"
 	"github.com/mengbin92/gobin/internal/textutil"
 	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/extension"
 	goldmarkhtml "github.com/yuin/goldmark/renderer/html"
 	"gopkg.in/yaml.v3"
 )
@@ -405,7 +406,12 @@ func renderMarkdown(markdownContent string) (string, error) {
 }
 
 func renderMarkdownWithOptions(markdownContent string, opts RenderOptions) (string, error) {
-	options := []goldmark.Option{}
+	options := []goldmark.Option{
+		// GFM extensions: tables, strikethrough, autolinks, task lists.
+		// Without these goldmark renders strict CommonMark and pipe tables
+		// fall through as plain paragraphs.
+		goldmark.WithExtensions(extension.GFM),
+	}
 	if opts.AllowUnsafeHTML {
 		options = append(options, goldmark.WithRendererOptions(goldmarkhtml.WithUnsafe()))
 	}

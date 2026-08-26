@@ -700,6 +700,39 @@ This is a **bold** and *italic* text.
 	}
 }
 
+func TestPostRendering_GFMTable(t *testing.T) {
+	tmpDir := t.TempDir()
+	postContent := `---
+title: "Table Test"
+date: 2023-12-29T10:00:00+08:00
+draft: false
+---
+
+Some intro text.
+
+| 维度 | 无缓存 | 有缓存 |
+|---|---|---|
+| **成本** | 全价 | 折扣价 |
+| **延迟** | 高 | 低 |
+`
+
+	postPath := filepath.Join(tmpDir, "2023-12-29-table.md")
+	if err := os.WriteFile(postPath, []byte(postContent), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	post, err := ParsePost(postPath)
+	if err != nil {
+		t.Fatalf("ParsePost failed: %v", err)
+	}
+
+	for _, want := range []string{"<table>", "<thead>", "<th>维度</th>", "<td>折扣价</td>"} {
+		if !strings.Contains(post.ContentHTML, want) {
+			t.Errorf("Expected HTML to contain %q, got:\n%s", want, post.ContentHTML)
+		}
+	}
+}
+
 // BenchmarkParsePost benchmarks parsing a single post
 func BenchmarkParsePost(b *testing.B) {
 	tmpDir := b.TempDir()
