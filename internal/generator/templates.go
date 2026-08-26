@@ -342,8 +342,14 @@ func registerLayoutsAndIncludes(tmpl *template.Template, cfg *config.Config) (*t
 			if err != nil {
 				return nil, err
 			}
-			nt := tmpl.New(name)
-			if _, err := nt.Parse(string(data)); err != nil {
+			// Parse into a scratch template first. Parsing directly into
+			// tmpl via tmpl.New(name) would leave an empty (incomplete)
+			// template registered under `name` when the parse fails, so a
+			// later Lookup(name) succeeds and rendering dies with
+			// "incomplete template" instead of falling back to the next
+			// layout candidate (e.g. "singlePage").
+			scratch, err := template.New(name).Parse(string(data))
+			if err != nil {
 				// Gracefully skip files that fail to parse. This typically
 				// means the file still contains Jekyll/Liquid syntax
 				// (e.g. {{ site.x }}, {% if %}) that hasn't been migrated
@@ -352,9 +358,18 @@ func registerLayoutsAndIncludes(tmpl *template.Template, cfg *config.Config) (*t
 				// includes one at a time.
 				logger.Warn("skipping unparseable layout/include (likely unmigrated Liquid)",
 					"file", full, "template", name, "error", err)
-				// Remove the partially-created empty template so Lookup
-				// doesn't return a nameless definition.
 				continue
+			}
+			// Graft every definition (the file body under its basename,
+			// plus any {{ define "X" }} blocks under X) into tmpl.
+			for _, t := range scratch.Templates() {
+				tn := t.Name()
+				if tn == "" || t.Tree == nil || tmpl.Lookup(tn) != nil {
+					continue
+				}
+				if _, err := tmpl.AddParseTree(tn, t.Tree); err != nil {
+					return nil, fmt.Errorf("register template %q from %s: %w", tn, full, err)
+				}
 			}
 		}
 	}
