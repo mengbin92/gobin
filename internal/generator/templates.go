@@ -104,6 +104,19 @@ func loadTemplates(cfg *config.Config) (*template.Template, error) {
 			}
 		},
 		"contains": strings.Contains,
+		// T translates a UI string key for the current language (v1.9.0).
+		// The lookup reads cfg.Strings, which DeriveForLanguage has
+		// already merged (language strings over top-level strings), so
+		// each language run's templates see its own table. Unknown keys
+		// render as the key itself, matching Hugo's i18n fallback.
+		"T": func(key string) string {
+			if cfg != nil {
+				if value, ok := cfg.Strings[key]; ok {
+					return value
+				}
+			}
+			return key
+		},
 		"paramBool": func(params map[string]interface{}, key string) bool {
 			if params == nil {
 				return false

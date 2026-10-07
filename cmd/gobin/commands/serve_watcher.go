@@ -246,6 +246,18 @@ func watchPaths(cfg *config.Config) []string {
 		"_includes",
 	)
 
+	// v1.9.0: watch per-language content directories. The nested
+	// convention dirs (<contentDir>/<lang>/) are already covered by the
+	// recursive registration of cfg.ContentDir / cfg.PageDir, but
+	// explicit external overrides are not — append them all and let the
+	// dedupe below (and fsnotify's own path table) absorb repeats.
+	if cfg.IsMultilingual() {
+		for _, lang := range cfg.LanguageNames() {
+			resolved := cfg.ResolveLanguage(lang)
+			paths = append(paths, resolved.ContentDir, resolved.PageDir)
+		}
+	}
+
 	if cfg.Theme != "" {
 		paths = append(paths,
 			filepath.Join(cfg.ThemesDir, cfg.Theme, "layouts"),

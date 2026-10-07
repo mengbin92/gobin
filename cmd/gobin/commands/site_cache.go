@@ -73,6 +73,21 @@ func classifyChange(path string, cfg *config.Config) changeKind {
 		}
 		return changeStructural
 	}
+	// v1.9.0: language content directories that live OUTSIDE the default
+	// contentDir/pageDir (explicit per-language overrides) classify the
+	// same as their default counterparts. Nested convention dirs
+	// (<contentDir>/<lang>/) are already covered by the checks above.
+	if isMarkdown && cfg.IsMultilingual() {
+		for _, lang := range cfg.LanguageNames() {
+			resolved := cfg.ResolveLanguage(lang)
+			if isWithin(clean, resolved.ContentDir) {
+				return changeContent
+			}
+			if isWithin(clean, resolved.PageDir) {
+				return changePage
+			}
+		}
+	}
 	staticDirs := cfg.StaticDirs
 	if len(staticDirs) == 0 {
 		staticDirs = []string{cfg.StaticDir}
@@ -104,6 +119,79 @@ func isWithin(path, dir string) bool {
 		return false
 	}
 	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
+}
+
+// langDirEntry holds one language's resolved content directories,
+// pre-computed for per-path routing in the content cache.
+type langDirEntry struct {
+	lang       string
+	contentDir string
+	pageDir    string
+}
+
+// resolveLangDirs pre-resolves every declared language's content/page
+// directories (v1.9.0). Returns nil for monolingual sites.
+func resolveLangDirs(cfg *config.Config) []langDirEntry {
+	if cfg == nil || !cfg.IsMultilingual() {
+		return nil
+	}
+	entries := make([]langDirEntry, 0, len(cfg.Languages))
+	for _, lang := range cfg.LanguageNames() {
+		resolved := cfg.ResolveLanguage(lang)
+		entries = append(entries, langDirEntry{
+			lang:       lang,
+			contentDir: filepath.Clean(resolved.ContentDir),
+			pageDir:    filepath.Clean(resolved.PageDir),
+		})
+	}
+	return entries
+}
+
+// langForContentPath routes a post file path to its language bucket:
+// the language whose contentDir contains the path (longest match wins,
+// so a nested _posts/zh beats _posts), or "" for the default language.
+func langForContentPath(path string, langDirs []langDirEntry) string {
+	clean := filepath.Clean(path)
+	best := ""
+	bestLen := -1
+	for _, entry := range langDirs {
+		if isWithin(clean, entry.contentDir) && len(entry.contentDir) > bestLen {
+			best, bestLen = entry.lang, len(entry.contentDir)
+		}
+	}
+	return best
+}
+
+// langForPagePath is langForContentPath for standalone pages.
+func langForPagePath(path string, langDirs []langDirEntry) string {
+	clean := filepath.Clean(path)
+	best := ""
+	bestLen := -1
+	for _, entry := range langDirs {
+		if isWithin(clean, entry.pageDir) && len(entry.pageDir) > bestLen {
+			best, bestLen = entry.lang, len(entry.pageDir)
+		}
+	}
+	return best
+}
+
+// pageBaseDirForPath returns the baseDir a page file should be parsed
+// against: its language's pageDir, or the default pageDir. The baseDir
+// drives the page's URL derivation, so a language page must not be
+// re-parsed against the default directory.
+func pageBaseDirForPath(path string, cfg *config.Config, langDirs []langDirEntry) string {
+	clean := filepath.Clean(path)
+	best := ""
+	bestLen := -1
+	for _, entry := range langDirs {
+		if isWithin(clean, entry.pageDir) && len(entry.pageDir) > bestLen {
+			best, bestLen = entry.pageDir, len(entry.pageDir)
+		}
+	}
+	if best != "" {
+		return best
+	}
+	return cfg.PageDir
 }
 
 // changeSet accumulates the paths reported by the file watcher between debounced
@@ -171,12 +259,17 @@ func keysOf(set map[string]struct{}) []string {
 // contentCache holds the most recent successful parse of every post and page
 // source, keyed by FilePath, so a watch-driven rebuild can reparse only the
 // files that changed. It is touched only by the rebuild goroutine.
+//
+// For multilingual sites (v1.9.0) every language's sources live in the same
+// maps; langDirs routes each path back to its language bucket in assemble,
+// so watch rebuilds keep producing per-language content.
 type contentCache struct {
-	cfg    *config.Config
-	opts   parser.RenderOptions
-	posts  map[string]*parser.Post
-	pages  map[string]*parser.Page
-	primed bool
+	cfg      *config.Config
+	opts     parser.RenderOptions
+	langDirs []langDirEntry
+	posts    map[string]*parser.Post
+	pages    map[string]*parser.Page
+	primed   bool
 }
 
 // refreshAll replaces the entire cache from a full site load. Called for the
@@ -188,19 +281,32 @@ func (c *contentCache) refreshAll(input *siteBuildInput) error {
 	}
 	c.cfg = input.cfg
 	c.opts = opts
-	c.posts = make(map[string]*parser.Post, len(input.posts))
-	for _, post := range input.posts {
-		if post == nil || post.FilePath == "" {
-			continue
+	c.langDirs = resolveLangDirs(input.cfg)
+	c.posts = make(map[string]*parser.Post, len(input.posts)+len(input.langPosts)*2)
+	addPosts := func(posts []*parser.Post) {
+		for _, post := range posts {
+			if post == nil || post.FilePath == "" {
+				continue
+			}
+			c.posts[filepath.Clean(post.FilePath)] = post
 		}
-		c.posts[filepath.Clean(post.FilePath)] = post
 	}
-	c.pages = make(map[string]*parser.Page, len(input.pages))
-	for _, page := range input.pages {
-		if page == nil || page.FilePath == "" {
-			continue
+	addPosts(input.posts)
+	for _, posts := range input.langPosts {
+		addPosts(posts)
+	}
+	c.pages = make(map[string]*parser.Page, len(input.pages)+len(input.langPages)*2)
+	addPages := func(pages []*parser.Page) {
+		for _, page := range pages {
+			if page == nil || page.FilePath == "" {
+				continue
+			}
+			c.pages[filepath.Clean(page.FilePath)] = page
 		}
-		c.pages[filepath.Clean(page.FilePath)] = page
+	}
+	addPages(input.pages)
+	for _, pages := range input.langPages {
+		addPages(pages)
 	}
 	c.primed = true
 	return nil
@@ -214,16 +320,27 @@ func (c *contentCache) refreshAll(input *siteBuildInput) error {
 // Each entry is a shallow struct copy: the generator's preparePosts mutates
 // URL/Content/ContentHTML/Summary in place, and handing out copies keeps the
 // cached parse pristine across rebuilds.
+//
+// Multilingual entries are routed back to their language bucket by path;
+// per-language slices are emitted in lexical order as well.
 func (c *contentCache) assemble() *siteBuildInput {
+	input := &siteBuildInput{cfg: c.cfg}
+
 	postKeys := make([]string, 0, len(c.posts))
 	for k := range c.posts {
 		postKeys = append(postKeys, k)
 	}
 	sort.Strings(postKeys)
-	posts := make([]*parser.Post, 0, len(postKeys))
 	for _, k := range postKeys {
 		clone := *c.posts[k]
-		posts = append(posts, &clone)
+		if lang := langForContentPath(k, c.langDirs); lang != "" {
+			if input.langPosts == nil {
+				input.langPosts = make(map[string][]*parser.Post)
+			}
+			input.langPosts[lang] = append(input.langPosts[lang], &clone)
+		} else {
+			input.posts = append(input.posts, &clone)
+		}
 	}
 
 	pageKeys := make([]string, 0, len(c.pages))
@@ -231,13 +348,19 @@ func (c *contentCache) assemble() *siteBuildInput {
 		pageKeys = append(pageKeys, k)
 	}
 	sort.Strings(pageKeys)
-	pages := make([]*parser.Page, 0, len(pageKeys))
 	for _, k := range pageKeys {
 		clone := *c.pages[k]
-		pages = append(pages, &clone)
+		if lang := langForPagePath(k, c.langDirs); lang != "" {
+			if input.langPages == nil {
+				input.langPages = make(map[string][]*parser.Page)
+			}
+			input.langPages[lang] = append(input.langPages[lang], &clone)
+		} else {
+			input.pages = append(input.pages, &clone)
+		}
 	}
 
-	return &siteBuildInput{cfg: c.cfg, posts: posts, pages: pages}
+	return input
 }
 
 // newIncrementalLoader returns a loader with the same signature as
@@ -294,7 +417,7 @@ func newIncrementalLoader(cache *contentCache, changes *changeSet, fullLoad func
 				droppedPages = append(droppedPages, path)
 				continue
 			}
-			page, err := parser.ParsePageWithOptions(path, cache.cfg.PageDir, cache.opts)
+			page, err := parser.ParsePageWithOptions(path, pageBaseDirForPath(path, cache.cfg, cache.langDirs), cache.opts)
 			if err != nil {
 				return nil, err
 			}

@@ -135,7 +135,7 @@ func scaffoldListTemplate() string {
         {{ range .Posts }}
         <li>
             <span class="date">{{ .Date.Format "2006-01-02" }}</span>
-            <a href="{{ .URL }}">{{ .Title }}</a>
+            <a href="{{ url .URL }}">{{ .Title }}</a>
         </li>
         {{ end }}
     </ul>
@@ -148,14 +148,14 @@ func scaffoldListTemplate() string {
         <div class="pagination-links">
             {{ if and (gt .Pagination.PrevPage 0) (not .Pagination.IsFirstPage) }}
                 {{ if eq .Pagination.PrevPage 1 }}
-                <a href="/" class="pagination-prev">← 上一页</a>
+                <a href="{{ url "/" }}" class="pagination-prev">← 上一页</a>
                 {{ else }}
-                <a href="/{{ $.Site.PaginatePath }}/{{ .Pagination.PrevPage }}/" class="pagination-prev">← 上一页</a>
+                <a href="{{ url (printf "/%s/%d/" $.Site.PaginatePath .Pagination.PrevPage) }}" class="pagination-prev">← 上一页</a>
                 {{ end }}
             {{ end }}
 
             {{ if and (gt .Pagination.NextPage 0) (not .Pagination.IsLastPage) }}
-            <a href="/{{ $.Site.PaginatePath }}/{{ .Pagination.NextPage }}/" class="pagination-next">下一页 →</a>
+            <a href="{{ url (printf "/%s/%d/" $.Site.PaginatePath .Pagination.NextPage) }}" class="pagination-next">下一页 →</a>
             {{ end }}
         </div>
     </nav>
@@ -194,7 +194,7 @@ func scaffold404Template() string {
 <div class="error-page">
     <h1>404 - Page Not Found</h1>
     <p>The page you're looking for doesn't exist.</p>
-    <a href="/">Go back home</a>
+    <a href="{{ url "/" }}">Go back home</a>
 </div>
 {{ end }}
 
@@ -210,7 +210,7 @@ func scaffoldTaxonomyTemplate() string {
     <h1>{{ .Title }}</h1>
     <ul>
         {{ range .Terms }}
-        <li><a href="{{ .URL }}">{{ .Name }}</a> ({{ .Count }})</li>
+        <li><a href="{{ url .URL }}">{{ .Name }}</a> ({{ .Count }})</li>
         {{ end }}
     </ul>
 </section>
@@ -219,12 +219,12 @@ func scaffoldTaxonomyTemplate() string {
 {{ define "taxonomyMain" }}
 <section class="taxonomy-page">
     <h1>{{ .Title }}</h1>
-    <p><a href="{{ .IndexURL }}">返回列表</a></p>
+    <p><a href="{{ url .IndexURL }}">返回列表</a></p>
     <ul>
         {{ range .Posts }}
         <li>
             <span class="date">{{ .Date.Format "2006-01-02" }}</span>
-            <a href="{{ .URL }}">{{ .Title }}</a>
+            <a href="{{ url .URL }}">{{ .Title }}</a>
         </li>
         {{ end }}
     </ul>
@@ -247,7 +247,7 @@ func scaffoldHeaderTemplate() string {
 <div class="container">
     <nav class="navbar">
         <div class="logo">
-            <a href="/">{{ .Site.Title }}</a>
+            <a href="{{ url "/" }}">{{ .Site.Title }}</a>
         </div>
         <ul class="nav-links">
             {{ range .Site.NavbarLinks }}

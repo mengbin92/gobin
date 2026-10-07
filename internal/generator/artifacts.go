@@ -45,15 +45,21 @@ func buildArtifactSpecs(posts []*parser.Post, standalonePages []*parser.Page, cf
 			},
 		},
 		{
+			// robots.txt lives only at the site root (the default
+			// language's run); per-language subtrees must not carry one.
 			Name:    "robots",
-			Enabled: cfg != nil && cfg.EnableRobotsTXT && outputEnabled(cfg, "robots", true),
+			Enabled: cfg != nil && cfg.EnableRobotsTXT && outputEnabled(cfg, "robots", true) && cfg.ActiveLanguage == "",
 			Run: func() error {
 				return generateRobotsTXT(cfg, outputDir)
 			},
 		},
 		{
+			// Aliases are disabled for non-default languages: an alias's
+			// redirect target derives from post.URL, which carries no
+			// language prefix, and author-specified alias paths are
+			// site-absolute — both wrong inside a /<lang>/ subtree.
 			Name:    "aliases",
-			Enabled: true,
+			Enabled: cfg == nil || cfg.ActiveLanguage == "",
 			Run: func() error {
 				return generateAliasPages(posts, cfg, outputDir)
 			},

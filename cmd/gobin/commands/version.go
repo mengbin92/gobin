@@ -11,7 +11,7 @@ import (
 // Build metadata. These variables are overridden by release builds via
 // -ldflags -X.
 var (
-	Version   = "1.8.5"
+	Version   = "1.9.0"
 	Commit    = ""
 	BuildDate = ""
 )

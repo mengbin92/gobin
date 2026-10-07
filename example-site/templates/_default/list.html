@@ -17,7 +17,7 @@
 
             {{ range .Posts }}
             <article class="post-item">
-                <h2><a href="{{ .URL }}">{{ .Title }}</a></h2>
+                <h2><a href="{{ url .URL }}">{{ .Title }}</a></h2>
                 <div class="post-meta">
                     <time>{{ .Date.Format "2006-01-02" }}</time>
                     {{ if .ReadingTime }}
@@ -35,17 +35,21 @@
             </article>
             {{ end }}
 
-            {{ if gt .TotalPages 1 }}
+            {{ if gt .Pagination.TotalPages 1 }}
             <div class="pagination">
                 <div class="pagination-info">
-                    第 {{ .Page }} 页 / 共 {{ .TotalPages }} 页
+                    第 {{ .Pagination.Page }} 页 / 共 {{ .Pagination.TotalPages }} 页
                 </div>
                 <div class="pagination-links">
-                    {{ if .PrevPage }}
-                    <a href="/{{ if ne .PrevPage 1 }}page/{{ .PrevPage }}{{ end }}">← 上一页</a>
+                    {{ if .Pagination.PrevPage }}
+                        {{ if eq .Pagination.PrevPage 1 }}
+                        <a href="{{ url "/" }}">← 上一页</a>
+                        {{ else }}
+                        <a href="{{ url (printf "/%s/%d/" $.Site.PaginatePath .Pagination.PrevPage) }}">← 上一页</a>
+                        {{ end }}
                     {{ end }}
-                    {{ if .NextPage }}
-                    <a href="/page/{{ .NextPage }}">下一页 →</a>
+                    {{ if .Pagination.NextPage }}
+                    <a href="{{ url (printf "/%s/%d/" $.Site.PaginatePath .Pagination.NextPage) }}">下一页 →</a>
                     {{ end }}
                 </div>
             </div>

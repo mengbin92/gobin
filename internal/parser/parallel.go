@@ -176,12 +176,48 @@ func parsePageFilesConcurrent(files []string, baseDir string, opts RenderOptions
 // ParsePagesWithOptionsConcurrent so both phases collect-then-parse in two
 // steps, keeping the parallel parse path uniform.
 func collectMarkdownFiles(dir string) ([]string, error) {
+	return collectMarkdownFilesExcluding(dir, nil)
+}
+
+// collectMarkdownFilesExcluding is collectMarkdownFiles with directory
+// pruning: any walked directory that matches an excluded entry (or sits
+// beneath one) is skipped entirely. Exclusion keeps per-language content
+// subdirectories (e.g. _posts/zh/) out of the default language's file
+// set. Matching is done in absolute form (filepath.Abs is lexical, no
+// I/O), so exclude dirs may be spelled differently from dir — relative
+// vs absolute, or with a "./" prefix — and still prune correctly.
+func collectMarkdownFilesExcluding(dir string, excludeDirs []string) ([]string, error) {
+	excluded := make([]string, 0, len(excludeDirs))
+	for _, ex := range excludeDirs {
+		trimmed := strings.TrimSpace(ex)
+		if trimmed == "" {
+			continue
+		}
+		abs, err := filepath.Abs(trimmed)
+		if err != nil {
+			excluded = append(excluded, filepath.Clean(trimmed))
+			continue
+		}
+		excluded = append(excluded, abs)
+	}
+
 	var files []string
 	err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if entry.IsDir() {
+			if len(excluded) > 0 {
+				absPath, absErr := filepath.Abs(path)
+				if absErr != nil {
+					absPath = filepath.Clean(path)
+				}
+				for _, ex := range excluded {
+					if absPath == ex || strings.HasPrefix(absPath, ex+string(filepath.Separator)) {
+						return filepath.SkipDir
+					}
+				}
+			}
 			return nil
 		}
 		ext := strings.ToLower(filepath.Ext(entry.Name()))

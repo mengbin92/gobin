@@ -38,16 +38,17 @@ Gobin 是一个基于 Go 语言开发的静态博客网站生成器，专为追�
 - v1.8.3 Markdown GFM 扩展修复：表格、删除线、自动链接、任务列表正常渲染
 - v1.8.4 `_layouts` 解析失败残留空模板修复：未迁移的 Liquid 布局真正跳过并回退到默认模板
 - v1.8.5 全量审查缺陷修复：slug 日期前缀、`_layouts` 探测解析补齐 funcMap、LiveReload 长连接、日志优先级、HTML 压缩、图片管线多 staticDirs 等 8 处修复
+- v1.9 多语言支持：`languages:` 声明多语言，按语言生成独立页面树/feed/sitemap/搜索/分页/taxonomy（`/<lang>/` 前缀）；`T` 模板函数翻译 UI 文案；`translationKey` 跨语言文章互链；默认语言路径与单语言完全一致
 
 ### 当前限制
-- 多语言、AVIF 编码、图片 LQIP 占位图等仍在规划中
+- AVIF 编码、图片 LQIP 占位图等仍在规划中
 - v1.7 图片管线默认关闭（`assets.images.enabled: false`），opt-in；启用后端到端构建时间因图片转换增加 ~10-30%
 - v1.7.2 WebP 编码为 VP8L lossless（`nativewebp` 后端），体积偏大于 lossy WebP；AVIF / lossy WebP / LQIP / EXIF 保留为后续候选
+- v1.9 多语言：aliases 重定向页只在默认语言生成；静态资源与图片变体按语言复制（详见 `docs/guides/multilingual.md` §6）
 
 ### 规划中
 - AVIF / lossy WebP 编码后端（libvips）
 - Jekyll 模板迁移诊断与辅助工具（保持 Go `html/template`，不引入 Liquid 运行时）
-- 多语言支持
 - 更完善的主题系统和开发服务器体验
 
 ### 进一步阅读
@@ -63,6 +64,7 @@ Gobin 是一个基于 Go 语言开发的静态博客网站生成器，专为追�
 - [图片优化管线指南](docs/guides/image-pipeline.md)
 - [Jekyll 模板迁移指南](docs/guides/jekyll-layout.md)
 - [多静态资源目录指南](docs/guides/static-dirs.md)
+- [多语言站点指南](docs/guides/multilingual.md)
 
 版本发布说明与更新日志见 `docs/releases/`，构建与发布流程见 [docs/releases/build-and-release-guide.md](docs/releases/build-and-release-guide.md)。
 
@@ -515,7 +517,7 @@ make benchmark
 - [x] 主题系统实现
 - [x] SEO 基础产物（Sitemap、Feed、robots.txt、canonical 数据）
 - [x] 评论和分析模板占位
-- [ ] 多语言支持
+- [x] 多语言支持（v1.9 `languages:` + `T` + `translationKey`）
 - [x] 图片优化（v1.7 多尺寸 + `<picture srcset>`；v1.7.1 增量构建；v1.7.2 WebP 真实编码）
 - [x] Jekyll 模板兼容层（v1.8 `_layouts/` + `_includes/` + `layout:` + `{{ .Content }}`）
 

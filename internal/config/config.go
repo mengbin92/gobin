@@ -77,6 +77,30 @@ type Config struct {
 
 	// Extended parameters
 	Params map[string]interface{} `yaml:"params"`
+
+	// Multilingual configuration (v1.9.0). The top-level config is the
+	// default language: it is served at the site root with unchanged
+	// paths. Languages declares additional languages, each rendered under
+	// a /<lang>/ prefix with per-language feeds, sitemap, search index,
+	// taxonomy, and pagination.
+	Languages map[string]*LanguageConfig `yaml:"languages"`
+
+	// Strings holds UI string translations for the default language,
+	// consumed by the `T` template function. A language's `strings:`
+	// section is merged over these (language entries win).
+	Strings map[string]string `yaml:"strings"`
+
+	// ActiveLanguage records which language a derived config renders.
+	// It is set by the generator during a per-language run, never parsed
+	// from yaml, and excluded from the incremental build env hash.
+	ActiveLanguage string `yaml:"-" json:"-"`
+
+	// RootBaseURL / RootLanguageCode capture the default language's
+	// identity on derived per-language configs so language switchers can
+	// link back to the site root. Set by DeriveForLanguage; never parsed
+	// from yaml and excluded from the build env hash.
+	RootBaseURL      string `yaml:"-" json:"-"`
+	RootLanguageCode string `yaml:"-" json:"-"`
 }
 
 // LoggingConfig configures the default diagnostic logger. v1.5.0.
@@ -373,6 +397,9 @@ func ValidateInDir(cfg *Config, baseDir string) error {
 		return err
 	}
 	if err := validateAssetsFingerprint(cfg.Assets); err != nil {
+		return err
+	}
+	if err := validateLanguages(cfg); err != nil {
 		return err
 	}
 

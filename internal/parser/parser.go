@@ -34,6 +34,11 @@ type Post struct {
 	Weight      int       `yaml:"weight"`
 	Layout      string    `yaml:"layout"`
 
+	// TranslationKey links translations of the same content across
+	// languages (v1.9.0): posts in different languages that share a
+	// translationKey get each other's URLs in Translations.
+	TranslationKey string `yaml:"translationKey"`
+
 	// Internal fields
 	FilePath    string                 `yaml:"-"`
 	Content     string                 `yaml:"-"`
@@ -45,6 +50,27 @@ type Post struct {
 	URL         string                 `yaml:"-"`
 	Section     string                 `yaml:"-"`
 	Params      map[string]interface{} `yaml:"-"`
+
+	// Lang records which language this post was parsed for ("" = the
+	// default language). Translations lists the other-language versions
+	// sharing this post's TranslationKey, sorted by Lang and excluding
+	// the post itself. Both are populated by the generator during
+	// multilingual builds; both stay zero-valued for monolingual sites.
+	Lang         string            `yaml:"-"`
+	Translations []TranslationLink `yaml:"-"`
+}
+
+// TranslationLink points at another language's version of a post.
+type TranslationLink struct {
+	// Lang is the language key ("" = the default language).
+	Lang string
+	// Name is the display name of the language (its languageCode).
+	Name string
+	// Title is the translated post's title.
+	Title string
+	// URL is the root-relative public URL of the translated post,
+	// including the language prefix (e.g. /zh/hello/).
+	URL string
 }
 
 // Page represents a standalone markdown page.
@@ -59,6 +85,10 @@ type Page struct {
 	ContentHTML string                 `yaml:"-"`
 	URL         string                 `yaml:"-"`
 	Params      map[string]interface{} `yaml:"-"`
+	// Lang records which language this page was parsed for ("" = the
+	// default language). Populated by the generator during multilingual
+	// builds; zero-valued for monolingual sites.
+	Lang string `yaml:"-"`
 }
 
 // RenderOptions controls Markdown rendering behavior.
@@ -79,20 +109,21 @@ func DefaultRenderOptions() RenderOptions {
 }
 
 type postFrontMatter struct {
-	Title       string                 `yaml:"title"`
-	Date        time.Time              `yaml:"date"`
-	LastMod     time.Time              `yaml:"lastmod"`
-	Draft       bool                   `yaml:"draft"`
-	Published   *bool                  `yaml:"published"`
-	Description string                 `yaml:"description"`
-	Tags        yaml.Node              `yaml:"tags"`
-	Categories  yaml.Node              `yaml:"categories"`
-	Keywords    yaml.Node              `yaml:"keywords"`
-	Slug        string                 `yaml:"slug"`
-	Aliases     yaml.Node              `yaml:"aliases"`
-	Weight      int                    `yaml:"weight"`
-	Layout      string                 `yaml:"layout"`
-	Params      map[string]interface{} `yaml:",inline"`
+	Title          string                 `yaml:"title"`
+	Date           time.Time              `yaml:"date"`
+	LastMod        time.Time              `yaml:"lastmod"`
+	Draft          bool                   `yaml:"draft"`
+	Published      *bool                  `yaml:"published"`
+	Description    string                 `yaml:"description"`
+	Tags           yaml.Node              `yaml:"tags"`
+	Categories     yaml.Node              `yaml:"categories"`
+	Keywords       yaml.Node              `yaml:"keywords"`
+	Slug           string                 `yaml:"slug"`
+	Aliases        yaml.Node              `yaml:"aliases"`
+	Weight         int                    `yaml:"weight"`
+	Layout         string                 `yaml:"layout"`
+	TranslationKey string                 `yaml:"translationKey"`
+	Params         map[string]interface{} `yaml:",inline"`
 }
 
 type pageFrontMatter struct {
@@ -123,23 +154,24 @@ func normalizePostFrontMatter(raw postFrontMatter, path string, markdownContent 
 	}
 
 	post := &Post{
-		Title:       raw.Title,
-		Date:        raw.Date,
-		LastMod:     raw.LastMod,
-		Draft:       raw.Draft,
-		Published:   raw.Published,
-		Description: raw.Description,
-		Tags:        tags,
-		Categories:  categories,
-		Keywords:    keywords,
-		Slug:        raw.Slug,
-		Aliases:     aliases,
-		Weight:      raw.Weight,
-		Layout:      raw.Layout,
-		FilePath:    path,
-		Content:     strings.TrimSpace(markdownContent),
-		ContentHTML: renderedHTML,
-		Params:      raw.Params,
+		Title:          raw.Title,
+		Date:           raw.Date,
+		LastMod:        raw.LastMod,
+		Draft:          raw.Draft,
+		Published:      raw.Published,
+		Description:    raw.Description,
+		Tags:           tags,
+		Categories:     categories,
+		Keywords:       keywords,
+		Slug:           raw.Slug,
+		Aliases:        aliases,
+		Weight:         raw.Weight,
+		Layout:         raw.Layout,
+		TranslationKey: raw.TranslationKey,
+		FilePath:       path,
+		Content:        strings.TrimSpace(markdownContent),
+		ContentHTML:    renderedHTML,
+		Params:         raw.Params,
 	}
 
 	if post.Date.IsZero() {
@@ -254,6 +286,16 @@ func ParsePostsWithOptions(dir string, opts RenderOptions) ([]*Post, error) {
 // negative) means auto: min(NumCPU, 4). A value of 1 forces sequential parsing.
 // Results are returned in filepath.WalkDir's lexical order.
 func ParsePostsWithOptionsConcurrent(dir string, opts RenderOptions, concurrency int) ([]*Post, error) {
+	return ParsePostsWithOptionsConcurrentExclude(dir, opts, concurrency, nil)
+}
+
+// ParsePostsWithOptionsConcurrentExclude behaves like
+// ParsePostsWithOptionsConcurrent but skips the given subdirectories
+// during the walk. Multilingual sites use it to keep per-language
+// content subdirectories (e.g. _posts/zh/) out of the default
+// language's post set. Exclude dirs are matched in absolute form, so
+// they may be spelled differently from dir (relative vs absolute).
+func ParsePostsWithOptionsConcurrentExclude(dir string, opts RenderOptions, concurrency int, excludeDirs []string) ([]*Post, error) {
 	logger := log.GetDefault().With("component", "parser")
 	if dir == "" {
 		return nil, nil
@@ -265,7 +307,7 @@ func ParsePostsWithOptionsConcurrent(dir string, opts RenderOptions, concurrency
 
 	logger.Debug("scanning content directory", "dir", dir)
 
-	files, err := collectMarkdownFiles(dir)
+	files, err := collectMarkdownFilesExcluding(dir, excludeDirs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read directory %s: %w", dir, err)
 	}
@@ -297,6 +339,14 @@ func ParsePagesWithOptions(dir string, opts RenderOptions) ([]*Page, error) {
 // negative) means auto: min(NumCPU, 4). A value of 1 forces sequential parsing.
 // Results are returned in filepath.WalkDir's lexical order.
 func ParsePagesWithOptionsConcurrent(dir string, opts RenderOptions, concurrency int) ([]*Page, error) {
+	return ParsePagesWithOptionsConcurrentExclude(dir, opts, concurrency, nil)
+}
+
+// ParsePagesWithOptionsConcurrentExclude behaves like
+// ParsePagesWithOptionsConcurrent but skips the given subdirectories
+// during the walk. See ParsePostsWithOptionsConcurrentExclude for the
+// multilingual use case.
+func ParsePagesWithOptionsConcurrentExclude(dir string, opts RenderOptions, concurrency int, excludeDirs []string) ([]*Page, error) {
 	logger := log.GetDefault().With("component", "parser")
 	if dir == "" {
 		return nil, nil
@@ -308,7 +358,7 @@ func ParsePagesWithOptionsConcurrent(dir string, opts RenderOptions, concurrency
 
 	logger.Debug("scanning page directory", "dir", dir)
 
-	files, err := collectMarkdownFiles(dir)
+	files, err := collectMarkdownFilesExcluding(dir, excludeDirs)
 	if err != nil {
 		return nil, err
 	}

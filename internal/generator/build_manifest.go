@@ -291,6 +291,19 @@ func computePostCategoryHashes(post *parser.Post) postCategoryHashes {
 		publishedStr(post.Published),
 		strings.Join(post.Aliases, ","),
 	)
+	// v1.9.0: fold translation links into the list hash. Translations are
+	// the one cross-language input to a post's rendered page — a slug or
+	// title change in another language's post must re-render this one,
+	// which is why applyIncrementalSkips also compares ListHash for
+	// single post pages. Nil for monolingual sites, so existing hashes
+	// are unaffected.
+	if len(post.Translations) > 0 {
+		parts := make([]string, 0, len(post.Translations))
+		for _, link := range post.Translations {
+			parts = append(parts, joinHashParts(link.Lang, link.Name, link.Title, link.URL))
+		}
+		listKey = joinHashParts(listKey, "translations", strings.Join(parts, ","))
+	}
 	listHash := hashBytes([]byte(listKey))
 
 	feedHash := hashBytes([]byte(joinHashParts(listKey, post.ContentHTML)))
@@ -406,8 +419,10 @@ func applyIncrementalSkips(plan *generationPlan, outputDir string, current *Buil
 	}
 
 	postOutputToHash := make(map[string]string, len(previous.Posts))
+	postOutputToListHash := make(map[string]string, len(previous.Posts))
 	for _, entry := range previous.Posts {
 		postOutputToHash[entry.OutputPath] = entry.SourceHash
+		postOutputToListHash[entry.OutputPath] = entry.ListHash
 	}
 	pageOutputToHash := make(map[string]string, len(previous.Pages))
 	for _, entry := range previous.Pages {
@@ -415,8 +430,10 @@ func applyIncrementalSkips(plan *generationPlan, outputDir string, current *Buil
 	}
 
 	currentPostHash := make(map[string]string, len(current.Posts))
+	currentPostListHash := make(map[string]string, len(current.Posts))
 	for _, entry := range current.Posts {
 		currentPostHash[entry.OutputPath] = entry.SourceHash
+		currentPostListHash[entry.OutputPath] = entry.ListHash
 	}
 	currentPageHash := make(map[string]string, len(current.Pages))
 	for _, entry := range current.Pages {
@@ -439,7 +456,14 @@ func applyIncrementalSkips(plan *generationPlan, outputDir string, current *Buil
 		}
 
 		if h, hit := currentPostHash[spec.OutputPath]; hit {
-			if prev, ok := postOutputToHash[spec.OutputPath]; ok && prev == h && h != "" {
+			// Single post pages skip only when both the source bytes and
+			// the list-category semantics are unchanged. The ListHash
+			// comparison is a no-op for monolingual sites (identical
+			// source bytes imply identical parsed semantics) but catches
+			// cross-language translation-link changes (v1.9.0), which
+			// alter a post's rendered page without touching its source.
+			if prev, ok := postOutputToHash[spec.OutputPath]; ok && prev == h && h != "" &&
+				postOutputToListHash[spec.OutputPath] == currentPostListHash[spec.OutputPath] {
 				spec.SkipReason = "unchanged-source"
 			}
 			continue

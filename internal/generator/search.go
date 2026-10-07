@@ -47,6 +47,11 @@ func buildSearchDocument(post *parser.Post, cfg *config.Config, includeContent b
 	}
 	if cfg != nil {
 		doc.Author = cfg.Author
+		// Prefix the document URL with the baseURL path so per-language
+		// indexes (v1.9.0) link into their own /<lang>/ subtree. With a
+		// path-less baseURL (the common monolingual case) this is
+		// identical to post.URL.
+		doc.URL = siteURLPath(cfg.BaseURL, post.URL)
 	}
 	if len(post.Categories) > 0 {
 		doc.Category = post.Categories[0]
