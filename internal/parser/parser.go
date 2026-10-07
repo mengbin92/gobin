@@ -147,8 +147,12 @@ func normalizePostFrontMatter(raw postFrontMatter, path string, markdownContent 
 	}
 	if post.Slug == "" {
 		post.Slug = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
-		if len(post.Slug) > 11 && post.Slug[10] == '-' {
-			post.Slug = post.Slug[11:]
+		// Strip a leading YYYY-MM-DD- date prefix. Gate on the date pattern
+		// itself rather than "byte 10 is a hyphen" so an unrelated filename
+		// like "long-title-x.md" (hyphen at index 10, no date) keeps its
+		// full name.
+		if m := filenameDatePattern.FindString(post.Slug); m != "" {
+			post.Slug = strings.TrimPrefix(post.Slug, m)
 		}
 	}
 	post.URL = "/" + post.Slug + "/"

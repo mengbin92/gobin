@@ -134,6 +134,45 @@ Content here.`
 	}
 }
 
+func TestParsePost_SlugDatePrefixHandling(t *testing.T) {
+	tmpDir := t.TempDir()
+	postContent := `---
+title: "Slug Test"
+draft: false
+---
+
+Content here.`
+
+	cases := []struct {
+		filename string
+		wantSlug string
+	}{
+		// A real date prefix is still stripped.
+		{"2023-12-26-filename-date.md", "filename-date"},
+		// A hyphen at index 10 without a leading YYYY-MM-DD- date must
+		// NOT be treated as a date prefix: the whole filename is the slug.
+		{"hello-v1.2-release.md", "hello-v1.2-release"},
+		{"abcdefghij-x.md", "abcdefghij-x"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.filename, func(t *testing.T) {
+			postPath := filepath.Join(tmpDir, tc.filename)
+			if err := os.WriteFile(postPath, []byte(postContent), 0644); err != nil {
+				t.Fatalf("Failed to create test file: %v", err)
+			}
+
+			post, err := ParsePost(postPath)
+			if err != nil {
+				t.Fatalf("ParsePost failed: %v", err)
+			}
+			if post.Slug != tc.wantSlug {
+				t.Fatalf("Expected slug %q, got %q", tc.wantSlug, post.Slug)
+			}
+		})
+	}
+}
+
 // TestParsePostWithCustomSlug tests that custom slug in frontmatter is used
 func TestParsePostWithCustomSlug(t *testing.T) {
 	tmpDir := t.TempDir()
