@@ -425,3 +425,86 @@ func TestImagePipeline_PerSourceFailureDoesNotAbort(t *testing.T) {
 		t.Errorf("cover variant missing after partial failure: %v", err)
 	}
 }
+
+// TestImagePipeline_ExternalRefsAreSkippedNotErrors pins the behavior that
+// remote images (http://, https://, //cdn) are skipped silently instead of
+// being counted as transform errors.
+func TestImagePipeline_ExternalRefsAreSkippedNotErrors(t *testing.T) {
+	root := t.TempDir()
+	makeImagePipelineSite(t, root)
+	outputDir := filepath.Join(root, "public")
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	cfg := imagePipelineTestConfig(root, true)
+
+	posts := []*parser.Post{{
+		FilePath: filepath.Join(root, "posts", "2026-03-20-ext.md"),
+		Content: `![remote](https://cdn.example.com/a.jpg)
+
+![protocol-relative](//cdn.example.com/b.jpg)
+
+![inline](/img/inline.jpg)`,
+	}}
+
+	stats, err := runImagePipeline(posts, nil, cfg, outputDir)
+	if err != nil {
+		t.Fatalf("runImagePipeline: %v", err)
+	}
+	if stats.Errors != 0 {
+		t.Errorf("Errors = %d, want 0 (external refs must be skipped, not counted as errors)", stats.Errors)
+	}
+	if stats.Sources != 1 {
+		t.Errorf("Sources = %d, want 1 (only the local image)", stats.Sources)
+	}
+}
+
+// TestImagePipeline_ResolvesExtraStaticDirs verifies that image refs resolve
+// against additional staticDirs entries (v1.8.2), where each extra dir keeps
+// its base name as the URL prefix: /img/cover.jpg -> <extraDir>/cover.jpg
+// when the extra dir's base name is "img".
+func TestImagePipeline_ResolvesExtraStaticDirs(t *testing.T) {
+	root := t.TempDir()
+	makeImagePipelineSite(t, root)
+	// Extra static dir "img" holding a source referenced as /img/extra.jpg.
+	extraDir := filepath.Join(root, "img")
+	writeTestJpeg(t, filepath.Join(extraDir, "extra.jpg"), 1000, 600)
+
+	outputDir := filepath.Join(root, "public")
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	cfg := imagePipelineTestConfig(root, true)
+	cfg.StaticDirs = []string{filepath.Join(root, "assets"), extraDir}
+
+	posts := []*parser.Post{{
+		FilePath: filepath.Join(root, "posts", "2026-03-20-extra.md"),
+		Content:  `![extra](/img/extra.jpg)`,
+	}}
+
+	stats, err := runImagePipeline(posts, nil, cfg, outputDir)
+	if err != nil {
+		t.Fatalf("runImagePipeline: %v", err)
+	}
+	if stats.Errors != 0 {
+		t.Errorf("Errors = %d, want 0 (ref under extra staticDirs entry should resolve)", stats.Errors)
+	}
+	if stats.Sources != 1 {
+		t.Errorf("Sources = %d, want 1", stats.Sources)
+	}
+	if _, err := os.Stat(filepath.Join(outputDir, "img", "extra-480w.jpg")); err != nil {
+		t.Errorf("variant for extra-staticDirs image missing: %v", err)
+	}
+}
+
+// TestResolveSourcePath_RejectsTraversal confirms refs escaping the static
+// roots are still rejected after the multi-staticDirs change.
+func TestResolveSourcePath_RejectsTraversal(t *testing.T) {
+	root := t.TempDir()
+	makeImagePipelineSite(t, root)
+	cfg := imagePipelineTestConfig(root, true)
+
+	if _, err := resolveSourcePath("/../../etc/passwd", cfg); err == nil {
+		t.Fatal("expected traversal ref to be rejected")
+	}
+}

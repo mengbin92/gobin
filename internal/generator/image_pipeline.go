@@ -89,6 +89,11 @@ func runImagePipeline(posts []*parser.Post, standalonePages []*parser.Page, cfg 
 	manifest := make(imageManifest, len(refs))
 
 	for _, ref := range refs {
+		// External URLs are not local files: skip them silently instead of
+		// counting them as transform errors.
+		if isExternalImageRef(ref.Ref) {
+			continue
+		}
 		srcPath, err := resolveSourcePath(ref.Ref, cfg)
 		if err != nil {
 			stats.Errors++
@@ -253,40 +258,102 @@ func collectAllImageRefs(posts []*parser.Post, pages []*parser.Page) []parser.Im
 	return out
 }
 
-// resolveSourcePath turns a ref string (e.g. "/img/cover.jpg" or
-// "../assets/img/cover.jpg" relative to a post) into an absolute path on
-// disk. It is conservative: absolute URLs are rejected, path-traversal
-// attempts outside StaticDir are rejected, and unresolvable paths
-// return an error so the caller can log and skip.
+// isExternalImageRef reports whether ref points at a remote resource
+// (http://, https://, or protocol-relative //host). External images are
+// skipped by the pipeline — they are not local files and must not count
+// as transform errors.
+func isExternalImageRef(ref string) bool {
+	r := strings.TrimSpace(ref)
+	return strings.HasPrefix(r, "http://") || strings.HasPrefix(r, "https://") || strings.HasPrefix(r, "//")
+}
+
+// resolveSourcePath turns a ref string (e.g. "/img/cover.jpg") into an
+// absolute path on disk. It is conservative: absolute URLs are rejected,
+// path-traversal attempts outside the static roots are rejected, and
+// unresolvable paths return an error so the caller can log and skip.
+//
+// The search mirrors collectStaticAssetFiles' output mapping so refs
+// resolve against the same roots the assets are published from: the
+// primary static dir ships to the site root ("/css/site.css" ->
+// <staticDir>/css/site.css), while each additional staticDirs entry keeps
+// its directory name as URL prefix ("/img/cover.jpg" -> <dir>/cover.jpg
+// when dir's base name is "img").
 func resolveSourcePath(ref string, cfg *config.Config) (string, error) {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
 		return "", fmt.Errorf("empty image ref")
 	}
 	// Reject absolute URLs — we only transform local files.
-	if strings.HasPrefix(ref, "http://") || strings.HasPrefix(ref, "https://") || strings.HasPrefix(ref, "//") {
+	if isExternalImageRef(ref) {
 		return "", fmt.Errorf("external url: %s", ref)
 	}
-	// Treat leading-slash refs as site-root paths under StaticDir.
+
 	trimmed := strings.TrimPrefix(ref, "/")
-	candidate := filepath.Join(cfg.StaticDir, trimmed)
-	abs, err := filepath.Abs(candidate)
-	if err != nil {
-		return "", err
+
+	staticDirs := cfg.StaticDirs
+	if len(staticDirs) == 0 {
+		staticDirs = []string{cfg.StaticDir}
 	}
-	// Reject path traversal: the resolved path must live under StaticDir.
-	staticAbs, err := filepath.Abs(cfg.StaticDir)
-	if err != nil {
-		return "", err
+
+	type candidate struct {
+		root string
+		rel  string
 	}
-	rel, err := filepath.Rel(staticAbs, abs)
-	if err != nil || strings.HasPrefix(rel, "..") {
-		return "", fmt.Errorf("ref resolves outside %s: %s", cfg.StaticDir, ref)
+	candidates := make([]candidate, 0, len(staticDirs))
+	for i, dir := range staticDirs {
+		if strings.TrimSpace(dir) == "" {
+			continue
+		}
+		if i == 0 {
+			// Primary static dir ships its contents to the site root.
+			candidates = append(candidates, candidate{root: dir, rel: trimmed})
+			continue
+		}
+		// Extra static dirs keep their base name as the URL prefix.
+		base := filepath.Base(filepath.Clean(dir))
+		prefix := base + "/"
+		if strings.HasPrefix(trimmed, prefix) {
+			candidates = append(candidates, candidate{root: dir, rel: strings.TrimPrefix(trimmed, prefix)})
+		}
 	}
-	if _, err := os.Stat(abs); err != nil {
-		return "", err
+
+	var firstErr error
+	for _, c := range candidates {
+		abs, err := filepath.Abs(filepath.Join(c.root, c.rel))
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		// Reject path traversal: the resolved path must live under root.
+		rootAbs, err := filepath.Abs(c.root)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		rel, err := filepath.Rel(rootAbs, abs)
+		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("ref resolves outside %s: %s", c.root, ref)
+			}
+			continue
+		}
+		if _, err := os.Stat(abs); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		return abs, nil
 	}
-	return abs, nil
+
+	if firstErr != nil {
+		return "", firstErr
+	}
+	return "", fmt.Errorf("image ref not found under any static dir: %s", ref)
 }
 
 // variantOutputPath composes the final output path for a single variant.
