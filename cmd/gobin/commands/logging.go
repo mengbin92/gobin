@@ -18,8 +18,13 @@ var (
 
 // AddGlobalFlags registers the persistent logging flags on the root command.
 func AddGlobalFlags(rootCmd *cobra.Command) {
+	// The --log-format default is intentionally empty: overlayFlagsOnValues
+	// only overrides when the value is non-empty, so an unset flag leaves
+	// GOBIN_LOG_FORMAT and the config `logging:` section effective (the
+	// documented flag > env > config > default priority). An empty value
+	// still resolves to the text handler in log.NewFromValues.
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable debug logging")
-	rootCmd.PersistentFlags().StringVar(&logFormat, "log-format", "text", "Log format: text or json")
+	rootCmd.PersistentFlags().StringVar(&logFormat, "log-format", "", "Log format: text or json (default text)")
 	rootCmd.PersistentFlags().StringVar(&logFile, "log-file", "", "Write logs to file (default: stderr)")
 }
 

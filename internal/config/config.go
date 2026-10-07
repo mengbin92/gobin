@@ -577,12 +577,11 @@ func LoadIfPresent() (*Config, error) {
 	if err == nil {
 		return cfg, nil
 	}
-	if _, statErr := os.Stat("config.yaml"); statErr == nil {
-		// exists but failed to parse -> surface the real error
-		return nil, err
-	}
-	if _, statErr := os.Stat("config.yml"); statErr == nil {
-		return nil, err
+	for _, path := range []string{"config.yaml", "config.yml", "_config.yml", "_config.yaml"} {
+		if _, statErr := os.Stat(path); statErr == nil {
+			// a config file exists but failed to load -> surface the real error
+			return nil, err
+		}
 	}
 	return nil, nil
 }

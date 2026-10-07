@@ -62,6 +62,12 @@ func (b *liveReloadBroker) serveEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// SSE connections stay open for the life of the dev server, so the
+	// server's WriteTimeout (10s) must not apply: with the deadline left in
+	// place every live-reload connection would die at the 10s mark and the
+	// browser would churn through EventSource reconnects.
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Time{})
+
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")

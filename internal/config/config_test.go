@@ -298,6 +298,40 @@ func TestLoadDefault_NoConfigFound(t *testing.T) {
 	}
 }
 
+func TestLoadIfPresent_NoConfigReturnsNilNil(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldWd, _ := os.Getwd()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Failed to change dir: %v", err)
+	}
+	defer os.Chdir(oldWd)
+
+	cfg, err := LoadIfPresent()
+	if err != nil || cfg != nil {
+		t.Fatalf("Expected (nil, nil) with no config file, got cfg=%v err=%v", cfg, err)
+	}
+}
+
+func TestLoadIfPresent_BrokenJekyllConfigSurfacesError(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldWd, _ := os.Getwd()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Failed to change dir: %v", err)
+	}
+	defer os.Chdir(oldWd)
+
+	// A broken _config.yml (no config.yaml/config.yml present) must surface
+	// its parse error instead of being swallowed as "no config".
+	if err := os.WriteFile("_config.yml", []byte("title: [unclosed\n"), 0644); err != nil {
+		t.Fatalf("Failed to write _config.yml: %v", err)
+	}
+
+	cfg, err := LoadIfPresent()
+	if err == nil {
+		t.Fatalf("Expected parse error for broken _config.yml, got cfg=%v", cfg)
+	}
+}
+
 func TestNormalize_AppliesDefaultsToNilConfig(t *testing.T) {
 	cfg := Normalize(nil)
 

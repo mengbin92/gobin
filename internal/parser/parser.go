@@ -12,6 +12,7 @@ import (
 	"github.com/mengbin92/gobin/internal/shortcode"
 	"github.com/mengbin92/gobin/internal/textutil"
 	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/extension"
 	goldmarkhtml "github.com/yuin/goldmark/renderer/html"
 	"gopkg.in/yaml.v3"
 )
@@ -146,8 +147,12 @@ func normalizePostFrontMatter(raw postFrontMatter, path string, markdownContent 
 	}
 	if post.Slug == "" {
 		post.Slug = strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
-		if len(post.Slug) > 11 && post.Slug[10] == '-' {
-			post.Slug = post.Slug[11:]
+		// Strip a leading YYYY-MM-DD- date prefix. Gate on the date pattern
+		// itself rather than "byte 10 is a hyphen" so an unrelated filename
+		// like "long-title-x.md" (hyphen at index 10, no date) keeps its
+		// full name.
+		if m := filenameDatePattern.FindString(post.Slug); m != "" {
+			post.Slug = strings.TrimPrefix(post.Slug, m)
 		}
 	}
 	post.URL = "/" + post.Slug + "/"
@@ -405,7 +410,12 @@ func renderMarkdown(markdownContent string) (string, error) {
 }
 
 func renderMarkdownWithOptions(markdownContent string, opts RenderOptions) (string, error) {
-	options := []goldmark.Option{}
+	options := []goldmark.Option{
+		// GFM extensions: tables, strikethrough, autolinks, task lists.
+		// Without these goldmark renders strict CommonMark and pipe tables
+		// fall through as plain paragraphs.
+		goldmark.WithExtensions(extension.GFM),
+	}
 	if opts.AllowUnsafeHTML {
 		options = append(options, goldmark.WithRendererOptions(goldmarkhtml.WithUnsafe()))
 	}

@@ -494,24 +494,37 @@ func minifyHTMLContent(content string) string {
 	var out bytes.Buffer
 	var text bytes.Buffer
 	preserveTag := ""
+	// prevInline records whether the element boundary preceding the
+	// current text chunk is inline-level. Boundary whitespace next to
+	// block-level elements is dropped (browsers ignore it); boundary
+	// whitespace next to inline elements is collapsed to one space
+	// because it is rendering-significant ("foo <b>bar</b>" must not
+	// become "foo<b>bar</b>", which renders as "foobar").
+	prevInline := false
 
-	flushText := func() {
+	flushText := func(nextInline bool) {
 		if text.Len() == 0 {
 			return
 		}
 		if preserveTag != "" {
 			out.Write(text.Bytes())
 		} else {
-			out.WriteString(collapseHTMLWhitespace(text.String()))
+			out.WriteString(collapseHTMLWhitespace(text.String(), prevInline, nextInline))
 		}
 		text.Reset()
 	}
 
 	for i := 0; i < len(content); {
 		if strings.HasPrefix(content[i:], "<!--") {
-			flushText()
+			// A dropped comment behaves like an inline boundary: keeping
+			// (collapsed) boundary spaces around it is rendering-safe.
+			flushText(true)
+			prevInline = true
 			end := strings.Index(content[i+4:], "-->")
 			if end < 0 {
+				// Unterminated comment: keep the remainder verbatim
+				// instead of dropping the rest of the document.
+				out.WriteString(content[i:])
 				break
 			}
 			i += 4 + end + 3
@@ -524,15 +537,18 @@ func minifyHTMLContent(content string) string {
 			continue
 		}
 
-		flushText()
 		tagEnd := strings.IndexByte(content[i:], '>')
 		if tagEnd < 0 {
+			flushText(true)
 			out.WriteString(content[i:])
 			break
 		}
 
 		tag := content[i : i+tagEnd+1]
 		tagName, closing, selfClosing := parseHTMLTag(tag)
+		inline := !isHTMLBlockTag(tagName)
+		flushText(inline)
+		prevInline = inline
 		if tagName != "" && isHTMLWhitespaceSensitiveTag(tagName) {
 			if !closing && !selfClosing {
 				preserveTag = tagName
@@ -545,16 +561,59 @@ func minifyHTMLContent(content string) string {
 		i += tagEnd + 1
 	}
 
-	flushText()
+	flushText(false)
 	return strings.TrimSpace(out.String())
 }
 
-func collapseHTMLWhitespace(s string) string {
+// collapseHTMLWhitespace folds a text chunk's whitespace runs into single
+// spaces. Boundary whitespace is preserved as one leading and/or trailing
+// space only when the neighboring element on that side is inline-level:
+// whitespace between inline elements is significant in HTML, while
+// whitespace adjacent to block-level elements is dropped by the browser
+// anyway.
+func collapseHTMLWhitespace(s string, leftInline, rightInline bool) string {
 	fields := strings.Fields(s)
 	if len(fields) == 0 {
+		// A whitespace-only chunk sits between two tags; keep one space
+		// only when both neighbors are inline siblings.
+		if s != "" && leftInline && rightInline {
+			return " "
+		}
 		return ""
 	}
-	return strings.Join(fields, " ")
+
+	out := strings.Join(fields, " ")
+	if leftInline && isHTMLSpace(s[0]) {
+		out = " " + out
+	}
+	if rightInline && isHTMLSpace(s[len(s)-1]) {
+		out += " "
+	}
+	return out
+}
+
+func isHTMLSpace(c byte) bool {
+	return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f'
+}
+
+// isHTMLBlockTag reports whether tag is a known block-level (or otherwise
+// whitespace-boundary-insignificant) element. Unknown elements — including
+// custom elements, which are inline by default — are treated as inline so
+// their boundary whitespace is preserved.
+func isHTMLBlockTag(tag string) bool {
+	switch tag {
+	case "html", "head", "body", "title", "base",
+		"header", "footer", "main", "nav", "section", "article", "aside",
+		"div", "p", "h1", "h2", "h3", "h4", "h5", "h6",
+		"ul", "ol", "li", "dl", "dt", "dd",
+		"table", "thead", "tbody", "tfoot", "tr", "td", "th", "caption",
+		"colgroup", "col",
+		"form", "fieldset", "legend", "figure", "figcaption", "blockquote",
+		"hr", "pre", "address", "noscript", "template":
+		return true
+	default:
+		return false
+	}
 }
 
 func parseHTMLTag(tag string) (name string, closing bool, selfClosing bool) {
