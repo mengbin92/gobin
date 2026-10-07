@@ -1,5 +1,23 @@
 # Gobin v1.8 更新日志
 
+## v1.8.5 - 2026-10-07
+
+v1.8.5 是全量代码审查后的缺陷修复版本，修复 8 个 bug：slug 日期前缀误截断（`hello-v1.2-release.md` 被截成 `release`）、`_layouts` 探测解析补齐 funcMap 避免合法布局被误跳过、LiveReload SSE 连接被 10 秒写超时掐断、`--log-format` 默认值覆盖 config/env、`_config.yml` 解析错误被 `LoadIfPresent` 吞掉、HTML 压缩丢失内联元素边界空格与未闭合注释余文、图片管线不支持多 `staticDirs` 且把外部图片 URL 误计为错误。详见 [v1.8.5 发布说明](./RELEASE-NOTES-v1.8.5.md)。
+
+---
+
+## v1.8.4 - 2026-08-26
+
+v1.8.4 修复 Jekyll `_layouts` 兼容层在文件解析失败时残留空模板、导致整站构建失败的问题：改为先在临时模板中解析，成功后才经 `AddParseTree` 注册进主模板集。详见 [v1.8.4 发布说明](./RELEASE-NOTES-v1.8.4.md)。
+
+---
+
+## v1.8.3 - 2026-08-26
+
+v1.8.3 修复 Markdown 表格无法渲染的问题：goldmark 启用 GFM 扩展（表格、删除线、自动链接、任务列表）。详见 [v1.8.3 发布说明](./RELEASE-NOTES-v1.8.3.md)。
+
+---
+
 ## v1.8.2 - 2026-08-11
 
 v1.8.2 新增多静态资源目录 `staticDirs` 支持，把根目录 `img/`、`images/` 等一并复制进 `publishDir`，解决从 Jekyll 迁移的站点图片丢失问题。额外目录保留目录名输出（`img/a.png` → `public/img/a.png`），第一项摊平到站点根。`serve --watch` 监听所有 `staticDirs`。未配置时行为与 v1.8.1 一致。
