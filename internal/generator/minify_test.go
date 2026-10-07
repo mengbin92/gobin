@@ -71,6 +71,41 @@ const pattern = /a b/;
 	}
 }
 
+func TestMinifyHTMLContent_PreservesInlineBoundarySpaces(t *testing.T) {
+	// Whitespace between inline elements is rendering-significant:
+	// "Hello world again" must not collapse into "Helloworldagain".
+	input := `<p>Hello <a href="/x">world</a> again</p>`
+	got := minifyContent(input, ".html")
+	want := `<p>Hello <a href="/x">world</a> again</p>`
+	if got != want {
+		t.Fatalf("expected inline boundary spaces preserved, got %q", got)
+	}
+
+	// Bold/italic siblings separated only by whitespace keep one space.
+	input = `<b>bold</b> <i>italic</i>`
+	if got := minifyContent(input, ".html"); got != input {
+		t.Fatalf("expected space between inline siblings preserved, got %q", got)
+	}
+}
+
+func TestMinifyHTMLContent_DropsBlockBoundaryWhitespace(t *testing.T) {
+	input := "<p>Hello</p>\n  <p>World</p>"
+	got := minifyContent(input, ".html")
+	want := "<p>Hello</p><p>World</p>"
+	if got != want {
+		t.Fatalf("expected block boundary whitespace dropped, got %q", got)
+	}
+}
+
+func TestMinifyHTMLContent_UnterminatedCommentKeepsRemainder(t *testing.T) {
+	// An unterminated comment must not swallow the rest of the document.
+	input := `<p>before</p><!-- oops<p>after</p>`
+	got := minifyContent(input, ".html")
+	if !strings.Contains(got, "<p>before</p>") || !strings.Contains(got, "<p>after</p>") {
+		t.Fatalf("expected document remainder preserved, got %q", got)
+	}
+}
+
 func TestMinifyOutput_PreservesFileMode(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := filepath.Join(tmpDir, "index.html")
