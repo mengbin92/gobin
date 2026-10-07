@@ -2084,7 +2084,10 @@ func normalizeGoldenContent(relPath, content string) string {
 		return strings.TrimRight(s, "\n") + "\n"
 	}
 
-	switch relPath {
+	// Match by basename so per-language artifacts under <lang>/ (e.g.
+	// zh/index.xml in the multilingual golden) get the same volatile-field
+	// masking as their root counterparts.
+	switch filepath.Base(relPath) {
 	case "index.atom":
 		re := regexp.MustCompile(`(?m)^  <updated>.*</updated>$`)
 		return normalizeEOF(re.ReplaceAllString(content, "  <updated><BUILD_RFC3339></updated>"))
@@ -2113,6 +2116,26 @@ func assertGoldenSiteOutput(t *testing.T, repoRoot, outputDir, goldenName string
 	}
 
 	goldenDir := filepath.Join(repoRoot, "internal", "generator", "testdata", "golden", goldenName)
+
+	// Golden fixture update mode: GOBIN_GOLDEN_UPDATE=1 (or =<goldenName>)
+	// snapshots the actual output as the new fixture. Off by default; used
+	// when intentionally regenerating fixtures after a behavior change.
+	if update := os.Getenv("GOBIN_GOLDEN_UPDATE"); update == "1" || update == goldenName {
+		for _, relPath := range expectedFiles {
+			data, err := os.ReadFile(filepath.Join(outputDir, relPath))
+			if err != nil {
+				t.Fatalf("update mode: read generated %s: %v", relPath, err)
+			}
+			dst := filepath.Join(goldenDir, relPath)
+			if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+				t.Fatalf("update mode: mkdir for %s: %v", relPath, err)
+			}
+			if err := os.WriteFile(dst, data, 0644); err != nil {
+				t.Fatalf("update mode: write golden %s: %v", relPath, err)
+			}
+		}
+	}
+
 	for _, relPath := range expectedFiles {
 		gotBytes, err := os.ReadFile(filepath.Join(outputDir, relPath))
 		if err != nil {

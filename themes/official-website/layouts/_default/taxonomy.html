@@ -17,7 +17,7 @@
             {{ if .Terms }}
             <div class="tags-list">
                 {{ range .Terms }}
-                <a href="{{ .URL }}" class="tag-link">
+                <a href="{{ url .URL }}" class="tag-link">
                     {{ .Name }}
                     <span class="separator">/</span>
                     {{ .Count }}
@@ -39,7 +39,7 @@
             <nav class="breadcrumb">
                 <a href="{{ url "/" }}">Home</a>
                 <span class="separator">/</span>
-                <a href="{{ .IndexURL }}">{{ .Kind }}</a>
+                <a href="{{ url .IndexURL }}">{{ .Kind }}</a>
                 <span class="separator">/</span>
                 <span>{{ .Term }}</span>
             </nav>
@@ -54,7 +54,7 @@
             {{ if .Posts }}
             {{ range .Posts }}
             <article class="page-footer">
-                <h2><a href="{{ .URL }}">{{ .Title }}</a></h2>
+                <h2><a href="{{ url .URL }}">{{ .Title }}</a></h2>
                 <p>{{ .Date.Format "2006-01-02" }}</p>
                 {{ if .SummaryHTML }}
                 {{ safeHTML .SummaryHTML }}

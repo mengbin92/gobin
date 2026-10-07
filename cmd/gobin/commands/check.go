@@ -9,7 +9,6 @@ import (
 	"github.com/mengbin92/gobin/internal/config"
 	"github.com/mengbin92/gobin/internal/generator"
 	"github.com/mengbin92/gobin/internal/log"
-	"github.com/mengbin92/gobin/internal/parser"
 	"github.com/spf13/cobra"
 )
 
@@ -67,23 +66,29 @@ func runCheck(stdout, stderr io.Writer, includeDrafts, assetsOnly bool) error {
 		fmt.Fprintf(stderr, "  [FAIL] shortcodes: %v\n", err)
 		return errors.New("check failed")
 	}
-	posts, err := parser.ParsePostsWithOptionsConcurrent(cfg.ContentDir, renderOpts, 0)
+	posts, pages, langPosts, langPages, err := parseSiteContent(cfg, renderOpts, 0)
 	if err != nil {
-		log.Error("check failed: posts", "error", err)
-		fmt.Fprintf(stderr, "  [FAIL] posts: %v\n", err)
+		log.Error("check failed: content", "error", err)
+		fmt.Fprintf(stderr, "  [FAIL] content: %v\n", err)
 		return errors.New("check failed")
 	}
 	fmt.Fprintf(stdout, "  [OK]   parsed %d post(s) from %s\n", len(posts), cfg.ContentDir)
-
-	pages, err := parser.ParsePagesWithOptionsConcurrent(cfg.PageDir, renderOpts, 0)
-	if err != nil {
-		log.Error("check failed: pages", "error", err)
-		fmt.Fprintf(stderr, "  [FAIL] pages: %v\n", err)
-		return errors.New("check failed")
-	}
 	fmt.Fprintf(stdout, "  [OK]   parsed %d page(s) from %s\n", len(pages), cfg.PageDir)
+	for _, lang := range cfg.LanguageNames() {
+		resolved := cfg.ResolveLanguage(lang)
+		fmt.Fprintf(stdout, "  [OK]   language %s: %d post(s) from %s, %d page(s) from %s\n",
+			lang, len(langPosts[lang]), resolved.ContentDir, len(langPages[lang]), resolved.PageDir)
+	}
 
-	report, err := generator.DryRun(posts, pages, cfg, includeDrafts)
+	var report *generator.DryRunReport
+	if cfg.IsMultilingual() {
+		report, err = generator.DryRunMultilingual(
+			generator.LanguageContent{Posts: posts, Pages: pages},
+			languageContentMap(langPosts, langPages),
+			cfg, includeDrafts)
+	} else {
+		report, err = generator.DryRun(posts, pages, cfg, includeDrafts)
+	}
 	if err != nil {
 		log.Error("check failed: templates / plan", "error", err)
 		fmt.Fprintf(stderr, "  [FAIL] templates / plan: %v\n", err)

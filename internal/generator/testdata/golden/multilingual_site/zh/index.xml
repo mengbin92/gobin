@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>金色博客</title>
+    <link>https://example.com/zh</link>
+    <description>Golden site description.</description>
+    <language>zh-CN</language>
+    <pubDate>Wed, 07 Oct 2026 12:51:34 +0000</pubDate>
+    <lastBuildDate>Wed, 07 Oct 2026 12:51:34 +0000</lastBuildDate>
+    <generator>gobin</generator>
+    <atom:link href="https://example.com/zh/index.xml" rel="self" type="application/rss+xml"></atom:link>
+    <item>
+      <title>阿尔法</title>
+      <link>https://example.com/zh/2026/03/20/alpha-post-zh/</link>
+      <description>阿尔法摘要。</description>
+      <author>Golden Author</author>
+      <category>Tech</category>
+      <pubDate>Fri, 20 Mar 2026 10:00:00 +0000</pubDate>
+      <guid isPermaLink="true">https://example.com/zh/2026/03/20/alpha-post-zh/</guid>
+      <content:encoded>&lt;p&gt;阿尔法正文。&lt;/p&gt;</content:encoded>
+    </item>
+  </channel>
+</rss>

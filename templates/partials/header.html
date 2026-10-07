@@ -1,12 +1,12 @@
 {{ define "header" }}
 <header class="site-header">
     <nav class="site-nav">
-        <a href="/" class="site-title">{{ .Site.Title }}</a>
+        <a href="{{ url "/" }}" class="site-title">{{ .Site.Title }}</a>
         <ul class="nav-links">
-            <li><a href="/">Home</a></li>
-            <li><a href="/categories/">Categories</a></li>
-            <li><a href="/tags/">Tags</a></li>
-            <li><a href="/about/">About</a></li>
+            <li><a href="{{ url "/" }}">Home</a></li>
+            <li><a href="{{ url "/categories/" }}">Categories</a></li>
+            <li><a href="{{ url "/tags/" }}">Tags</a></li>
+            <li><a href="{{ url "/about/" }}">About</a></li>
         </ul>
     </nav>
 </header>
@@ -15,12 +15,12 @@
 {{ define "headerNested" }}
 <header class="site-header">
     <nav class="site-nav">
-        <a href="/" class="site-title">{{ .Site.Title }}</a>
+        <a href="{{ url "/" }}" class="site-title">{{ .Site.Title }}</a>
         <ul class="nav-links">
-            <li><a href="/">Home</a></li>
-            <li><a href="/categories/">Categories</a></li>
-            <li><a href="/tags/">Tags</a></li>
-            <li><a href="/about/">About</a></li>
+            <li><a href="{{ url "/" }}">Home</a></li>
+            <li><a href="{{ url "/categories/" }}">Categories</a></li>
+            <li><a href="{{ url "/tags/" }}">Tags</a></li>
+            <li><a href="{{ url "/about/" }}">About</a></li>
         </ul>
     </nav>
 </header>

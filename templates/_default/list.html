@@ -6,14 +6,14 @@
     <article class="post-item">
         <header class="post-header">
             <h2 class="post-title">
-                <a href="{{ .URL }}">{{ .Title }}</a>
+                <a href="{{ url .URL }}">{{ .Title }}</a>
             </h2>
             <div class="post-meta">
                 <time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "2006-01-02" }}</time>
                 {{ if .Tags }}
                 <span class="post-tags">
                     {{ range .Tags }}
-                    <a href="/tags/{{ . | urlize }}/" class="tag">#{{ . }}</a>
+                    <a href="{{ url (printf "/tags/%s/" (urlize .)) }}" class="tag">#{{ . }}</a>
                     {{ end }}
                 </span>
                 {{ end }}
@@ -27,7 +27,7 @@
             {{ end }}
         </div>
         <footer class="post-footer">
-            <a href="{{ .URL }}" class="read-more">Read more →</a>
+            <a href="{{ url .URL }}" class="read-more">Read more →</a>
         </footer>
     </article>
     {{ else }}
@@ -42,14 +42,14 @@
         <div class="pagination-links">
             {{ if and (gt .Pagination.PrevPage 0) (not .Pagination.IsFirstPage) }}
                 {{ if eq .Pagination.PrevPage 1 }}
-                <a href="/" class="pagination-prev">← Newer</a>
+                <a href="{{ url "/" }}" class="pagination-prev">← Newer</a>
                 {{ else }}
-                <a href="/{{ $.Site.PaginatePath }}/{{ .Pagination.PrevPage }}/" class="pagination-prev">← Newer</a>
+                <a href="{{ url (printf "/%s/%d/" $.Site.PaginatePath .Pagination.PrevPage) }}" class="pagination-prev">← Newer</a>
                 {{ end }}
             {{ end }}
 
             {{ if and (gt .Pagination.NextPage 0) (not .Pagination.IsLastPage) }}
-            <a href="/{{ $.Site.PaginatePath }}/{{ .Pagination.NextPage }}/" class="pagination-next">Older →</a>
+            <a href="{{ url (printf "/%s/%d/" $.Site.PaginatePath .Pagination.NextPage) }}" class="pagination-next">Older →</a>
             {{ end }}
         </div>
     </nav>
