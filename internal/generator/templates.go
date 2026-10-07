@@ -153,7 +153,7 @@ func loadTemplates(cfg *config.Config) (*template.Template, error) {
 	// (file name without extension), so a post with `layout: post`
 	// resolves to the "_layouts/post.html" template without requiring
 	// a {{ define }} block.
-	tmpl, err = registerLayoutsAndIncludes(tmpl, cfg)
+	tmpl, err = registerLayoutsAndIncludes(tmpl, cfg, funcMap)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse layouts/includes: %w", err)
 	}
@@ -316,7 +316,14 @@ func hasAbsoluteBaseURL(base string) bool {
 // `{{ template "X" . }}` work. If a basename collides with an existing
 // template name, the existing template wins (ParseGlob/Parse returns an
 // error on duplicate, so we skip re-registering names already present).
-func registerLayoutsAndIncludes(tmpl *template.Template, cfg *config.Config) (*template.Template, error) {
+//
+// Files that fail to parse (typically unmigrated Jekyll/Liquid syntax)
+// are skipped WITHOUT registering the name: each candidate is probe-parsed
+// against a throwaway template first, so a failed file never leaves an
+// empty definition behind. That keeps the layout -> singlePage/pagePage
+// fallback in resolveTemplateName working instead of silently rendering
+// blank pages.
+func registerLayoutsAndIncludes(tmpl *template.Template, cfg *config.Config, funcMap template.FuncMap) (*template.Template, error) {
 	logger := log.GetDefault().With("component", "templates")
 	dirs := []string{"_layouts", "_includes"}
 	for _, dir := range dirs {
@@ -342,13 +349,17 @@ func registerLayoutsAndIncludes(tmpl *template.Template, cfg *config.Config) (*t
 			if err != nil {
 				return nil, err
 			}
-			// Parse into a scratch template first. Parsing directly into
-			// tmpl via tmpl.New(name) would leave an empty (incomplete)
-			// template registered under `name` when the parse fails, so a
-			// later Lookup(name) succeeds and rendering dies with
+			// Probe-parse into a scratch template carrying the same
+			// funcMap as the main set. Parsing directly into tmpl via
+			// tmpl.New(name) would leave an empty (incomplete) template
+			// registered under `name` when the parse fails, so a later
+			// Lookup(name) succeeds and rendering dies with
 			// "incomplete template" instead of falling back to the next
-			// layout candidate (e.g. "singlePage").
-			scratch, err := template.New(name).Parse(string(data))
+			// layout candidate (e.g. "singlePage"). The scratch parse
+			// must see the funcMap, otherwise valid layouts that use
+			// helpers like render/safeHTML/dateFormat would be skipped
+			// as false parse errors.
+			probe, err := template.New(name).Funcs(funcMap).Parse(string(data))
 			if err != nil {
 				// Gracefully skip files that fail to parse. This typically
 				// means the file still contains Jekyll/Liquid syntax
@@ -362,7 +373,7 @@ func registerLayoutsAndIncludes(tmpl *template.Template, cfg *config.Config) (*t
 			}
 			// Graft every definition (the file body under its basename,
 			// plus any {{ define "X" }} blocks under X) into tmpl.
-			for _, t := range scratch.Templates() {
+			for _, t := range probe.Templates() {
 				tn := t.Name()
 				if tn == "" || t.Tree == nil || tmpl.Lookup(tn) != nil {
 					continue

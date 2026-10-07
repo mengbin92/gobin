@@ -223,6 +223,37 @@ func TestIncludes_RenderedInLayout(t *testing.T) {
 	}
 }
 
+// TestLayoutDiscovery_UnparseableLayoutDoesNotShadowFallback pins the
+// regression where a _layouts file that fails to parse (unmigrated
+// Jekyll/Liquid syntax such as {{ site.title }}) was still registered as
+// an EMPTY template under its basename. resolveTemplateName then picked
+// the empty template and posts using that layout rendered blank pages
+// instead of falling back to singlePage.
+func TestLayoutDiscovery_UnparseableLayoutDoesNotShadowFallback(t *testing.T) {
+	tmp := chdirTemp(t)
+	minimalDefaultTemplates(t, tmp)
+
+	// {{ site.title }} references an undefined function -> Go template
+	// parse error. The file must be skipped entirely.
+	mustWriteFile(t, filepath.Join(tmp, "_layouts", "post.html"),
+		`<article>{{ site.title }}</article>`)
+
+	cfg := &config.Config{Title: "T"}
+	tmpl, err := loadTemplates(cfg)
+	if err != nil {
+		t.Fatalf("loadTemplates: %v", err)
+	}
+	if tmpl.Lookup("post") != nil {
+		t.Fatal(`unparseable _layouts/post.html must not register a "post" template`)
+	}
+
+	// The layout candidate falls through to singlePage instead of
+	// resolving to an empty template.
+	if got := mustResolve(t, tmpl, []string{"post", "singlePage"}); got != "singlePage" {
+		t.Fatalf("expected fallback to singlePage, got %q", got)
+	}
+}
+
 func mustResolve(t *testing.T, tmpl renderer, candidates []string) string {
 	t.Helper()
 	name, err := resolveTemplateName(tmpl, candidates)
