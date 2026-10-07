@@ -8,6 +8,7 @@ import (
 
 	"github.com/mengbin92/gobin/internal/config"
 	"github.com/mengbin92/gobin/internal/log"
+	"github.com/spf13/cobra"
 )
 
 // withFlagValues saves the package-level flag vars, runs fn, then
@@ -97,6 +98,39 @@ func TestOverlayFlagsOnValues_VerboseSetsDebug(t *testing.T) {
 		}
 		if got.File != "/tmp/flag.log" {
 			t.Fatalf("--log-file should win, got %q", got.File)
+		}
+	})
+}
+
+func TestAddGlobalFlags_LogFormatDefaultsToUnset(t *testing.T) {
+	// The --log-format default must be empty so that cobra does not clobber
+	// the env/config layers with "text" when the user never passed the flag
+	// (flag > env > config > default priority). log.NewFromValues resolves
+	// an empty format to the text handler.
+	root := &cobra.Command{Use: "gobin"}
+	AddGlobalFlags(root)
+	f := root.PersistentFlags().Lookup("log-format")
+	if f == nil {
+		t.Fatal("--log-format flag not registered")
+	}
+	if f.DefValue != "" {
+		t.Fatalf("--log-format default = %q, want empty (unset)", f.DefValue)
+	}
+}
+
+func TestOverlayFlagsOnValues_UnsetFormatFlagKeepsLowerLayers(t *testing.T) {
+	// With the flag default now empty (so cobra does not clobber the
+	// config/env layers), an unset --log-format must leave the config
+	// format intact. This is the flag > env > config > default priority
+	// the v1.5.0 logging spec documents.
+	withFlagValues(false, "", "", func() {
+		base := log.ConfigValues{Level: "warn", Format: "json", File: ""}
+		got := overlayFlagsOnValues(base)
+		if got.Format != "json" {
+			t.Fatalf("unset --log-format must not override config format, got %q", got.Format)
+		}
+		if got.Level != "warn" {
+			t.Fatalf("unset flags must not override config level, got %q", got.Level)
 		}
 	})
 }
